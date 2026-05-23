@@ -1584,7 +1584,12 @@
         </div>
         <div class="cc-divider"></div>
         <div class="cc-info">
-          <div class="cc-grade">${c.grade}°${c.section || c.number}</div>
+          <div class="cc-grade">
+            ${c.type === 'subgroup'
+              ? `<span style="background:#dcfce7;color:#166534;font-size:.65rem;font-weight:700;padding:.1rem .4rem;border-radius:999px;border:1px solid #86efac;margin-right:.35rem;vertical-align:middle;">SUBGRUPO</span>${c.name || c.section || c.number}`
+              : `${c.grade}°${c.section || c.number}`
+            }
+          </div>
           <div class="cc-subject">${c.subject || 'Clase'}</div>
           <div class="cc-stats">
             <span class="cc-stat">👥 ${c.students_count || 0}</span>
@@ -1627,7 +1632,8 @@
     _attDirty = false; // fresh course, no unsaved changes
     document.getElementById('att-no-course').style.display = 'none';
     document.getElementById('att-content').style.display   = 'block';
-    document.getElementById('att-course-title').textContent = `${course.grade}°${course.number} — ${course.subject || 'Clase'}`;
+    const courseLabel = course.type === 'subgroup' ? (course.name || 'Subgrupo') : `${course.grade}°${course.number}`;
+    document.getElementById('att-course-title').textContent = `${courseLabel} — ${course.subject || 'Clase'}`;
     const today = todayColombia();
     document.getElementById('att-date-picker').value = today;
     document.getElementById('att-date-info').textContent =
