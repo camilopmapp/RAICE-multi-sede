@@ -1,9 +1,4 @@
 {
-  "functions": {
-    "pages/api/[...path].js": {
-      "maxDuration": 60
-    }
-  },
   "crons": [
     {
       "path": "/api/raice/cron/weekly-report",

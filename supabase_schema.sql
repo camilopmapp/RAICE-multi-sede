@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS raice_students (
   birth_date  DATE,
   notes       TEXT,
   status      TEXT        NOT NULL DEFAULT 'active'
-                          CHECK (status IN ('active','inactive','retired')),
+                          CHECK (status IN ('active','inactive','retired','graduated')),
   phone       TEXT,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -159,7 +159,7 @@ CREATE TABLE IF NOT EXISTS raice_attendance (
   date              DATE        NOT NULL,
   class_hour        INTEGER     NOT NULL DEFAULT 1,
   status            TEXT        NOT NULL DEFAULT 'P'
-                                CHECK (status IN ('P','A','T','PE','S')),
+                                CHECK (status IN ('P','A','T','PE','S','NR')),
   corrected_by      UUID        REFERENCES raice_users(id) ON DELETE SET NULL,
   corrected_at      TIMESTAMPTZ,
   correction_reason TEXT,
