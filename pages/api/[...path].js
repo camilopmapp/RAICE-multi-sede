@@ -6377,7 +6377,40 @@ async function handleBackupImport(req, res, user) {
           }
         }
 
-        throw error;
+        // 3. Fallback final uno a uno si el lote masivo sigue fallando (por duplicados, fkey, etc.)
+        console.warn(`[BACKUP RESTORE] Upsert masivo de ${tableName} falló. Ejecutando fallback uno a uno para salvar registros válidos.`);
+        let succeeded = 0;
+        for (const row of batch) {
+          let cleanedRow = { ...row };
+          if (tableName === 'raice_students' && cleanedRow.status === 'graduated') {
+            cleanedRow.status = 'retired';
+          }
+          if (tableName === 'raice_attendance' && (cleanedRow.status === 'S' || cleanedRow.status === 'NR')) {
+            cleanedRow.status = 'P';
+            cleanedRow.activity_note = `[Restaurado desde ${row.status}] ${cleanedRow.activity_note || ''}`;
+          }
+
+          let { error: singleErr } = await sb.from(tableName).upsert(cleanedRow, { onConflict: 'id', ignoreDuplicates: false });
+          if (singleErr) {
+            // Si es columna inexistente en registro individual, limpiarla y reintentar
+            if (singleErr.code === '42703' || singleErr.message?.includes('does not exist')) {
+              const match = singleErr.message.match(/column "([^"]+)"/);
+              if (match && match[1]) {
+                const badCol = match[1];
+                const { [badCol]: _, ...rest } = cleanedRow;
+                const { error: retryErr } = await sb.from(tableName).upsert(rest, { onConflict: 'id', ignoreDuplicates: false });
+                if (!retryErr) {
+                  succeeded++;
+                  continue;
+                }
+              }
+            }
+            errors.push(`${tableName} (Fila ID: ${row.id || '?' }): ${singleErr.message}`);
+          } else {
+            succeeded++;
+          }
+        }
+        return succeeded;
       }
       return batch.length;
     }
