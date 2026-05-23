@@ -6293,9 +6293,34 @@ async function handleBackupImport(req, res, user) {
   if (!checkRateLimit(req, res)) return;
 
   const sb = getSupabase();
-  const { backup, confirm_phrase, confirm_username, confirm_password } = req.body || {};
+  const { backup, confirm_phrase, confirm_username, confirm_password, step } = req.body || {};
 
-  // ── Verificación de seguridad ─────────────────────────────────────────────
+  const errors  = [];
+  const results = {};
+
+  async function upsertBatch(tableName, rows, batchSize = 300) {
+    if (!rows || !rows.length) return 0;
+    let total = 0;
+    for (let i = 0; i < rows.length; i += batchSize) {
+      const batch = rows.slice(i, i + batchSize);
+      const { error } = await sb.from(tableName).upsert(batch, { onConflict: 'id', ignoreDuplicates: false });
+      if (error) { errors.push(`${tableName}: ${error.message}`); }
+      else total += batch.length;
+    }
+    return total;
+  }
+
+  // ── Paso 2: solo asistencia — JWT ya verificado, sin re-confirmación ──────
+  if (step === 2) {
+    const att = backup?.tables?.attendance || [];
+    results.attendance = await upsertBatch('raice_attendance', att, 1000);
+    return res.status(200).json({
+      success: errors.length === 0, results, errors,
+      message: errors.length > 0 ? `Asistencia con ${errors.length} advertencia(s)` : 'Asistencia restaurada'
+    });
+  }
+
+  // ── Paso 1: todo excepto asistencia — requiere confirmación ───────────────
   if ((confirm_phrase || '').trim().toUpperCase() !== 'RESTAURAR') {
     return res.status(400).json({ error: 'Frase de confirmación incorrecta. Escribe exactamente: RESTAURAR' });
   }
@@ -6322,21 +6347,6 @@ async function handleBackupImport(req, res, user) {
   }
 
   const t = backup.tables;
-  const results = {};
-  const errors  = [];
-
-  // Upsert en lotes — captura errores por tabla sin abortar el resto
-  async function upsertBatch(tableName, rows, batchSize = 300) {
-    if (!rows || !rows.length) return 0;
-    let total = 0;
-    for (let i = 0; i < rows.length; i += batchSize) {
-      const batch = rows.slice(i, i + batchSize);
-      const { error } = await sb.from(tableName).upsert(batch, { onConflict: 'id', ignoreDuplicates: false });
-      if (error) { errors.push(`${tableName}: ${error.message}`); }
-      else total += batch.length;
-    }
-    return total;
-  }
 
   // ── 1. Sin dependencias externas ─────────────────────────────────────────
   if (t.config?.length) {
@@ -6426,20 +6436,14 @@ async function handleBackupImport(req, res, user) {
   // conflictos de UNIQUE(code) o FK con IDs distintos a los del backup.
   // ON DELETE CASCADE limpia asistencia y observaciones; se re-importan desde backup.
   if (t.students?.length) {
+    // Borrar TODOS los estudiantes (el .neq garantiza que aplica a toda la tabla)
     const { error: delStudErr } = await sb.from('raice_students')
-      .delete().in('status', ['active', 'transferred', 'retired']);
+      .delete().neq('id', '00000000-0000-0000-0000-000000000000');
     if (delStudErr) errors.push(`student_delete: ${delStudErr.message}`);
   }
-  results.students = await upsertBatch('raice_students', t.students);
+  results.students = await upsertBatch('raice_students', t.students, 500);
 
-  // ── 6. Dependientes de estudiantes y/o usuarios ───────────────────────────
-  results.acudientes          = await upsertBatch('raice_acudientes',         t.acudientes);
-  results.teacher_courses     = await upsertBatch('raice_teacher_courses',    t.teacher_courses);
-  results.schedules           = await upsertBatch('raice_schedules',          t.schedules);
-
-  // ── 7. Casos y sus hijos ──────────────────────────────────────────────────
-  // Fix FK: closed_by puede referenciar un superadmin no exportado → nullificar
-  // Fix CHECK: status='escalado' no está en el constraint → mapear a 'tracking'
+  // ── 6-7. Parallelizar imports independientes (no dependen entre sí) ─────────
   const validCaseStatuses = new Set(['open', 'tracking', 'closed']);
   const importedUserIds   = new Set((t.teachers || []).map(u => u.id));
   const casesFixed = (t.cases || []).map(c => ({
@@ -6447,24 +6451,43 @@ async function handleBackupImport(req, res, user) {
     closed_by: c.closed_by && importedUserIds.has(c.closed_by) ? c.closed_by : null,
     status:    validCaseStatuses.has(c.status) ? c.status : 'tracking',
   }));
-  results.cases       = await upsertBatch('raice_cases',       casesFixed);
-  results.followups   = await upsertBatch('raice_followups',   t.followups);
-  results.citations   = await upsertBatch('raice_citations',   t.citations);
-  results.commitments = await upsertBatch('raice_commitments', t.commitments);
-  // tipo1_escalones depende de cases — importar después
+
+  const [
+    acudientesR, teacherCoursesR, schedulesR,
+    casesR, followupsR, citationsR, commitmentsR,
+    suspensionsR, classroomR, teacherAbsR, absReplR, gradeHistR,
+  ] = await Promise.all([
+    upsertBatch('raice_acudientes',              t.acudientes),
+    upsertBatch('raice_teacher_courses',         t.teacher_courses),
+    upsertBatch('raice_schedules',               t.schedules),
+    upsertBatch('raice_cases',                   casesFixed),
+    upsertBatch('raice_followups',               t.followups),
+    upsertBatch('raice_citations',               t.citations),
+    upsertBatch('raice_commitments',             t.commitments),
+    upsertBatch('raice_suspensions',             t.suspensions),
+    upsertBatch('raice_classroom_removals',      t.classroom_removals),
+    upsertBatch('raice_teacher_absences',        t.teacher_absences),
+    upsertBatch('raice_absence_replacements',    t.absence_replacements),
+    upsertBatch('raice_student_grade_history',   t.student_grade_history),
+  ]);
+  results.acudientes = acudientesR; results.teacher_courses = teacherCoursesR;
+  results.schedules = schedulesR; results.cases = casesR;
+  results.followups = followupsR; results.citations = citationsR;
+  results.commitments = commitmentsR; results.suspensions = suspensionsR;
+  results.classroom_removals = classroomR; results.teacher_absences = teacherAbsR;
+  results.absence_replacements = absReplR; results.student_grade_history = gradeHistR;
+
+  // tipo1_escalones depende de cases — después del Promise.all
   results.tipo1_escalones = await upsertBatch('raice_tipo1_escalones', t.tipo1_escalones);
 
-  // ── 8. Observaciones y asistencia (pueden ser grandes) ───────────────────
-  results.observations = await upsertBatch('raice_observations', t.observations);
-  results.attendance   = await upsertBatch('raice_attendance',   t.attendance, 500);
-
-  // ── 9. Sanciones y otros ─────────────────────────────────────────────────
-  results.suspensions        = await upsertBatch('raice_suspensions',        t.suspensions);
-  results.classroom_removals = await upsertBatch('raice_classroom_removals', t.classroom_removals);
+  // ── 8. Observaciones y asistencia en paralelo ────────────────────────────
   try { results.excusas = await upsertBatch('raice_excusas', t.excusas); } catch(_) {}
-  results.teacher_absences       = await upsertBatch('raice_teacher_absences',      t.teacher_absences);
-  results.absence_replacements   = await upsertBatch('raice_absence_replacements',  t.absence_replacements);
-  results.student_grade_history  = await upsertBatch('raice_student_grade_history', t.student_grade_history);
+  const [obsR, attR] = await Promise.all([
+    upsertBatch('raice_observations', t.observations),
+    upsertBatch('raice_attendance',   t.attendance, 1000),
+  ]);
+  results.observations = obsR;
+  results.attendance   = attR;
 
   await logActivity(sb, user.id, 'backup_import',
     `Backup v${backup.version||'?'} restaurado: ${results.students||0} estudiantes, ${results.attendance||0} asistencias, ${results.cases||0} casos. Errores: ${errors.length}`);
