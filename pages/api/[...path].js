@@ -4426,7 +4426,7 @@ async function handleBackupExport(req, res, user) {
         acudientes:            acudientes.length,
         teachers:              teachers.length,
         role_teachers:         teachers.filter(u => u.role === 'teacher').length,
-        role_coordinators:     teachers.filter(u => u.role === 'admin').length,
+        role_coordinators:     teachers.filter(u => u.role === 'coordinator').length,
         role_rectores:         teachers.filter(u => u.role === 'rector').length,
         courses:               courses.length,
         schedules:             schedules.length,
@@ -6293,38 +6293,9 @@ async function handleBackupImport(req, res, user) {
   if (!checkRateLimit(req, res)) return;
 
   const sb = getSupabase();
-  const { backup, confirm_phrase, confirm_username, confirm_password, step } = req.body || {};
+  const { backup, confirm_phrase, confirm_username, confirm_password } = req.body || {};
 
-  const errors  = [];
-  const results = {};
-
-  async function upsertBatch(tableName, rows, batchSize = 300) {
-    if (!rows || !rows.length) return 0;
-    let total = 0;
-    for (let i = 0; i < rows.length; i += batchSize) {
-      const batch = rows.slice(i, i + batchSize);
-      const { error } = await sb.from(tableName).upsert(batch, { onConflict: 'id', ignoreDuplicates: false });
-      if (error) { errors.push(`${tableName}: ${error.message}`); }
-      else total += batch.length;
-    }
-    return total;
-  }
-
-  // ── Paso 2: tablas grandes en paralelo — JWT verificado, sin re-confirmación
-  if (step === 2) {
-    const [attR, obsR, gradeHistR] = await Promise.all([
-      upsertBatch('raice_attendance',          backup?.tables?.attendance          || [], 1000),
-      upsertBatch('raice_observations',        backup?.tables?.observations        || []),
-      upsertBatch('raice_student_grade_history', backup?.tables?.student_grade_history || []),
-    ]);
-    results.attendance = attR; results.observations = obsR; results.student_grade_history = gradeHistR;
-    return res.status(200).json({
-      success: errors.length === 0, results, errors,
-      message: errors.length > 0 ? `Datos grandes con ${errors.length} advertencia(s)` : 'Restaurado correctamente'
-    });
-  }
-
-  // ── Paso 1: todo excepto asistencia — requiere confirmación ───────────────
+  // ── Verificación de seguridad ─────────────────────────────────────────────
   if ((confirm_phrase || '').trim().toUpperCase() !== 'RESTAURAR') {
     return res.status(400).json({ error: 'Frase de confirmación incorrecta. Escribe exactamente: RESTAURAR' });
   }
@@ -6351,6 +6322,77 @@ async function handleBackupImport(req, res, user) {
   }
 
   const t = backup.tables;
+  const results = {};
+  const errors  = [];
+
+  // Upsert en lotes — captura errores por tabla sin abortar el resto
+  // Upsert en lotes — captura errores por tabla sin abortar el resto
+  async function upsertBatch(tableName, rows, batchSize = 300) {
+    if (!rows || !rows.length) return 0;
+    let total = 0;
+
+    async function tryUpsert(batch) {
+      let { error } = await sb.from(tableName).upsert(batch, { onConflict: 'id', ignoreDuplicates: false });
+      if (error) {
+        // 1. Column inexistente (código 42703) → eliminar columna y reintentar
+        if (error.code === '42703' || (error.message && error.message.includes('does not exist'))) {
+          const match = error.message.match(/column "([^"]+)"/);
+          if (match && match[1]) {
+            const badCol = match[1];
+            console.warn(`[BACKUP RESTORE] Eliminando columna inexistente "${badCol}" de ${tableName} y reintentando.`);
+            const cleanedBatch = batch.map(row => {
+              const { [badCol]: _, ...rest } = row;
+              return rest;
+            });
+            return await tryUpsert(cleanedBatch);
+          }
+        }
+
+        // 2. Violación de restricción CHECK (código 23514) → sanitizar valores y reintentar
+        if (error.code === '23514' || (error.message && error.message.includes('check constraint'))) {
+          let sanitized = false;
+          const cleanedBatch = batch.map(row => {
+            const newRow = { ...row };
+            // Estudiantes: mapear graduated a retired si la base de datos es antigua
+            if (tableName === 'raice_students') {
+              if (newRow.status === 'graduated') {
+                newRow.status = 'retired';
+                sanitized = true;
+              }
+            }
+            // Asistencia: mapear S o NR a P si la base de datos es antigua
+            if (tableName === 'raice_attendance') {
+              if (newRow.status === 'S' || newRow.status === 'NR') {
+                newRow.status = 'P';
+                newRow.activity_note = `[Restaurado desde ${row.status}] ${newRow.activity_note || ''}`;
+                sanitized = true;
+              }
+            }
+            return newRow;
+          });
+
+          if (sanitized) {
+            console.warn(`[BACKUP RESTORE] Sanitizando restricciones CHECK en ${tableName} y reintentando.`);
+            return await tryUpsert(cleanedBatch);
+          }
+        }
+
+        throw error;
+      }
+      return batch.length;
+    }
+
+    for (let i = 0; i < rows.length; i += batchSize) {
+      const batch = rows.slice(i, i + batchSize);
+      try {
+        const count = await tryUpsert(batch);
+        total += count;
+      } catch (err) {
+        errors.push(`${tableName} (lote ${i}-${i + batchSize}): ${err.message || err}`);
+      }
+    }
+    return total;
+  }
 
   // ── 1. Sin dependencias externas ─────────────────────────────────────────
   if (t.config?.length) {
@@ -6380,74 +6422,90 @@ async function handleBackupImport(req, res, user) {
   results.periods = await upsertBatch('raice_periods', t.periods);
   results.calendar        = await upsertBatch('raice_calendar',        t.calendar);
 
-  // ── 2. Cursos (sin director aún) — 2 queries en vez de N ─────────────────
-  if (t.courses?.length) {
-    const backupCourseIds = new Set(t.courses.map(c => c.id));
-    const { data: existingCourses } = await sb.from('raice_courses').select('id');
-    const toDelete = (existingCourses || []).filter(c => !backupCourseIds.has(c.id)).map(c => c.id);
-    if (toDelete.length) await sb.from('raice_courses').delete().in('id', toDelete);
-  }
+  // ── 2. Cursos (sin director aún para evitar FK a usuarios no existentes) ─
   const coursesNullDir = (t.courses || []).map(c => ({ ...c, director_id: null }));
   results.courses = await upsertBatch('raice_courses', coursesNullDir);
 
-  // ── 3. Usuarios (docentes) — batch upsert preservando password_hash ───────
+  // ── 3. Usuarios (docentes) — no sobrescribir contraseña si ya existen ────
   if (t.teachers?.length) {
     const ids = t.teachers.map(u => u.id);
-    const { data: existing } = await sb.from('raice_users')
-      .select('id, password_hash').in('id', ids);
-    const existingMap = Object.fromEntries((existing || []).map(u => [u.id, u.password_hash]));
+    const { data: existing } = await sb.from('raice_users').select('id').in('id', ids);
+    const existingSet = new Set((existing || []).map(u => u.id));
 
-    const tempHash = await bcrypt.hash('Cambiar123!', 10);
-    const usersToUpsert = t.teachers.map(u => ({
-      id: u.id, username: u.username, first_name: u.first_name,
-      last_name: u.last_name, email: u.email || null,
-      role: u.role, active: u.active ?? true,
-      // Mantener contraseña existente; para usuarios nuevos usar hash temporal
-      password_hash: existingMap[u.id] ?? tempHash,
-    }));
+    // Actualizar existentes (sin tocar password_hash)
+    for (const u of t.teachers.filter(x => existingSet.has(x.id))) {
+      let { error } = await sb.from('raice_users').update({
+        username: u.username, first_name: u.first_name, last_name: u.last_name,
+        email: u.email || null, role: u.role, active: u.active ?? true
+      }).eq('id', u.id);
 
-    // Upsert en lotes — para conflicto de email: reintentar sin email uno a uno
-    for (let i = 0; i < usersToUpsert.length; i += 50) {
-      const batch = usersToUpsert.slice(i, i + 50);
-      const { error: uErr } = await sb.from('raice_users')
-        .upsert(batch, { onConflict: 'id', ignoreDuplicates: false });
-      if (uErr) {
-        if (uErr.code === '23505' && uErr.message?.toLowerCase().includes('email')) {
-          // Conflicto de email: reintentar el lote sin emails
-          const { error: retryErr } = await sb.from('raice_users')
-            .upsert(batch.map(u => ({ ...u, email: null })), { onConflict: 'id' });
-          if (retryErr) errors.push(`users_upsert: ${retryErr.message}`);
-          else errors.push('Algunos emails duplicados — importados sin email, actualizar manualmente');
-        } else {
-          errors.push(`users_upsert: ${uErr.message}`);
+      // Si falla por restricción CHECK (código 23514) y es rector, intentar con admin
+      if (error && u.role === 'rector' && (error.code === '23514' || error.message?.includes('check constraint'))) {
+        const res2 = await sb.from('raice_users').update({
+          username: u.username, first_name: u.first_name, last_name: u.last_name,
+          email: u.email || null, role: 'admin', active: u.active ?? true
+        }).eq('id', u.id);
+        error = res2.error;
+        if (!error) {
+          errors.push(`user_update ${u.username}: Rol 'rector' no soportado por la base de datos. Se importó con rol 'admin'.`);
+        }
+      }
+
+      if (error) errors.push(`user_update ${u.username}: ${error.message}`);
+    }
+
+    // Insertar nuevos con contraseña temporal — uno a uno para capturar conflictos de email
+    const newUsers = t.teachers.filter(x => !existingSet.has(x.id));
+    if (newUsers.length) {
+      const tempHash = await bcrypt.hash('Cambiar123!', 10);
+      for (const u of newUsers) {
+        const candidate = {
+          id: u.id, username: u.username, first_name: u.first_name,
+          last_name: u.last_name, email: u.email || null,
+          role: u.role, active: u.active ?? true, password_hash: tempHash
+        };
+        let { error: insErr } = await sb.from('raice_users').insert(candidate);
+
+        // Si falla por restricción CHECK y es rector, intentar con admin
+        if (insErr && u.role === 'rector' && (insErr.code === '23514' || insErr.message?.includes('check constraint'))) {
+          const res2 = await sb.from('raice_users').insert({ ...candidate, role: 'admin' });
+          insErr = res2.error;
+          if (!insErr) {
+            errors.push(`user_insert_${u.username}: Rol 'rector' no soportado por la base de datos. Se importó con rol 'admin'.`);
+          }
+        }
+
+        if (insErr) {
+          // Conflicto de email (unique violation 23505) → reintentar sin email
+          if (insErr.code === '23505' && insErr.message?.toLowerCase().includes('email')) {
+            const { error: retryErr } = await sb.from('raice_users').insert({ ...candidate, email: null });
+            if (retryErr) errors.push(`user_insert_${u.username}: ${retryErr.message}`);
+            else errors.push(`user_insert_${u.username}: email duplicado en BD — importado sin email, actualizar manualmente`);
+          } else {
+            errors.push(`user_insert_${u.username}: ${insErr.message}`);
+          }
         }
       }
     }
     results.users = t.teachers.length;
   }
 
-  // ── 4. Actualizar director_id — 1 upsert en vez de N updates ─────────────
-  const coursesWithDir = (t.courses || []).filter(c => c.director_id);
-  if (coursesWithDir.length) {
-    await sb.from('raice_courses').upsert(
-      coursesWithDir.map(c => ({ id: c.id, grade: c.grade, number: c.number, director_id: c.director_id })),
-      { onConflict: 'id' }
-    );
+  // ── 4. Actualizar director_id en cursos (ahora que los usuarios existen) ─
+  for (const c of (t.courses || []).filter(x => x.director_id)) {
+    await sb.from('raice_courses').update({ director_id: c.director_id }).eq('id', c.id);
   }
 
   // ── 5. Estudiantes (necesita cursos) ─────────────────────────────────────
-  // Restore completo: eliminar todos los estudiantes existentes primero para evitar
-  // conflictos de UNIQUE(code) o FK con IDs distintos a los del backup.
-  // ON DELETE CASCADE limpia asistencia y observaciones; se re-importan desde backup.
-  if (t.students?.length) {
-    // Borrar TODOS los estudiantes (el .neq garantiza que aplica a toda la tabla)
-    const { error: delStudErr } = await sb.from('raice_students')
-      .delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    if (delStudErr) errors.push(`student_delete: ${delStudErr.message}`);
-  }
-  results.students = await upsertBatch('raice_students', t.students, 500);
+  results.students = await upsertBatch('raice_students', t.students);
 
-  // ── 6-7. Parallelizar imports independientes (no dependen entre sí) ─────────
+  // ── 6. Dependientes de estudiantes y/o usuarios ───────────────────────────
+  results.acudientes          = await upsertBatch('raice_acudientes',         t.acudientes);
+  results.teacher_courses     = await upsertBatch('raice_teacher_courses',    t.teacher_courses);
+  results.schedules           = await upsertBatch('raice_schedules',          t.schedules);
+
+  // ── 7. Casos y sus hijos ──────────────────────────────────────────────────
+  // Fix FK: closed_by puede referenciar un superadmin no exportado → nullificar
+  // Fix CHECK: status='escalado' no está en el constraint → mapear a 'tracking'
   const validCaseStatuses = new Set(['open', 'tracking', 'closed']);
   const importedUserIds   = new Set((t.teachers || []).map(u => u.id));
   const casesFixed = (t.cases || []).map(c => ({
@@ -6455,43 +6513,31 @@ async function handleBackupImport(req, res, user) {
     closed_by: c.closed_by && importedUserIds.has(c.closed_by) ? c.closed_by : null,
     status:    validCaseStatuses.has(c.status) ? c.status : 'tracking',
   }));
-
-  const [
-    acudientesR, teacherCoursesR, schedulesR,
-    casesR, followupsR, citationsR, commitmentsR,
-    suspensionsR, classroomR, teacherAbsR, absReplR,
-  ] = await Promise.all([
-    upsertBatch('raice_acudientes',              t.acudientes),
-    upsertBatch('raice_teacher_courses',         t.teacher_courses),
-    upsertBatch('raice_schedules',               t.schedules),
-    upsertBatch('raice_cases',                   casesFixed),
-    upsertBatch('raice_followups',               t.followups),
-    upsertBatch('raice_citations',               t.citations),
-    upsertBatch('raice_commitments',             t.commitments),
-    upsertBatch('raice_suspensions',             t.suspensions),
-    upsertBatch('raice_classroom_removals',      t.classroom_removals),
-    upsertBatch('raice_teacher_absences',        t.teacher_absences),
-    upsertBatch('raice_absence_replacements',    t.absence_replacements),
-  ]);
-  results.acudientes = acudientesR; results.teacher_courses = teacherCoursesR;
-  results.schedules = schedulesR; results.cases = casesR;
-  results.followups = followupsR; results.citations = citationsR;
-  results.commitments = commitmentsR; results.suspensions = suspensionsR;
-  results.classroom_removals = classroomR; results.teacher_absences = teacherAbsR;
-  results.absence_replacements = absReplR;
-
-  // tipo1_escalones depende de cases — después del Promise.all
+  results.cases       = await upsertBatch('raice_cases',       casesFixed);
+  results.followups   = await upsertBatch('raice_followups',   t.followups);
+  results.citations   = await upsertBatch('raice_citations',   t.citations);
+  results.commitments = await upsertBatch('raice_commitments', t.commitments);
+  // tipo1_escalones depende de cases — importar después
   results.tipo1_escalones = await upsertBatch('raice_tipo1_escalones', t.tipo1_escalones);
 
-  // ── 8. excusas (pequeña tabla — no afecta tiempo) ────────────────────────
+  // ── 8. Observaciones y asistencia (pueden ser grandes) ───────────────────
+  results.observations = await upsertBatch('raice_observations', t.observations);
+  results.attendance   = await upsertBatch('raice_attendance',   t.attendance, 500);
+
+  // ── 9. Sanciones y otros ─────────────────────────────────────────────────
+  results.suspensions        = await upsertBatch('raice_suspensions',        t.suspensions);
+  results.classroom_removals = await upsertBatch('raice_classroom_removals', t.classroom_removals);
   try { results.excusas = await upsertBatch('raice_excusas', t.excusas); } catch(_) {}
+  results.teacher_absences       = await upsertBatch('raice_teacher_absences',      t.teacher_absences);
+  results.absence_replacements   = await upsertBatch('raice_absence_replacements',  t.absence_replacements);
+  results.student_grade_history  = await upsertBatch('raice_student_grade_history', t.student_grade_history);
 
   await logActivity(sb, user.id, 'backup_import',
     `Backup v${backup.version||'?'} restaurado: ${results.students||0} estudiantes, ${results.attendance||0} asistencias, ${results.cases||0} casos. Errores: ${errors.length}`);
 
   const role_stats = {
     role_teachers:     (t.teachers || []).filter(u => u.role === 'teacher').length,
-    role_coordinators: (t.teachers || []).filter(u => u.role === 'admin').length,
+    role_coordinators: (t.teachers || []).filter(u => u.role === 'coordinator').length,
     role_rectores:     (t.teachers || []).filter(u => u.role === 'rector').length,
   };
 

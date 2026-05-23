@@ -4344,7 +4344,7 @@
         const t = data.tables;
         const _teachers = t.teachers || [];
         const nDocentes  = _teachers.filter(u => u.role === 'teacher').length;
-        const nCoords    = _teachers.filter(u => u.role === 'admin').length;
+        const nCoords    = _teachers.filter(u => u.role === 'coordinator').length;
         const nRectores  = _teachers.filter(u => u.role === 'rector').length;
 
         // Verificación de integridad contra metadatos del backup
@@ -4353,11 +4353,7 @@
           const tot = data.totals;
           const issues = [];
           if (tot.role_teachers     !== undefined && tot.role_teachers     !== nDocentes)  issues.push(`Docentes: esperados ${tot.role_teachers}, encontrados ${nDocentes}`);
-          // Si el backup tiene 0 coordinadores pero se encontraron más, es un backup generado
-          // antes de la corrección del conteo (bug conocido: se contaban como role='coordinator'
-          // en vez de role='admin'). No es corrupción de datos.
-          if (tot.role_coordinators !== undefined && tot.role_coordinators !== nCoords && !(tot.role_coordinators === 0 && nCoords > 0))
-            issues.push(`Coordinadores: esperados ${tot.role_coordinators}, encontrados ${nCoords}`);
+          if (tot.role_coordinators !== undefined && tot.role_coordinators !== nCoords)    issues.push(`Coordinadores: esperados ${tot.role_coordinators}, encontrados ${nCoords}`);
           if (tot.role_rectores     !== undefined && tot.role_rectores     !== nRectores)  issues.push(`Rectores: esperados ${tot.role_rectores}, encontrados ${nRectores}`);
           if (tot.students          !== undefined && tot.students          !== (t.students||[]).length) issues.push(`Estudiantes: esperados ${tot.students}, encontrados ${(t.students||[]).length}`);
           if (issues.length) {
@@ -4435,22 +4431,12 @@
 
     errEl.style.display = 'none';
     submitBtn.disabled = true;
-    submitBtn.textContent = '⏳ Restaurando datos…';
+    submitBtn.textContent = '⏳ Verificando…';
 
-    // Paso 1: todo excepto tablas grandes (asistencia, observaciones, historial de grado)
-    const backupPaso1 = {
-      ..._importBackupData,
-      tables: {
-        ..._importBackupData.tables,
-        attendance:            [],
-        observations:          [],
-        student_grade_history: [],
-      }
-    };
     const { ok, data } = await fetchAPI('/raice/backup/import', {
       method: 'POST',
       body: JSON.stringify({
-        backup: backupPaso1,
+        backup: _importBackupData,
         confirm_phrase:   phrase,
         confirm_username: username,
         confirm_password: password
@@ -4460,54 +4446,17 @@
     submitBtn.textContent = '🔓 Confirmar y restaurar';
 
     if (!ok) {
-      const rawErr = data?.error;
-      const errMsg = typeof rawErr === 'string' ? rawErr
-        : rawErr?.message?.includes('TIMEOUT') ? 'El servidor tardó demasiado. Intenta de nuevo.'
-        : rawErr?.message || rawErr?.code || JSON.stringify(rawErr) || 'Error al verificar. Intenta de nuevo.';
-      errEl.textContent = errMsg;
+      errEl.textContent = data?.error || 'Error al verificar. Intenta de nuevo.';
       errEl.style.display = 'block';
       submitBtn.disabled = false;
       return;
     }
 
-    // Paso 2: tablas grandes en paralelo (asistencia + observaciones + historial)
-    const attRows   = _importBackupData?.tables?.attendance            || [];
-    const obsRows   = _importBackupData?.tables?.observations          || [];
-    const gradeRows = _importBackupData?.tables?.student_grade_history || [];
-    let step2Result = { results: { attendance: 0, observations: 0, student_grade_history: 0 }, errors: [] };
-    if (attRows.length || obsRows.length || gradeRows.length) {
-      closeBackupConfirmModal();
-      const status = document.getElementById('backup-import-status');
-      const totalStep2 = attRows.length + obsRows.length + gradeRows.length;
-      status.innerHTML = `<span style="color:var(--navy);">⏳ Importando datos grandes (${totalStep2} registros: ${attRows.length} asistencias, ${obsRows.length} observaciones, ${gradeRows.length} historial)…</span>`;
-      const { ok: ok2, data: data2 } = await fetchAPI('/raice/backup/import', {
-        method: 'POST',
-        body: JSON.stringify({
-          backup: { tables: { attendance: attRows, observations: obsRows, student_grade_history: gradeRows } },
-          step: 2
-        })
-      });
-      if (ok2) step2Result = data2;
-    } else {
-      closeBackupConfirmModal();
-    }
-
-    // Combinar resultados de ambos pasos
-    const combinedData = {
-      ...data,
-      results: {
-        ...data.results,
-        attendance:            step2Result.results?.attendance            || 0,
-        observations:          step2Result.results?.observations          || 0,
-        student_grade_history: step2Result.results?.student_grade_history || 0,
-      },
-      errors: [...(data.errors || []), ...(step2Result.errors || [])],
-    };
-
-    // Éxito — mostrar resultado
+    // Éxito — cerrar modal y mostrar resultado
+    closeBackupConfirmModal();
     const status = document.getElementById('backup-import-status');
-    if (combinedData.success || combinedData.results) {
-      const tables = combinedData.results || {};
+    if (data.success || data.results) {
+      const tables = data.results || {};
       const labelMap = { config:'Config', faltas_catalogo:'Faltas', courses:'Cursos', users:'Personal',
         students:'Estudiantes', attendance:'Asistencia', cases:'Casos', followups:'Seguimientos',
         observations:'Observaciones', suspensions:'Suspensiones', classroom_removals:'Retiros',
@@ -4518,30 +4467,29 @@
         .map(([k, r]) => `${labelMap[k]||k}: <strong>${r}</strong>`)
         .join(' · ');
 
+      // Desglose por rol
       let roleBlock = '';
-      if (combinedData.role_stats) {
-        const rs = combinedData.role_stats;
+      if (data.role_stats) {
+        const rs = data.role_stats;
         roleBlock = `<br><small style="color:var(--gray);">👨‍🏫 Docentes: <strong>${rs.role_teachers}</strong> · Coordinadores: <strong>${rs.role_coordinators}</strong> · Rectores: <strong>${rs.role_rectores}</strong></small>`;
+        // Verificación de integridad vs metadatos del archivo
         const meta = _importBackupData?.totals;
         if (meta?.role_teachers !== undefined) {
           const issues = [];
           if (rs.role_teachers     !== meta.role_teachers)     issues.push(`Docentes ${rs.role_teachers}/${meta.role_teachers}`);
           if (rs.role_coordinators !== meta.role_coordinators) issues.push(`Coordinadores ${rs.role_coordinators}/${meta.role_coordinators}`);
           if (rs.role_rectores     !== meta.role_rectores)     issues.push(`Rectores ${rs.role_rectores}/${meta.role_rectores}`);
-          if (issues.length) roleBlock += `<br><span style="color:#dc2626;font-weight:700;">⛔ Integridad Comprometida: ${issues.join(' · ')}</span>`;
+          if (issues.length) {
+            roleBlock += `<br><span style="color:#dc2626;font-weight:700;">⛔ Integridad Comprometida: ${issues.join(' · ')}</span>`;
+          }
         }
       }
 
-      const errBlock = combinedData.errors?.length
-        ? `<br><span style="color:#dc2626;font-size:.8rem;"><strong>⚠️ Errores (${combinedData.errors.length}):</strong><br>${combinedData.errors.join('<br>')}</span>`
-        : '';
-      const zeroStudents = !tables.students
-        ? `<br><span style="color:#dc2626;font-size:.8rem;">⚠️ 0 estudiantes importados — revisa los errores arriba</span>` : '';
-      status.innerHTML = `<span style="color:#15803d;">✅ Backup restaurado<br><small style="color:var(--navy)">${counts}</small>${roleBlock}${errBlock}${zeroStudents}</span>`;
+      status.innerHTML = `<span style="color:#15803d;">✅ ${data.message || 'Backup restaurado'}<br><small style="color:var(--navy)">${counts}</small>${roleBlock}${data.errors?.length ? `<br><span style="color:#f59e0b;">⚠️ Advertencias: ${data.errors.slice(0,5).join('; ')}</span>` : ''}</span>`;
       showToast('✅ Backup restaurado correctamente', 'success');
       clearImportFile();
     } else {
-      status.innerHTML = `<span style="color:#ef4444;">❌ ${combinedData?.error || 'Error al importar'}</span>`;
+      status.innerHTML = `<span style="color:#ef4444;">❌ ${data?.error || 'Error al importar'}</span>`;
       showToast('Error al importar el backup', 'error');
     }
   }
