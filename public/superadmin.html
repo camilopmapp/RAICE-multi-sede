@@ -4450,7 +4450,11 @@
     submitBtn.textContent = '🔓 Confirmar y restaurar';
 
     if (!ok) {
-      errEl.textContent = data?.error || 'Error al verificar. Intenta de nuevo.';
+      const rawErr = data?.error;
+      const errMsg = typeof rawErr === 'string' ? rawErr
+        : rawErr?.message?.includes('TIMEOUT') ? 'El servidor tardó demasiado (timeout). Intenta de nuevo — si persiste, contacta soporte.'
+        : rawErr?.message || rawErr?.code || JSON.stringify(rawErr) || 'Error al verificar. Intenta de nuevo.';
+      errEl.textContent = errMsg;
       errEl.style.display = 'block';
       submitBtn.disabled = false;
       return;

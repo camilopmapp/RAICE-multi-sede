@@ -6366,65 +6366,59 @@ async function handleBackupImport(req, res, user) {
   results.periods = await upsertBatch('raice_periods', t.periods);
   results.calendar        = await upsertBatch('raice_calendar',        t.calendar);
 
-  // ── 2. Cursos (sin director aún para evitar FK a usuarios no existentes) ─
-  // Restore completo: eliminar cursos cuyo ID no está en el backup para evitar
-  // conflictos de UNIQUE(grade, number) cuando los IDs cambiaron entre instancias.
+  // ── 2. Cursos (sin director aún) — 2 queries en vez de N ─────────────────
   if (t.courses?.length) {
     const backupCourseIds = new Set(t.courses.map(c => c.id));
     const { data: existingCourses } = await sb.from('raice_courses').select('id');
-    for (const c of (existingCourses || [])) {
-      if (!backupCourseIds.has(c.id)) {
-        await sb.from('raice_courses').delete().eq('id', c.id);
-      }
-    }
+    const toDelete = (existingCourses || []).filter(c => !backupCourseIds.has(c.id)).map(c => c.id);
+    if (toDelete.length) await sb.from('raice_courses').delete().in('id', toDelete);
   }
   const coursesNullDir = (t.courses || []).map(c => ({ ...c, director_id: null }));
   results.courses = await upsertBatch('raice_courses', coursesNullDir);
 
-  // ── 3. Usuarios (docentes) — no sobrescribir contraseña si ya existen ────
+  // ── 3. Usuarios (docentes) — batch upsert preservando password_hash ───────
   if (t.teachers?.length) {
     const ids = t.teachers.map(u => u.id);
-    const { data: existing } = await sb.from('raice_users').select('id').in('id', ids);
-    const existingSet = new Set((existing || []).map(u => u.id));
+    const { data: existing } = await sb.from('raice_users')
+      .select('id, password_hash').in('id', ids);
+    const existingMap = Object.fromEntries((existing || []).map(u => [u.id, u.password_hash]));
 
-    // Actualizar existentes (sin tocar password_hash)
-    for (const u of t.teachers.filter(x => existingSet.has(x.id))) {
-      const { error } = await sb.from('raice_users').update({
-        username: u.username, first_name: u.first_name, last_name: u.last_name,
-        email: u.email || null, role: u.role, active: u.active ?? true
-      }).eq('id', u.id);
-      if (error) errors.push(`user_update ${u.username}: ${error.message}`);
-    }
+    const tempHash = await bcrypt.hash('Cambiar123!', 10);
+    const usersToUpsert = t.teachers.map(u => ({
+      id: u.id, username: u.username, first_name: u.first_name,
+      last_name: u.last_name, email: u.email || null,
+      role: u.role, active: u.active ?? true,
+      // Mantener contraseña existente; para usuarios nuevos usar hash temporal
+      password_hash: existingMap[u.id] ?? tempHash,
+    }));
 
-    // Insertar nuevos con contraseña temporal — uno a uno para capturar conflictos de email
-    const newUsers = t.teachers.filter(x => !existingSet.has(x.id));
-    if (newUsers.length) {
-      const tempHash = await bcrypt.hash('Cambiar123!', 10);
-      for (const u of newUsers) {
-        const candidate = {
-          id: u.id, username: u.username, first_name: u.first_name,
-          last_name: u.last_name, email: u.email || null,
-          role: u.role, active: u.active ?? true, password_hash: tempHash
-        };
-        const { error: insErr } = await sb.from('raice_users').insert(candidate);
-        if (insErr) {
-          // Conflicto de email (unique violation 23505) → reintentar sin email
-          if (insErr.code === '23505' && insErr.message?.toLowerCase().includes('email')) {
-            const { error: retryErr } = await sb.from('raice_users').insert({ ...candidate, email: null });
-            if (retryErr) errors.push(`user_insert_${u.username}: ${retryErr.message}`);
-            else errors.push(`user_insert_${u.username}: email duplicado en BD — importado sin email, actualizar manualmente`);
-          } else {
-            errors.push(`user_insert_${u.username}: ${insErr.message}`);
-          }
+    // Upsert en lotes — para conflicto de email: reintentar sin email uno a uno
+    for (let i = 0; i < usersToUpsert.length; i += 50) {
+      const batch = usersToUpsert.slice(i, i + 50);
+      const { error: uErr } = await sb.from('raice_users')
+        .upsert(batch, { onConflict: 'id', ignoreDuplicates: false });
+      if (uErr) {
+        if (uErr.code === '23505' && uErr.message?.toLowerCase().includes('email')) {
+          // Conflicto de email: reintentar el lote sin emails
+          const { error: retryErr } = await sb.from('raice_users')
+            .upsert(batch.map(u => ({ ...u, email: null })), { onConflict: 'id' });
+          if (retryErr) errors.push(`users_upsert: ${retryErr.message}`);
+          else errors.push('Algunos emails duplicados — importados sin email, actualizar manualmente');
+        } else {
+          errors.push(`users_upsert: ${uErr.message}`);
         }
       }
     }
     results.users = t.teachers.length;
   }
 
-  // ── 4. Actualizar director_id en cursos (ahora que los usuarios existen) ─
-  for (const c of (t.courses || []).filter(x => x.director_id)) {
-    await sb.from('raice_courses').update({ director_id: c.director_id }).eq('id', c.id);
+  // ── 4. Actualizar director_id — 1 upsert en vez de N updates ─────────────
+  const coursesWithDir = (t.courses || []).filter(c => c.director_id);
+  if (coursesWithDir.length) {
+    await sb.from('raice_courses').upsert(
+      coursesWithDir.map(c => ({ id: c.id, grade: c.grade, number: c.number, director_id: c.director_id })),
+      { onConflict: 'id' }
+    );
   }
 
   // ── 5. Estudiantes (necesita cursos) ─────────────────────────────────────
