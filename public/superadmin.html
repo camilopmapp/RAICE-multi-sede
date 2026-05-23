@@ -4344,7 +4344,7 @@
         const t = data.tables;
         const _teachers = t.teachers || [];
         const nDocentes  = _teachers.filter(u => u.role === 'teacher').length;
-        const nCoords    = _teachers.filter(u => u.role === 'coordinator').length;
+        const nCoords    = _teachers.filter(u => u.role === 'admin').length;
         const nRectores  = _teachers.filter(u => u.role === 'rector').length;
 
         // Verificación de integridad contra metadatos del backup
@@ -4353,7 +4353,11 @@
           const tot = data.totals;
           const issues = [];
           if (tot.role_teachers     !== undefined && tot.role_teachers     !== nDocentes)  issues.push(`Docentes: esperados ${tot.role_teachers}, encontrados ${nDocentes}`);
-          if (tot.role_coordinators !== undefined && tot.role_coordinators !== nCoords)    issues.push(`Coordinadores: esperados ${tot.role_coordinators}, encontrados ${nCoords}`);
+          // Si el backup tiene 0 coordinadores pero se encontraron más, es un backup generado
+          // antes de la corrección del conteo (bug conocido: se contaban como role='coordinator'
+          // en vez de role='admin'). No es corrupción de datos.
+          if (tot.role_coordinators !== undefined && tot.role_coordinators !== nCoords && !(tot.role_coordinators === 0 && nCoords > 0))
+            issues.push(`Coordinadores: esperados ${tot.role_coordinators}, encontrados ${nCoords}`);
           if (tot.role_rectores     !== undefined && tot.role_rectores     !== nRectores)  issues.push(`Rectores: esperados ${tot.role_rectores}, encontrados ${nRectores}`);
           if (tot.students          !== undefined && tot.students          !== (t.students||[]).length) issues.push(`Estudiantes: esperados ${tot.students}, encontrados ${(t.students||[]).length}`);
           if (issues.length) {
@@ -4423,40 +4427,148 @@
   }
 
   async function executeBackupImport() {
-    const phrase   = document.getElementById('bc-phrase').value.trim().toUpperCase();
-    const username = document.getElementById('bc-username').value.trim();
-    const password = document.getElementById('bc-password').value;
-    const errEl    = document.getElementById('bc-error');
+    const phrase    = document.getElementById('bc-phrase').value.trim().toUpperCase();
+    const username  = document.getElementById('bc-username').value.trim();
+    const password  = document.getElementById('bc-password').value;
+    const errEl     = document.getElementById('bc-error');
     const submitBtn = document.getElementById('bc-submit-btn');
+    const status    = document.getElementById('backup-import-status');
 
     errEl.style.display = 'none';
     submitBtn.disabled = true;
-    submitBtn.textContent = '⏳ Verificando…';
+    submitBtn.textContent = '⏳ Restaurando datos…';
 
-    const { ok, data } = await fetchAPI('/raice/backup/import', {
+    const t = _importBackupData?.tables || {};
+    const allErrors = [];
+
+    // ── Paso 1: infraestructura (config, cursos, docentes) — CON confirmación
+    const { ok: ok1, data: data1 } = await fetchAPI('/raice/backup/import', {
       method: 'POST',
       body: JSON.stringify({
-        backup: _importBackupData,
+        backup: {
+          ..._importBackupData,
+          tables: {
+            config:               t.config,
+            faltas_catalogo:      t.faltas_catalogo,
+            bell_schedule:        t.bell_schedule,
+            periods:              t.periods,
+            calendar:             t.calendar,
+            courses:              t.courses,
+            teachers:             t.teachers,
+            teacher_courses:      t.teacher_courses,
+            schedules:            t.schedules,
+            teacher_absences:     t.teacher_absences,
+            absence_replacements: t.absence_replacements,
+          }
+        },
         confirm_phrase:   phrase,
         confirm_username: username,
-        confirm_password: password
+        confirm_password: password,
       })
     });
 
     submitBtn.textContent = '🔓 Confirmar y restaurar';
 
-    if (!ok) {
-      errEl.textContent = data?.error || 'Error al verificar. Intenta de nuevo.';
+    if (!ok1) {
+      const rawErr = data1?.error;
+      const errMsg = typeof rawErr === 'string' ? rawErr
+        : rawErr?.message?.includes('TIMEOUT') ? 'El servidor tardó demasiado. Intenta de nuevo.'
+        : rawErr?.message || rawErr?.code || JSON.stringify(rawErr) || 'Error desconocido.';
+      errEl.textContent = errMsg;
       errEl.style.display = 'block';
       submitBtn.disabled = false;
       return;
     }
-
-    // Éxito — cerrar modal y mostrar resultado
+    allErrors.push(...(data1.errors || []));
     closeBackupConfirmModal();
+
+    // ── Paso 2: estudiantes en lotes de 100 ─────────────────────────────────
+    const students = t.students || [];
+    let totalStudents = 0;
+    const CHUNK = 100;
+    for (let i = 0; i < students.length; i += CHUNK) {
+      status.innerHTML = `<span style="color:var(--navy);">⏳ Estudiantes: ${Math.min(i+CHUNK, students.length)}/${students.length}…</span>`;
+      const { ok, data } = await fetchAPI('/raice/backup/import', {
+        method: 'POST',
+        body: JSON.stringify({
+          step: 'chunk', tableName: 'raice_students',
+          rows: students.slice(i, i + CHUNK), deleteFirst: i === 0,
+        })
+      });
+      if (ok) totalStudents += data.imported || 0;
+      allErrors.push(...((ok ? data.errors : [`chunk_students_${i}: error`]) || []));
+    }
+
+    // ── Paso 3: acudientes en lotes de 100 ───────────────────────────────────
+    const acudientes = t.acudientes || [];
+    let totalAcudientes = 0;
+    for (let i = 0; i < acudientes.length; i += CHUNK) {
+      status.innerHTML = `<span style="color:var(--navy);">⏳ Acudientes: ${Math.min(i+CHUNK, acudientes.length)}/${acudientes.length}…</span>`;
+      const { ok, data } = await fetchAPI('/raice/backup/import', {
+        method: 'POST',
+        body: JSON.stringify({
+          step: 'chunk', tableName: 'raice_acudientes',
+          rows: acudientes.slice(i, i + CHUNK), deleteFirst: false,
+        })
+      });
+      if (ok) totalAcudientes += data.imported || 0;
+      allErrors.push(...((ok ? data.errors : []) || []));
+    }
+
+    // ── Paso 4: casos y tablas dependientes de estudiantes ───────────────────
+    status.innerHTML = `<span style="color:var(--navy);">⏳ Importando casos y seguimientos…</span>`;
+    const { ok: ok4, data: data4 } = await fetchAPI('/raice/backup/import', {
+      method: 'POST',
+      body: JSON.stringify({
+        step: 'cases',
+        backup: { tables: {
+          cases: t.cases, followups: t.followups, citations: t.citations,
+          commitments: t.commitments, suspensions: t.suspensions,
+          classroom_removals: t.classroom_removals, tipo1_escalones: t.tipo1_escalones,
+          excusas: t.excusas, teachers: t.teachers,
+        }}
+      })
+    });
+    allErrors.push(...((ok4 ? data4.errors : ['Error al importar casos']) || []));
+
+    // ── Paso 5: tablas grandes en paralelo (asistencia, observaciones, historial)
+    const attRows   = t.attendance            || [];
+    const obsRows   = t.observations          || [];
+    const gradeRows = t.student_grade_history || [];
+    let step2Result = { results: { attendance: 0, observations: 0, student_grade_history: 0 }, errors: [] };
+    if (attRows.length || obsRows.length || gradeRows.length) {
+      const total5 = attRows.length + obsRows.length + gradeRows.length;
+      status.innerHTML = `<span style="color:var(--navy);">⏳ Asistencia y observaciones (${total5} registros)…</span>`;
+      const { ok: ok5, data: data5 } = await fetchAPI('/raice/backup/import', {
+        method: 'POST',
+        body: JSON.stringify({
+          step: 2,
+          backup: { tables: { attendance: attRows, observations: obsRows, student_grade_history: gradeRows } },
+        })
+      });
+      if (ok5) step2Result = data5;
+      allErrors.push(...(step2Result.errors || []));
+    }
+
+    // ── Combinar todos los resultados ────────────────────────────────────────
+    const combinedData = {
+      ...data1,
+      results: {
+        ...data1.results,
+        students:              totalStudents,
+        acudientes:            totalAcudientes,
+        ...(ok4 ? data4.results : {}),
+        attendance:            step2Result.results?.attendance            || 0,
+        observations:          step2Result.results?.observations          || 0,
+        student_grade_history: step2Result.results?.student_grade_history || 0,
+      },
+      errors: allErrors,
+    };
+
+    // Éxito — mostrar resultado
     const status = document.getElementById('backup-import-status');
-    if (data.success || data.results) {
-      const tables = data.results || {};
+    if (combinedData.success || combinedData.results) {
+      const tables = combinedData.results || {};
       const labelMap = { config:'Config', faltas_catalogo:'Faltas', courses:'Cursos', users:'Personal',
         students:'Estudiantes', attendance:'Asistencia', cases:'Casos', followups:'Seguimientos',
         observations:'Observaciones', suspensions:'Suspensiones', classroom_removals:'Retiros',
@@ -4467,29 +4579,30 @@
         .map(([k, r]) => `${labelMap[k]||k}: <strong>${r}</strong>`)
         .join(' · ');
 
-      // Desglose por rol
       let roleBlock = '';
-      if (data.role_stats) {
-        const rs = data.role_stats;
+      if (combinedData.role_stats) {
+        const rs = combinedData.role_stats;
         roleBlock = `<br><small style="color:var(--gray);">👨‍🏫 Docentes: <strong>${rs.role_teachers}</strong> · Coordinadores: <strong>${rs.role_coordinators}</strong> · Rectores: <strong>${rs.role_rectores}</strong></small>`;
-        // Verificación de integridad vs metadatos del archivo
         const meta = _importBackupData?.totals;
         if (meta?.role_teachers !== undefined) {
           const issues = [];
           if (rs.role_teachers     !== meta.role_teachers)     issues.push(`Docentes ${rs.role_teachers}/${meta.role_teachers}`);
           if (rs.role_coordinators !== meta.role_coordinators) issues.push(`Coordinadores ${rs.role_coordinators}/${meta.role_coordinators}`);
           if (rs.role_rectores     !== meta.role_rectores)     issues.push(`Rectores ${rs.role_rectores}/${meta.role_rectores}`);
-          if (issues.length) {
-            roleBlock += `<br><span style="color:#dc2626;font-weight:700;">⛔ Integridad Comprometida: ${issues.join(' · ')}</span>`;
-          }
+          if (issues.length) roleBlock += `<br><span style="color:#dc2626;font-weight:700;">⛔ Integridad Comprometida: ${issues.join(' · ')}</span>`;
         }
       }
 
-      status.innerHTML = `<span style="color:#15803d;">✅ ${data.message || 'Backup restaurado'}<br><small style="color:var(--navy)">${counts}</small>${roleBlock}${data.errors?.length ? `<br><span style="color:#f59e0b;">⚠️ Advertencias: ${data.errors.slice(0,5).join('; ')}</span>` : ''}</span>`;
+      const errBlock = combinedData.errors?.length
+        ? `<br><span style="color:#dc2626;font-size:.8rem;"><strong>⚠️ Errores (${combinedData.errors.length}):</strong><br>${combinedData.errors.join('<br>')}</span>`
+        : '';
+      const zeroStudents = !tables.students
+        ? `<br><span style="color:#dc2626;font-size:.8rem;">⚠️ 0 estudiantes importados — revisa los errores arriba</span>` : '';
+      status.innerHTML = `<span style="color:#15803d;">✅ Backup restaurado<br><small style="color:var(--navy)">${counts}</small>${roleBlock}${errBlock}${zeroStudents}</span>`;
       showToast('✅ Backup restaurado correctamente', 'success');
       clearImportFile();
     } else {
-      status.innerHTML = `<span style="color:#ef4444;">❌ ${data?.error || 'Error al importar'}</span>`;
+      status.innerHTML = `<span style="color:#ef4444;">❌ ${combinedData?.error || 'Error al importar'}</span>`;
       showToast('Error al importar el backup', 'error');
     }
   }

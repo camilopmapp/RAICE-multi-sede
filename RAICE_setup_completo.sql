@@ -85,7 +85,7 @@ CREATE TABLE IF NOT EXISTS raice_attendance (
   teacher_id       UUID REFERENCES raice_users(id) ON DELETE SET NULL,
   date             DATE NOT NULL,
   class_hour       INTEGER NOT NULL DEFAULT 1,
-  status           TEXT NOT NULL DEFAULT 'P' CHECK (status IN ('P','A','PE','T','S','NR')),
+  status           TEXT NOT NULL DEFAULT 'P' CHECK (status IN ('P','A','PE','T','S')),
   corrected_by     UUID REFERENCES raice_users(id) ON DELETE SET NULL,
   corrected_at     TIMESTAMPTZ,
   correction_reason TEXT,
@@ -391,10 +391,10 @@ ALTER TABLE raice_students DROP CONSTRAINT IF EXISTS raice_students_status_check
 ALTER TABLE raice_students ADD CONSTRAINT raice_students_status_check
   CHECK (status IN ('active','transferred','retired','graduated'));
 
--- Asistencia: check de status debe incluir 'T', 'S' (actividad especial/sin lista) y 'NR' (omisión/sin registro)
+-- Asistencia: check de status debe incluir 'T' y 'S' (actividad especial/sin lista)
 ALTER TABLE raice_attendance DROP CONSTRAINT IF EXISTS raice_attendance_status_check;
 ALTER TABLE raice_attendance ADD CONSTRAINT raice_attendance_status_check
-  CHECK (status IN ('P','A','PE','T','S','NR'));
+  CHECK (status IN ('P','A','PE','T','S'));
 
 -- Config: columnas de email y resend (pueden no existir en proyectos anteriores)
 ALTER TABLE raice_config ADD COLUMN IF NOT EXISTS backup_email   TEXT;

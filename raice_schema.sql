@@ -86,7 +86,7 @@ CREATE TABLE raice_students (
   phone       TEXT,
   notes       TEXT,
   status      TEXT        NOT NULL DEFAULT 'active'
-                CHECK (status IN ('active','transferred','retired','graduated')),
+                CHECK (status IN ('active','transferred','retired')),
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -106,7 +106,7 @@ CREATE TABLE raice_attendance (
   date           DATE        NOT NULL,
   class_hour     INTEGER     NOT NULL DEFAULT 1 CHECK (class_hour BETWEEN 1 AND 12),
   status         TEXT        NOT NULL DEFAULT 'P'
-                   CHECK (status IN ('P','A','PE','T','S','NR')),
+                   CHECK (status IN ('P','A','PE','T','S')),
                    -- P=Presente, A=Ausente, PE=Permiso, T=Tardanza, S=Sin registro (actividad especial)
   activity_note  TEXT,       -- Descripción de la actividad especial (cuando status='S')
   corrected_by   UUID        REFERENCES raice_users (id) ON DELETE SET NULL,

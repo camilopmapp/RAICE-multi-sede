@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS raice_users (
   first_name           TEXT NOT NULL,
   last_name            TEXT NOT NULL DEFAULT '',
   email                TEXT,
-  role                 TEXT NOT NULL CHECK (role IN ('superadmin','admin','rector','teacher')),
+  role                 TEXT NOT NULL CHECK (role IN ('superadmin','admin','teacher')),
   subject              TEXT,
   password_hash        TEXT NOT NULL,
   active               BOOLEAN DEFAULT TRUE,
@@ -77,30 +77,25 @@ CREATE TABLE IF NOT EXISTS raice_students (
   course_id  UUID REFERENCES raice_courses(id) ON DELETE SET NULL,
   code       TEXT UNIQUE,
   email      TEXT,
-  phone      TEXT,
   doc_type   TEXT DEFAULT 'TI',
   doc_number TEXT,
   birth_date DATE,
   notes      TEXT,
-  status     TEXT DEFAULT 'active' CHECK (status IN ('active','transferred','retired','graduated')),
+  status     TEXT DEFAULT 'active' CHECK (status IN ('active','transferred','retired')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- ---- 5. ASISTENCIA (con hora de clase y tardanza) ----
 CREATE TABLE IF NOT EXISTS raice_attendance (
-  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  student_id        UUID NOT NULL REFERENCES raice_students(id) ON DELETE CASCADE,
-  course_id         UUID NOT NULL REFERENCES raice_courses(id) ON DELETE CASCADE,
-  teacher_id        UUID REFERENCES raice_users(id) ON DELETE SET NULL,
-  date              DATE NOT NULL,
-  class_hour        INTEGER NOT NULL DEFAULT 1,
-  status            TEXT NOT NULL DEFAULT 'P' CHECK (status IN ('P','A','PE','T','S','NR')),
-                    -- P=Presente, A=Ausente, PE=Permiso, T=Tardanza, S=Especial, NR=Sin registro
-  corrected_by      UUID REFERENCES raice_users(id) ON DELETE SET NULL,
-  corrected_at      TIMESTAMPTZ,
-  correction_reason TEXT,
-  activity_note     TEXT,
-  created_at        TIMESTAMPTZ DEFAULT NOW(),
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id UUID NOT NULL REFERENCES raice_students(id) ON DELETE CASCADE,
+  course_id  UUID NOT NULL REFERENCES raice_courses(id) ON DELETE CASCADE,
+  teacher_id UUID REFERENCES raice_users(id) ON DELETE SET NULL,
+  date       DATE NOT NULL,
+  class_hour INTEGER NOT NULL DEFAULT 1,
+  status     TEXT NOT NULL DEFAULT 'P' CHECK (status IN ('P','A','PE','T')),
+             -- P=Presente, A=Ausente, PE=Permiso, T=Tardanza
+  created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(student_id, date, course_id, class_hour)
 );
 
@@ -287,29 +282,11 @@ CREATE TABLE IF NOT EXISTS raice_logs (
 -- CORRECCIONES DE CONSTRAINTS (si ya existe DB y se ejecuta de nuevo)
 -- =====================================================================
 
--- Roles: asegurar que rector esté incluido
-ALTER TABLE raice_users DROP CONSTRAINT IF EXISTS raice_users_role_check;
-ALTER TABLE raice_users ADD CONSTRAINT raice_users_role_check
-  CHECK (role IN ('superadmin','admin','rector','teacher'));
-
--- Estudiantes: incluir 'graduated' para fin de año escolar
-ALTER TABLE raice_students DROP CONSTRAINT IF EXISTS raice_students_status_check;
-ALTER TABLE raice_students ADD CONSTRAINT raice_students_status_check
-  CHECK (status IN ('active','transferred','retired','graduated'));
-
--- Estudiantes: asegurar columna phone
-ALTER TABLE raice_students ADD COLUMN IF NOT EXISTS phone TEXT;
-
--- Asistencia: incluir S (actividad especial) y NR (sin registro / omisión)
+-- Asistencia: constraint check de status debe incluir 'T'
 ALTER TABLE raice_attendance DROP CONSTRAINT IF EXISTS raice_attendance_status_check;
-ALTER TABLE raice_attendance ADD CONSTRAINT raice_attendance_status_check
-  CHECK (status IN ('P','A','PE','T','S','NR'));
-
--- Asistencia: asegurar columnas de auditoría y actividad especial
-ALTER TABLE raice_attendance ADD COLUMN IF NOT EXISTS corrected_by      UUID REFERENCES raice_users(id) ON DELETE SET NULL;
-ALTER TABLE raice_attendance ADD COLUMN IF NOT EXISTS corrected_at      TIMESTAMPTZ;
-ALTER TABLE raice_attendance ADD COLUMN IF NOT EXISTS correction_reason TEXT;
-ALTER TABLE raice_attendance ADD COLUMN IF NOT EXISTS activity_note     TEXT;
+ALTER TABLE raice_attendance
+  ADD CONSTRAINT raice_attendance_status_check
+  CHECK (status IN ('P','A','PE','T'));
 
 -- Asistencia: unique original sin class_hour → eliminar si existe
 ALTER TABLE raice_attendance
