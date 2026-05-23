@@ -6332,7 +6332,17 @@ async function handleBackupImport(req, res, user) {
         .delete().neq('id', '00000000-0000-0000-0000-000000000000');
       if (dErr) errors.push(`delete_${tableName}: ${dErr.message}`);
     }
-    const count = await upsertBatch(tableName, rows || [], 100);
+    let safeRows = rows || [];
+    // Para estudiantes: si falla por FK de course_id, reintentar con course_id=null
+    if (tableName === 'raice_students') {
+      const { data: existingCourses } = await sb.from('raice_courses').select('id');
+      const validIds = new Set((existingCourses || []).map(c => c.id));
+      safeRows = safeRows.map(s => ({
+        ...s,
+        course_id: s.course_id && validIds.has(s.course_id) ? s.course_id : null,
+      }));
+    }
+    const count = await upsertBatch(tableName, safeRows, 100);
     return res.status(200).json({ success: errors.length === 0, imported: count, errors });
   }
 
@@ -6343,6 +6353,7 @@ async function handleBackupImport(req, res, user) {
     const validStats2 = new Set(['open', 'tracking', 'closed']);
     const casesFixed2 = (tc.cases || []).map(c => ({
       ...c,
+      falta_id:  null,   // evitar FK violation si UUIDs del catálogo difieren
       closed_by: c.closed_by && importedUserIds2.has(c.closed_by) ? c.closed_by : null,
       status:    validStats2.has(c.status) ? c.status : 'tracking',
     }));
