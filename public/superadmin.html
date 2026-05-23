@@ -4489,7 +4489,12 @@
         }
       }
 
-      status.innerHTML = `<span style="color:#15803d;">✅ ${data.message || 'Backup restaurado'}<br><small style="color:var(--navy)">${counts}</small>${roleBlock}${data.errors?.length ? `<br><span style="color:#f59e0b;">⚠️ Advertencias: ${data.errors.slice(0,5).join('; ')}</span>` : ''}</span>`;
+      const errBlock = data.errors?.length
+        ? `<br><span style="color:#dc2626;font-size:.8rem;"><strong>⚠️ Errores (${data.errors.length}):</strong><br>${data.errors.join('<br>')}</span>`
+        : '';
+      const zeroStudents = (tables.students === 0 || tables.students == null) && (data.results?.students === 0 || data.results?.students == null)
+        ? `<br><span style="color:#dc2626;font-size:.8rem;">⚠️ 0 estudiantes importados — revisa los errores arriba</span>` : '';
+      status.innerHTML = `<span style="color:#15803d;">✅ ${data.message || 'Backup restaurado'}<br><small style="color:var(--navy)">${counts}</small>${roleBlock}${errBlock}${zeroStudents}</span>`;
       showToast('✅ Backup restaurado correctamente', 'success');
       clearImportFile();
     } else {

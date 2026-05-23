@@ -6429,11 +6429,12 @@ async function handleBackupImport(req, res, user) {
 
   // ── 5. Estudiantes (necesita cursos) ─────────────────────────────────────
   // Restore completo: eliminar todos los estudiantes existentes primero para evitar
-  // cualquier conflicto de UNIQUE(code) o FK con IDs distintos a los del backup.
-  // La cascada ON DELETE CASCADE limpia asistencia y observaciones dependientes,
-  // que se re-importan desde el backup en los pasos siguientes.
+  // conflictos de UNIQUE(code) o FK con IDs distintos a los del backup.
+  // ON DELETE CASCADE limpia asistencia y observaciones; se re-importan desde backup.
   if (t.students?.length) {
-    await sb.from('raice_students').delete().not('id', 'is', null);
+    const { error: delStudErr } = await sb.from('raice_students')
+      .delete().in('status', ['active', 'transferred', 'retired']);
+    if (delStudErr) errors.push(`student_delete: ${delStudErr.message}`);
   }
   results.students = await upsertBatch('raice_students', t.students);
 
