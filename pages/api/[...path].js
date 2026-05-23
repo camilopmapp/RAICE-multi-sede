@@ -4426,7 +4426,7 @@ async function handleBackupExport(req, res, user) {
         acudientes:            acudientes.length,
         teachers:              teachers.length,
         role_teachers:         teachers.filter(u => u.role === 'teacher').length,
-        role_coordinators:     teachers.filter(u => u.role === 'coordinator').length,
+        role_coordinators:     teachers.filter(u => u.role === 'admin').length,
         role_rectores:         teachers.filter(u => u.role === 'rector').length,
         courses:               courses.length,
         schedules:             schedules.length,
@@ -6367,6 +6367,19 @@ async function handleBackupImport(req, res, user) {
   results.calendar        = await upsertBatch('raice_calendar',        t.calendar);
 
   // ── 2. Cursos (sin director aún para evitar FK a usuarios no existentes) ─
+  // Resolver conflictos UNIQUE(grade, number): si existen cursos con mismo grado/número
+  // pero diferente id, eliminarlos primero para que el upsert pueda insertar con el id correcto.
+  if (t.courses?.length) {
+    const backupCourseIds = new Set(t.courses.map(c => c.id));
+    for (const c of t.courses) {
+      if (c.grade == null || c.number == null) continue;
+      const { data: conflict } = await sb.from('raice_courses')
+        .select('id').eq('grade', c.grade).eq('number', c.number).maybeSingle();
+      if (conflict && !backupCourseIds.has(conflict.id)) {
+        await sb.from('raice_courses').delete().eq('id', conflict.id);
+      }
+    }
+  }
   const coursesNullDir = (t.courses || []).map(c => ({ ...c, director_id: null }));
   results.courses = await upsertBatch('raice_courses', coursesNullDir);
 
@@ -6417,6 +6430,21 @@ async function handleBackupImport(req, res, user) {
   }
 
   // ── 5. Estudiantes (necesita cursos) ─────────────────────────────────────
+  // Resolver conflictos UNIQUE(code): si existen estudiantes con mismo código
+  // pero diferente id, eliminarlos primero para que el upsert inserte con el id correcto.
+  if (t.students?.length) {
+    const backupStudentIds = new Set(t.students.map(s => s.id));
+    const backupCodes = t.students.filter(s => s.code).map(s => s.code);
+    if (backupCodes.length) {
+      const { data: conflicting } = await sb.from('raice_students')
+        .select('id').in('code', backupCodes);
+      for (const s of (conflicting || [])) {
+        if (!backupStudentIds.has(s.id)) {
+          await sb.from('raice_students').delete().eq('id', s.id);
+        }
+      }
+    }
+  }
   results.students = await upsertBatch('raice_students', t.students);
 
   // ── 6. Dependientes de estudiantes y/o usuarios ───────────────────────────
@@ -6458,7 +6486,7 @@ async function handleBackupImport(req, res, user) {
 
   const role_stats = {
     role_teachers:     (t.teachers || []).filter(u => u.role === 'teacher').length,
-    role_coordinators: (t.teachers || []).filter(u => u.role === 'coordinator').length,
+    role_coordinators: (t.teachers || []).filter(u => u.role === 'admin').length,
     role_rectores:     (t.teachers || []).filter(u => u.role === 'rector').length,
   };
 
