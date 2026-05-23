@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/raice/cron/weekly-report",
+      "schedule": "0 4 * * 6"
+    },
+    {
+      "path": "/api/ping",
+      "schedule": "0 12 */3 * *"
+    }
+  ]
+}

@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#1a2744">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="RAICE">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/favicon.png">
+<title>RAICE — Ingresar</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,700;9..144,900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy:  #0f1f3d;
+    --teal:  #0b7a75;
+    --teal2: #14b8b0;
+    --gold:  #e8a020;
+    --cream: #f4f1eb;
+    --white: #ffffff;
+    --gray:  #64748b;
+    --danger:#dc2626;
+    --border:#d1dbe8;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--navy);
+    display: flex;
+    align-items: stretch;
+    min-height: 100vh;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  /* ---- Left panel ---- */
+  .left {
+    flex: 1;
+    background: var(--navy);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: clamp(1rem, 3vh, 4rem) clamp(1.5rem, 4vw, 3.5rem);
+    position: relative;
+    overflow: hidden;
+  }
+  .left-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(.4rem, 1.5vh, 1.2rem);
+  }
+  .left::before {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 70% 60% at 20% 30%, rgba(11,122,117,.3) 0%, transparent 65%),
+      radial-gradient(ellipse 50% 50% at 80% 80%, rgba(232,160,32,.12) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  .left-content { position: relative; z-index: 1; }
+  .brand {
+    display: flex; align-items: center; gap: .85rem;
+    margin-bottom: 0;
+  }
+  .brand-mark {
+    width: 48px; height: 48px;
+    background: #fff;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  .brand-mark img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .brand-name {
+    font-family: 'Fraunces', serif;
+    font-size: 1.3rem;
+    font-weight: 900;
+    color: var(--white);
+    letter-spacing: -.02em;
+  }
+  .brand-sub {
+    font-size: .72rem;
+    color: rgba(255,255,255,.45);
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    margin-top: .1rem;
+  }
+  .hero-text h1 {
+    font-family: 'Fraunces', serif;
+    font-size: clamp(2.2rem, 3.5vw, 3.4rem);
+    font-weight: 900;
+    color: var(--white);
+    line-height: 1.1;
+    margin-bottom: clamp(.3rem, 1vh, 1.2rem);
+  }
+  .hero-text h1 em {
+    font-style: normal;
+    color: var(--teal2);
+  }
+  .hero-text p {
+    font-size: clamp(.78rem, 1.2vw, .95rem);
+    color: rgba(255,255,255,.55);
+    line-height: 1.6;
+    max-width: 400px;
+    margin-bottom: 0;
+  }
+  .modules {
+    display: flex; flex-direction: column; gap: clamp(.25rem, .8vh, .65rem);
+  }
+  .module {
+    display: flex; align-items: center; gap: .85rem;
+    padding: clamp(.35rem, 1vh, .75rem) 1rem;
+    background: rgba(255,255,255,.05);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 12px;
+    transition: background .2s;
+  }
+  .module:hover { background: rgba(255,255,255,.09); }
+  .module-ico {
+    width: 34px; height: 34px;
+    background: rgba(20,184,176,.15);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+  }
+  .module-text { font-size: .85rem; color: rgba(255,255,255,.75); }
+  .module-text strong { display: block; color: var(--white); font-weight: 600; font-size: .88rem; }
+  .law-note {
+    margin-top: 0;
+    font-size: .75rem;
+    color: rgba(255,255,255,.3);
+    border-left: 2px solid rgba(20,184,176,.4);
+    padding-left: .75rem;
+    line-height: 1.5;
+  }
+  .geo-deco {
+    position: absolute;
+    bottom: -80px; right: -60px;
+    width: 320px; height: 320px;
+    border: 1.5px solid rgba(20,184,176,.12);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .geo-deco::after {
+    content: '';
+    position: absolute;
+    top: 20px; left: 20px; right: 20px; bottom: 20px;
+    border: 1.5px solid rgba(232,160,32,.08);
+    border-radius: 50%;
+  }
+
+  /* ---- Right panel (form) ---- */
+  .right {
+    width: 480px;
+    background: var(--cream);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: clamp(1.5rem, 4vh, 3rem) 3rem;
+    position: relative;
+    flex-shrink: 0;
+    overflow-y: auto;
+  }
+  .right::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    width: 1px;
+    background: linear-gradient(180deg, transparent, rgba(20,184,176,.3) 40%, rgba(20,184,176,.3) 60%, transparent);
+  }
+  .form-head { margin-bottom: 2.25rem; }
+  .form-head h2 {
+    font-family: 'Fraunces', serif;
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: .3rem;
+    line-height: 1.2;
+  }
+  .form-head p { font-size: .9rem; color: var(--gray); }
+  .field { margin-bottom: 1.1rem; }
+  .field label {
+    display: block;
+    font-size: .82rem;
+    font-weight: 600;
+    color: var(--navy);
+    margin-bottom: .45rem;
+    letter-spacing: .01em;
+  }
+  .field-wrap { position: relative; }
+  .field-ico {
+    position: absolute;
+    left: .9rem; top: 50%;
+    transform: translateY(-50%);
+    font-size: 1rem;
+    pointer-events: none;
+    z-index: 1;
+  }
+  .field input {
+    width: 100%;
+    padding: .82rem 1rem .82rem 2.6rem;
+    border: 1.5px solid var(--border);
+    border-radius: 11px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: .95rem;
+    color: var(--navy);
+    background: var(--white);
+    outline: none;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  .field input:focus {
+    border-color: var(--teal2);
+    box-shadow: 0 0 0 3px rgba(20,184,176,.14);
+  }
+  .field input.error { border-color: var(--danger); box-shadow: 0 0 0 3px rgba(220,38,38,.1); }
+  .show-pass {
+    position: absolute;
+    right: .9rem; top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    color: var(--gray);
+    padding: .2rem;
+  }
+  .btn-login {
+    width: 100%;
+    padding: .9rem;
+    border: none;
+    border-radius: 11px;
+    background: var(--navy);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background .2s, transform .15s, box-shadow .2s;
+    margin-top: .5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+  }
+  .btn-login:hover:not(:disabled) {
+    background: var(--teal);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(11,122,117,.3);
+  }
+  .btn-login:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+  .alert-box {
+    border-radius: 10px;
+    padding: .75rem 1rem;
+    font-size: .85rem;
+    font-weight: 500;
+    margin-top: 1rem;
+    display: none;
+    align-items: center;
+    gap: .6rem;
+  }
+  .alert-box.error { background: #fef2f2; border: 1.5px solid #fecaca; color: #991b1b; display: flex; }
+  .alert-box.info  { background: #ecfdf5; border: 1.5px solid #a7f3d0; color: #065f46; display: flex; }
+  .footer-note {
+    margin-top: 2.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #ddd9d2;
+    text-align: center;
+    font-size: .78rem;
+    color: var(--gray);
+  }
+  .footer-note img { height: 24px; vertical-align: middle; margin-right: .4rem; opacity: .5; }
+  .spin {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    display: none;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .btn-login.loading .spin { display: block; }
+  .btn-login.loading .btn-text { opacity: .7; }
+  /* Pantallas medianas anchas pero con poco alto (ej: 811x599) */
+  @media (max-width: 1100px) and (min-width: 861px) and (min-height: 700px) {
+    .left { padding: 2rem 2rem; }
+    .brand { margin-bottom: 1.5rem; }
+    .hero-text h1 { font-size: clamp(1.6rem, 2.5vw, 2.4rem); margin-bottom: .75rem; }
+    .hero-text p { font-size: .85rem; margin-bottom: 1.5rem; }
+    .right { width: 420px; padding: 2rem 2rem; }
+    .modules { gap: .45rem; }
+    .module { padding: .55rem .75rem; }
+    .law-note { margin-top: 1.5rem; }
+  }
+
+  /* Pantallas anchas con poco alto: mostrar solo el formulario centrado */
+  @media (max-width: 1100px) and (min-width: 861px) and (max-height: 699px) {
+    body { flex-direction: column; overflow: auto; }
+    .left {
+      padding: .85rem 1.5rem;
+      flex: none;
+      justify-content: flex-start;
+    }
+    .brand { margin-bottom: 0; }
+    .hero-text { display: none; }
+    .modules { display: none; }
+    .law-note { display: none; }
+    .geo-deco { display: none; }
+    .right {
+      width: 100%;
+      padding: 1.5rem 2rem 2rem;
+      flex: 1;
+    }
+    .right::before { display: none; }
+  }
+
+  /* Pantallas pequeñas / móvil */
+  @media (max-width: 860px) {
+    body { flex-direction: column; overflow: auto; }
+    .left { padding: 1.5rem 1.5rem 1rem; flex: none; }
+    .brand { margin-bottom: 1rem; }
+    .hero-text h1 { font-size: 1.6rem; margin-bottom: .4rem; }
+    .hero-text p { font-size: .82rem; margin-bottom: 0; }
+    .right { width: 100%; padding: 1.5rem 1.5rem 2rem; }
+    .right::before { display: none; }
+    .geo-deco { display: none; }
+    .modules { display: none; }
+    .law-note { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Left: branding -->
+<div class="left">
+  <div class="left-content">
+    <div class="brand">
+      <div class="brand-mark"><img src="/icons/icon-192.png" alt="RAICE"></div>
+      <div>
+        <div class="brand-name">RAICE</div>
+        <div class="brand-sub">Convivencia Escolar</div>
+      </div>
+    </div>
+    <div class="hero-text">
+      <h1>Gestión integral<br>de la <em>convivencia</em><br>en tu colegio</h1>
+      <p>Plataforma institucional basada en la Ruta de Atención Integral. Asistencia, observaciones, casos y seguimiento en un solo lugar.</p>
+    </div>
+    <div class="modules">
+      <div class="module">
+        <div class="module-ico">📋</div>
+        <div class="module-text">
+          <strong>Lista de asistencia diaria</strong>
+          Presente, ausente o con permiso en segundos
+        </div>
+      </div>
+      <div class="module">
+        <div class="module-ico">⚠️</div>
+        <div class="module-text">
+          <strong>Reporte de casos Tipo I, II y III</strong>
+          Protocolo guiado según la Ley 1620 de 2013
+        </div>
+      </div>
+      <div class="module">
+        <div class="module-ico">📊</div>
+        <div class="module-text">
+          <strong>Dashboard de convivencia</strong>
+          Estadísticas en tiempo real por grado y curso
+        </div>
+      </div>
+    </div>
+    <p class="law-note">Basado en la Ley 1620 de 2013 y el Decreto 1965 de 2013<br>Sistema Nacional de Convivencia Escolar · MinEducación</p>
+  </div>
+  <div class="geo-deco"></div>
+</div>
+
+<!-- Right: form -->
+<div class="right">
+  <div class="form-head">
+    <h2>Bienvenido de vuelta</h2>
+    <p>Ingresa con tu usuario y contraseña institucional</p>
+  </div>
+
+<form id="login-form" onsubmit="handleLogin(event)" novalidate autocomplete="off">
+    <div class="field">
+      <label for="username">Usuario</label>
+      <div class="field-wrap">
+        <span class="field-ico">👤</span>
+        <input type="text" id="username" placeholder="tu.usuario@colegio.edu.co" autocomplete="username" spellcheck="false">
+      </div>
+    </div>
+    <div class="field">
+      <label for="password">Contraseña</label>
+      <div class="field-wrap">
+        <span class="field-ico">🔒</span>
+        <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
+        <button type="button" class="show-pass" onclick="togglePass()" id="btn-show-pass" title="Mostrar contraseña">👁️</button>
+      </div>
+    </div>
+    <button type="submit" class="btn-login" id="btn-login">
+      <div class="spin"></div>
+      <span class="btn-text">Ingresar al sistema</span>
+    </button>
+  </form>
+
+  <div class="alert-box" id="alert-box">
+    <span id="alert-ico">❌</span>
+    <span id="alert-msg"></span>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:.75rem;margin-top:1.5rem;">
+    <div style="flex:1;height:1px;background:var(--border);"></div>
+    <span style="font-size:.75rem;color:var(--gray);white-space:nowrap;">o si eres padre / acudiente</span>
+    <div style="flex:1;height:1px;background:var(--border);"></div>
+  </div>
+
+  <a href="/portal-acudiente" style="display:flex;align-items:center;justify-content:center;gap:.6rem;margin-top:.9rem;padding:.7rem 1rem;border:1.5px solid var(--border);border-radius:10px;text-decoration:none;font-size:.88rem;font-weight:600;color:var(--navy);background:var(--white);transition:border-color .2s,background .2s;"
+    onmouseenter="this.style.borderColor='var(--teal)';this.style.background='#f0fdfc';"
+    onmouseleave="this.style.borderColor='var(--border)';this.style.background='var(--white)';">
+    👨‍👩‍👧 Portal del Acudiente →
+  </a>
+
+  <div class="footer-note">
+    RAICE · Plataforma de Convivencia Escolar<br>
+    Ministerio de Educación Nacional de Colombia
+  </div>
+</div>
+
+<script>
+  const API_URL = '/api';
+function togglePass() {
+    const inp = document.getElementById('password');
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+    document.getElementById('btn-show-pass').textContent = inp.type === 'password' ? '👁️' : '🙈';
+  }
+
+  function showAlert(type, msg) {
+    const box = document.getElementById('alert-box');
+    box.className = 'alert-box ' + type;
+    document.getElementById('alert-ico').textContent = type === 'error' ? '❌' : '✅';
+    document.getElementById('alert-msg').textContent = msg;
+  }
+
+  function clearAlert() {
+    document.getElementById('alert-box').className = 'alert-box';
+  }
+
+  function setLoading(on) {
+    const btn = document.getElementById('btn-login');
+    btn.classList.toggle('loading', on);
+    btn.disabled = on;
+  }
+
+  async function handleLogin(e) {
+    e.preventDefault();
+    clearAlert();
+
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+
+    if (!username || !password) {
+      showAlert('error', 'Completa todos los campos.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const res = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.success) {
+        // Guardar sesión solo en sessionStorage (no localStorage — cierra al cerrar pestaña)
+        ['raice_token','raice_role','raice_user'].forEach(k => {
+          sessionStorage.removeItem(k);
+          localStorage.removeItem(k); // limpiar tokens viejos si existían
+        });
+        const val = { raice_token: data.token, raice_role: data.role, raice_user: JSON.stringify(data.user) };
+        Object.entries(val).forEach(([k,v]) => {
+          sessionStorage.setItem(k, v);
+        });
+
+        showAlert('info', `Bienvenido, ${data.user.name}. Redirigiendo...`);
+
+        setTimeout(() => {
+          // If user must change password, go to profile first
+          if (data.user.must_change_password) {
+            const dest = data.role === 'superadmin' ? '/superadmin.html'
+                       : data.role === 'admin'      ? '/admin.html'
+                       : data.role === 'rector'     ? '/rector.html'
+                       :                              '/docente.html';
+            window.location.href = dest + '?cambiar-contrasena=1';
+            return;
+          }
+          if (data.role === 'superadmin')    window.location.href = '/superadmin.html';
+          else if (data.role === 'admin')    window.location.href = '/admin.html';
+          else if (data.role === 'rector')   window.location.href = '/rector.html';
+          else                               window.location.href = '/docente.html';
+        }, 800);
+      } else {
+        showAlert('error', data.error || 'Usuario o contraseña incorrectos.');
+        document.getElementById('password').value = '';
+      }
+    } catch {
+      showAlert('error', 'Error de conexión. Verifica tu internet.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Si ya hay sesión, redirigir
+  const existingRole = sessionStorage.getItem('raice_role');
+  if (existingRole) {
+    if (existingRole === 'superadmin')    window.location.href = '/superadmin.html';
+    else if (existingRole === 'admin')    window.location.href = '/admin.html';
+    else if (existingRole === 'rector')   window.location.href = '/rector.html';
+    else                                  window.location.href = '/docente.html';
+  }
+</script>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+</script>
+</body>
+</html>

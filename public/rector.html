@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#1a2744">
+<link rel="icon" href="/favicon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/manifest.json">
+<title>RAICE — Rector</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,700;9..144,900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy:#0f1f3d; --navy2:#1a2f55; --teal:#0b7a75; --teal2:#14b8b0; --teal3:#ccfbf1;
+    --gold:#e8a020; --cream:#f4f1eb; --white:#ffffff; --light:#f8fafc;
+    --gray:#64748b; --border:#d1dbe8; --rose:#e11d48;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--light);color:var(--navy);}
+
+  /* topbar */
+  .topbar{position:sticky;top:0;z-index:100;background:var(--navy);display:flex;align-items:center;justify-content:space-between;padding:.75rem 1.5rem;gap:1rem;}
+  .tb-brand{display:flex;align-items:center;gap:.75rem;}
+  .tb-logo{font-family:'Fraunces',serif;font-size:1.3rem;font-weight:900;color:var(--teal2);letter-spacing:-.02em;}
+  .tb-badge{background:rgba(20,184,176,.18);color:var(--teal2);border:1px solid rgba(20,184,176,.3);border-radius:999px;padding:.2rem .75rem;font-size:.72rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;}
+  .tb-right{display:flex;align-items:center;gap:.85rem;}
+  .tb-date{font-size:.76rem;color:rgba(255,255,255,.4);}
+  .tb-user{display:flex;align-items:center;gap:.45rem;}
+  .u-avatar{width:30px;height:30px;border-radius:50%;background:var(--teal2);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.73rem;color:var(--navy);flex-shrink:0;}
+  .u-name{font-size:.8rem;color:rgba(255,255,255,.7);}
+  .btn-logout{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.55);border-radius:8px;padding:.28rem .65rem;font-size:.76rem;cursor:pointer;transition:all .15s;}
+  .btn-logout:hover{background:rgba(255,255,255,.14);color:white;}
+
+  /* search hero */
+  .search-hero{background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%);padding:2rem 1.5rem 1.5rem;}
+  .search-hero h1{font-family:'Fraunces',serif;font-size:1.35rem;font-weight:700;color:white;margin-bottom:1rem;}
+  .search-wrap{position:relative;max-width:700px;}
+  .search-wrap input{width:100%;padding:.82rem 1rem .82rem 2.85rem;border:2px solid rgba(20,184,176,.3);border-radius:14px;background:rgba(255,255,255,.07);color:white;font-family:'DM Sans',sans-serif;font-size:.93rem;outline:none;transition:border-color .2s;}
+  .search-wrap input::placeholder{color:rgba(255,255,255,.32);}
+  .search-wrap input:focus{border-color:var(--teal2);background:rgba(255,255,255,.1);}
+  .s-ico{position:absolute;left:.9rem;top:50%;transform:translateY(-50%);font-size:1rem;pointer-events:none;}
+  .s-clear{position:absolute;right:.7rem;top:50%;transform:translateY(-50%);background:none;border:none;color:rgba(255,255,255,.4);font-size:.95rem;cursor:pointer;padding:.2rem;display:none;}
+  .s-results{position:absolute;top:calc(100% + .35rem);left:0;right:0;background:white;border-radius:12px;border:1.5px solid var(--border);box-shadow:0 8px 32px rgba(0,0,0,.18);z-index:200;max-height:320px;overflow-y:auto;display:none;}
+  .s-item{display:flex;align-items:center;gap:.7rem;padding:.7rem 1rem;cursor:pointer;transition:background .1s;border-bottom:1px solid var(--border);}
+  .s-item:last-child{border-bottom:none;}
+  .s-item:hover{background:var(--light);}
+  .s-av{width:33px;height:33px;border-radius:50%;background:var(--teal3);color:var(--teal);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem;flex-shrink:0;}
+  .s-name{font-weight:600;font-size:.86rem;color:var(--navy);}
+  .s-sub{font-size:.75rem;color:var(--gray);margin-top:.1rem;}
+
+  /* main grid */
+  .main{display:grid;grid-template-columns:1fr 330px;gap:1.2rem;padding:1.2rem 1.5rem;}
+  @media(max-width:880px){.main{grid-template-columns:1fr;}}
+  @media(max-width:600px){.main{padding:.9rem 1rem;gap:.9rem;}.search-hero{padding:1.2rem 1rem 1rem;}}
+
+  /* cards */
+  .card{background:white;border-radius:16px;border:1.5px solid var(--border);}
+  .card+.card{margin-top:1.2rem;}
+  .card-hd{padding:.85rem 1.15rem;border-bottom:1.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+  .card-hd h3{font-size:.9rem;font-weight:700;color:var(--navy);}
+  .card-bd{padding:.95rem 1.15rem;}
+  .card-badge{font-size:.74rem;color:var(--gray);}
+
+  /* stat grid */
+  .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1.2rem;}
+  .stat-card{background:white;border-radius:14px;border:1.5px solid var(--border);padding:.85rem 1rem;}
+  .s-ico2{font-size:1.35rem;margin-bottom:.3rem;}
+  .s-val{font-family:'Fraunces',serif;font-size:1.7rem;font-weight:800;color:var(--navy);line-height:1;}
+  .s-lbl{font-size:.71rem;font-weight:600;color:var(--gray);margin-top:.2rem;text-transform:uppercase;letter-spacing:.04em;}
+
+  /* rows */
+  .a-row{display:flex;align-items:flex-start;gap:.6rem;padding:.6rem 0;border-bottom:1px solid var(--border);}
+  .a-row:last-child{border-bottom:none;}
+  .a-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:5px;}
+  .d-red{background:#ef4444;} .d-orange{background:#f97316;} .d-blue{background:#3b82f6;}
+  .a-title{font-size:.83rem;font-weight:600;color:var(--navy);}
+  .a-desc{font-size:.75rem;color:var(--gray);margin-top:.12rem;}
+
+  .ab-row{display:flex;align-items:center;gap:.7rem;padding:.58rem 0;border-bottom:1px solid var(--border);}
+  .ab-row:last-child{border-bottom:none;}
+  .ab-av{width:31px;height:31px;border-radius:50%;background:#fee2e2;color:#dc2626;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.74rem;flex-shrink:0;}
+  .ab-name{font-size:.83rem;font-weight:600;color:var(--navy);}
+  .ab-reason{font-size:.74rem;color:var(--gray);margin-top:.1rem;}
+  .ab-badge{margin-left:auto;background:#fee2e2;color:#dc2626;border-radius:6px;padding:.12rem .45rem;font-size:.68rem;font-weight:700;white-space:nowrap;flex-shrink:0;}
+
+  .g-row{display:flex;align-items:center;gap:.7rem;padding:.3rem 0;}
+  .g-lbl{font-size:.77rem;font-weight:600;color:var(--navy);width:42px;flex-shrink:0;}
+  .g-track{flex:1;height:7px;background:#f1f5f9;border-radius:99px;overflow:hidden;}
+  .g-fill{height:100%;border-radius:99px;transition:width .5s ease;}
+  .g-pct{font-size:.74rem;font-weight:700;width:32px;text-align:right;flex-shrink:0;}
+
+  .c-row{display:flex;align-items:center;gap:.55rem;padding:.52rem 0;border-bottom:1px solid var(--border);font-size:.82rem;}
+  .c-row:last-child{border-bottom:none;}
+  .pill-t1{background:#dbeafe;color:#1d4ed8;border-radius:6px;padding:.12rem .45rem;font-size:.68rem;font-weight:700;flex-shrink:0;}
+  .pill-t2{background:#fef9c3;color:#a16207;border-radius:6px;padding:.12rem .45rem;font-size:.68rem;font-weight:700;flex-shrink:0;}
+  .pill-t3{background:#fee2e2;color:#dc2626;border-radius:6px;padding:.12rem .45rem;font-size:.68rem;font-weight:700;flex-shrink:0;}
+  .pill-open{background:#dcfce7;color:#16a34a;border-radius:6px;padding:.1rem .4rem;font-size:.65rem;font-weight:700;flex-shrink:0;}
+  .pill-closed{background:#f1f5f9;color:#64748b;border-radius:6px;padding:.1rem .4rem;font-size:.65rem;font-weight:700;flex-shrink:0;}
+
+  /* empty */
+  .empty{text-align:center;padding:1.35rem;color:var(--gray);font-size:.83rem;}
+  .empty .ei{font-size:1.7rem;margin-bottom:.35rem;}
+
+  /* modal */
+  .modal-ov{display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.5);backdrop-filter:blur(2px);align-items:center;justify-content:center;padding:1rem;}
+  .modal-ov.open{display:flex;}
+  .modal{background:white;border-radius:20px;width:100%;max-width:680px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,.25);}
+  .modal-hd{padding:1rem 1.35rem;border-bottom:1.5px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;flex-shrink:0;}
+  .modal-hd h3{font-family:'Fraunces',serif;font-size:1.05rem;font-weight:700;color:var(--navy);}
+  .modal-sub{font-size:.78rem;color:var(--gray);margin-top:.15rem;}
+  .m-close{background:none;border:none;font-size:1.15rem;cursor:pointer;color:var(--gray);padding:.2rem;border-radius:8px;}
+  .m-close:hover{background:var(--light);}
+  .modal-bd{padding:1.15rem 1.35rem;overflow-y:auto;flex:1;}
+  .modal-ft{padding:.85rem 1.35rem;border-top:1.5px solid var(--border);display:flex;justify-content:flex-end;flex-shrink:0;}
+  .btn-g{background:var(--light);border:1.5px solid var(--border);color:var(--navy);border-radius:10px;padding:.48rem 1.1rem;font-size:.83rem;font-weight:600;cursor:pointer;}
+  .btn-g:hover{background:var(--border);}
+
+  /* ficha tabs */
+  .f-tabs{display:flex;gap:.2rem;margin-bottom:1rem;flex-wrap:wrap;}
+  .f-tab{padding:.38rem .8rem;border-radius:8px;font-size:.78rem;font-weight:600;border:1.5px solid var(--border);background:white;color:var(--gray);cursor:pointer;transition:all .15s;}
+  .f-tab.active{background:var(--navy);color:white;border-color:var(--navy);}
+
+  /* ficha stats */
+  .f-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem;margin-bottom:1rem;}
+  .f-stat{background:var(--light);border-radius:11px;padding:.65rem .8rem;text-align:center;}
+  .f-val{font-family:'Fraunces',serif;font-size:1.35rem;font-weight:800;color:var(--navy);}
+  .f-lbl{font-size:.68rem;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:.03em;}
+
+  /* mini calendar */
+  .mc{display:flex;flex-wrap:wrap;gap:3px;margin:.5rem 0;}
+  .mc-c{width:21px;height:21px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:.58rem;font-weight:600;}
+  .mc-p{background:#dcfce7;color:#16a34a;} .mc-a{background:#fee2e2;color:#dc2626;}
+  .mc-t{background:#fff7ed;color:#c2410c;} .mc-pe{background:#dbeafe;color:#2563eb;}
+  .mc-x{background:#f1f5f9;color:#cbd5e1;}
+
+  /* obs */
+  .o-row{padding:.55rem 0;border-bottom:1px solid var(--border);font-size:.82rem;}
+  .o-row:last-child{border-bottom:none;}
+  .o-meta{font-size:.71rem;color:var(--gray);margin-top:.18rem;}
+
+  /* spinner */
+  .spin{display:inline-block;width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--teal2);border-radius:50%;animation:sp .7s linear infinite;}
+  @keyframes sp{to{transform:rotate(360deg);}}
+
+  /* toasts */
+  .t-wrap{position:fixed;bottom:1.5rem;right:1.5rem;z-index:9999;display:flex;flex-direction:column;gap:.45rem;}
+  .toast{padding:.6rem 1rem;border-radius:11px;font-size:.81rem;font-weight:600;color:white;box-shadow:0 4px 14px rgba(0,0,0,.2);animation:fu .22s ease;max-width:300px;}
+  .toast.info{background:#0ea5e9;} .toast.error{background:#dc2626;} .toast.warning{background:#f59e0b;}
+  @keyframes fu{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="tb-brand">
+    <div class="tb-logo" style="display:flex;align-items:center;gap:.4rem;">
+      <div id="school-logo-container" style="display:none;align-items:center;"></div>
+      <img src="/icons/icon-96.png" style="height:25px;object-fit:contain;" alt="RAICE">
+      <span>RAICE</span>
+    </div>
+    <div class="tb-badge">🏫 Rector</div>
+  </div>
+  <div class="tb-right">
+    <div class="tb-date" id="top-date"></div>
+    <div class="tb-user">
+      <div class="u-avatar" id="r-av">RE</div>
+      <span class="u-name" id="r-name">Rector</span>
+    </div>
+    <button class="btn-logout" onclick="openPerfil()">👤 Mi perfil</button>
+    <button class="btn-logout" onclick="logout()">Salir</button>
+  </div>
+</header>
+
+<div class="search-hero">
+  <h1 id="greeting">Buenos días — ¿qué necesitas consultar?</h1>
+  <div class="search-wrap">
+    <span class="s-ico">🔍</span>
+    <input type="text" id="s-input" placeholder="Buscar estudiante por nombre o apellido…"
+           oninput="onSearch(this.value)" autocomplete="off" spellcheck="false">
+    <button class="s-clear" id="s-clear" onclick="clearSearch()">✕</button>
+    <div class="s-results" id="s-results"></div>
+  </div>
+</div>
+
+<div class="main">
+  <!-- LEFT -->
+  <div>
+    <div class="stat-grid" id="stat-grid">
+      <div class="stat-card"><div class="s-ico2">⏳</div><div class="s-val">—</div><div class="s-lbl">Cargando</div></div>
+      <div class="stat-card"><div class="s-ico2">⏳</div><div class="s-val">—</div><div class="s-lbl">Cargando</div></div>
+      <div class="stat-card"><div class="s-ico2">⏳</div><div class="s-val">—</div><div class="s-lbl">Cargando</div></div>
+      <div class="stat-card"><div class="s-ico2">⏳</div><div class="s-val">—</div><div class="s-lbl">Cargando</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd">
+        <div style="display:flex;align-items:center;gap:.5rem;flex:1;">
+          <h3>⚠️ Alertas</h3>
+          <select id="filter-alerts" onchange="applyFilters()" style="font-size:.72rem;padding:.1rem .3rem;border:1px solid var(--border);border-radius:6px;outline:none;background:var(--light);color:var(--navy);">
+            <option value="all">Todas</option>
+            <option value="high">Alta 🔴</option>
+            <option value="medium">Media 🟠</option>
+            <option value="low">Baja 🔵</option>
+          </select>
+        </div>
+        <span class="card-badge" id="alerts-badge"></span>
+      </div>
+      <div class="card-bd" id="alerts-bd">
+        <div class="empty"><div class="ei">⏳</div>Cargando…</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd"><h3>📊 Asistencia por grado — hoy</h3></div>
+      <div class="card-bd" id="grade-bd">
+        <div class="empty"><div class="ei">⏳</div>Cargando…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div>
+    <div class="card">
+      <div class="card-hd">
+        <h3>🏠 Docentes ausentes hoy</h3>
+        <span class="card-badge" id="abs-badge"></span>
+      </div>
+      <div class="card-bd" id="abs-bd">
+        <div class="empty"><div class="ei">⏳</div>Cargando…</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd">
+        <div style="display:flex;align-items:center;gap:.5rem;flex:1;">
+          <h3>📋 Casos recientes</h3>
+          <select id="filter-cases" onchange="applyFilters()" style="font-size:.72rem;padding:.1rem .3rem;border:1px solid var(--border);border-radius:6px;outline:none;background:var(--light);color:var(--navy);">
+            <option value="all">Todos</option>
+            <option value="open">Abiertos</option>
+            <option value="closed">Cerrados</option>
+          </select>
+        </div>
+        <span class="card-badge" id="cases-badge"></span>
+      </div>
+      <div class="card-bd" id="cases-bd">
+        <div class="empty"><div class="ei">⏳</div>Cargando…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FICHA MODAL -->
+<div class="modal-ov" id="modal-ficha">
+  <div class="modal">
+    <div class="modal-hd">
+      <div>
+        <h3 id="f-nombre">Estudiante</h3>
+        <div class="modal-sub" id="f-curso"></div>
+      </div>
+      <button class="m-close" onclick="closeFicha()">✕</button>
+    </div>
+    <div class="modal-bd">
+      <div class="f-tabs">
+        <button class="f-tab active" onclick="switchTab('resumen',this)">📈 Resumen</button>
+        <button class="f-tab" onclick="switchTab('asistencia',this)">📅 Asistencia</button>
+        <button class="f-tab" onclick="switchTab('casos',this)">⚠️ Casos</button>
+        <button class="f-tab" onclick="switchTab('obs',this)">📝 Observaciones</button>
+      </div>
+      <div id="t-resumen"></div>
+      <div id="t-asistencia" style="display:none;"></div>
+      <div id="t-casos"      style="display:none;"></div>
+      <div id="t-obs"        style="display:none;"></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-g" onclick="closeFicha()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="t-wrap" id="t-wrap"></div>
+
+<!-- MI PERFIL MODAL -->
+<div class="modal-ov" id="modal-perfil">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-hd">
+      <div>
+        <h3>👤 Mi perfil</h3>
+        <div class="modal-sub">Información de tu cuenta RAICE</div>
+      </div>
+      <button class="m-close" onclick="closePerfil()">✕</button>
+    </div>
+    <div class="modal-bd">
+      <!-- Datos personales -->
+      <div style="display:flex;align-items:center;gap:1rem;padding:.75rem 0 1.25rem;border-bottom:1.5px solid var(--border);margin-bottom:1.25rem;">
+        <div style="width:52px;height:52px;border-radius:50%;background:var(--teal2);color:var(--navy);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.15rem;flex-shrink:0;" id="p-avatar">RE</div>
+        <div>
+          <div style="font-family:'Fraunces',serif;font-size:1.05rem;font-weight:700;color:var(--navy);" id="p-fullname">Rector</div>
+          <div style="font-size:.82rem;color:var(--gray);" id="p-username">@rector</div>
+          <div style="margin-top:.35rem;display:inline-block;background:rgba(20,184,176,.12);color:var(--teal);border-radius:999px;padding:.15rem .65rem;font-size:.72rem;font-weight:700;">🏫 Rector</div>
+        </div>
+      </div>
+      <!-- Cambiar contraseña -->
+      <div style="font-weight:700;color:var(--navy);font-size:.88rem;margin-bottom:.85rem;">🔑 Cambiar contraseña</div>
+      <div style="display:flex;flex-direction:column;gap:.7rem;">
+        <div>
+          <label style="font-size:.78rem;font-weight:600;color:var(--gray);display:block;margin-bottom:.25rem;">Contraseña actual</label>
+          <input type="password" id="p-pwd-current" placeholder="••••••••"
+            style="width:100%;padding:.55rem .85rem;border:1.5px solid var(--border);border-radius:9px;font-size:.85rem;font-family:'DM Sans',sans-serif;outline:none;"
+            onfocus="this.style.borderColor='var(--teal2)'" onblur="this.style.borderColor='var(--border)'">
+        </div>
+        <div>
+          <label style="font-size:.78rem;font-weight:600;color:var(--gray);display:block;margin-bottom:.25rem;">Nueva contraseña</label>
+          <input type="password" id="p-pwd-new" placeholder="••••••••"
+            style="width:100%;padding:.55rem .85rem;border:1.5px solid var(--border);border-radius:9px;font-size:.85rem;font-family:'DM Sans',sans-serif;outline:none;"
+            onfocus="this.style.borderColor='var(--teal2)'" onblur="this.style.borderColor='var(--border)'">
+        </div>
+        <div>
+          <label style="font-size:.78rem;font-weight:600;color:var(--gray);display:block;margin-bottom:.25rem;">Confirmar nueva contraseña</label>
+          <input type="password" id="p-pwd-confirm" placeholder="••••••••"
+            style="width:100%;padding:.55rem .85rem;border:1.5px solid var(--border);border-radius:9px;font-size:.85rem;font-family:'DM Sans',sans-serif;outline:none;"
+            onfocus="this.style.borderColor='var(--teal2)'" onblur="this.style.borderColor='var(--border)'">
+        </div>
+        <button id="p-pwd-btn" onclick="changeMyPassword()" style="width:100%;padding:.6rem;background:var(--teal);color:white;border:none;border-radius:10px;font-size:.85rem;font-weight:700;cursor:pointer;margin-top:.2rem;font-family:'DM Sans',sans-serif;">💾 Actualizar contraseña</button>
+      </div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-g" onclick="closePerfil()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_URL = '/api';
+let _students = [];
+let _schoolConfig = null;
+let _lastData = { dash: null, alerts: [], absences: [] };
+
+// AUTH
+async function initSession() {
+  const token = sessionStorage.getItem('raice_token');
+  const role  = sessionStorage.getItem('raice_role');
+  const user  = JSON.parse(sessionStorage.getItem('raice_user') || 'null');
+  if (!token || role !== 'rector') { window.location.href = '/login.html'; return; }
+  
+  // Load school config for logos
+  loadSchoolConfig();
+
+  if (user) {
+    const ini = ((user.first_name||'R')[0]+(user.last_name||'E')[0]).toUpperCase();
+    document.getElementById('r-av').textContent   = ini;
+    document.getElementById('r-name').textContent = (user.first_name||'')+' '+(user.last_name||'');
+    // Populate profile modal
+    document.getElementById('p-avatar').textContent   = ini;
+    document.getElementById('p-fullname').textContent = `${user.first_name||''} ${user.last_name||''}`.trim();
+    document.getElementById('p-username').textContent = `@${user.username||'rector'}`;
+    const h = new Date().getHours();
+    const g = h<12?'Buenos días':h<18?'Buenas tardes':'Buenas noches';
+    document.getElementById('greeting').textContent = g+', '+(user.first_name||'Rector')+' — ¿qué necesitas consultar?';
+  }
+  const d = new Date();
+  document.getElementById('top-date').textContent = d.toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+}
+
+function logout() {
+  if (!confirm('¿Cerrar sesión?')) return;
+  sessionStorage.clear();
+  ['raice_token','raice_role','raice_user'].forEach(k => localStorage.removeItem(k));
+  window.location.href = '/login.html';
+}
+
+function openPerfil() {
+  ['p-pwd-current','p-pwd-new','p-pwd-confirm'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  document.getElementById('modal-perfil').classList.add('open');
+}
+
+function closePerfil() {
+  document.getElementById('modal-perfil').classList.remove('open');
+}
+
+// Unified password change function (replaced redundant changeRectorPassword)
+async function _api(path, opts={}) {
+  return await api(path, opts);
+}
+
+// API
+async function api(path, opts={}) {
+  const token = sessionStorage.getItem('raice_token');
+  try {
+    const r = await fetch(API_URL+path, {...opts, headers:{'Content-Type':'application/json','Authorization':'Bearer '+token,...(opts.headers||{})}});
+    return { ok:r.ok, status:r.status, data: await r.json().catch(()=>({})) };
+  } catch { return { ok:false, status:0, data:{error:'Sin conexión'} }; }
+}
+
+// TOAST
+function toast(msg, type='info', ms=3500) {
+  const w = document.getElementById('t-wrap');
+  const t = document.createElement('div');
+  t.className = 'toast '+type; t.textContent = msg; w.appendChild(t);
+  setTimeout(() => t.remove(), ms);
+}
+
+// ESC
+function esc(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// DASHBOARD
+async function loadSchoolConfig() {
+  const { ok, data } = await api('/raice/config');
+  if (ok) {
+    _schoolConfig = data;
+    const container = document.getElementById('school-logo-container');
+    if (data.logo_url) {
+      container.innerHTML = `<img src="${data.logo_url}" style="height:32px;object-fit:contain;border-radius:6px;background:white;padding:1px;" alt="School Logo">`;
+      container.style.display = 'flex';
+      // The gap in the parent tb-logo handles the spacing.
+    }
+  }
+}
+
+// DASHBOARD
+async function loadDashboard() {
+  const [dash, abs, alr] = await Promise.all([
+    api('/raice/dashboard'),
+    api('/raice/teacher-absences'),
+    api('/raice/alerts')
+  ]);
+  
+  if (dash.ok) _lastData.dash = dash.data;
+  if (alr.ok)  _lastData.alerts = alr.data.alerts || [];
+  if (abs.ok)  _lastData.absences = abs.data.absences || [];
+
+  applyFilters();
+}
+
+function applyFilters() {
+  if (!_lastData.dash) return;
+  
+  const alertFilter = document.getElementById('filter-alerts').value;
+  const caseFilter = document.getElementById('filter-cases').value;
+
+  // Filter alerts
+  const filteredAlerts = _lastData.alerts.filter(a => {
+    if (alertFilter === 'all') return true;
+    return a.severity === alertFilter;
+  });
+
+  // Filter cases (recent_cases inside dash)
+  const filteredCases = (_lastData.dash.recent_cases || []).filter(c => {
+    if (caseFilter === 'all') return true;
+    return c.status === caseFilter;
+  });
+
+  renderDash(_lastData.dash, filteredAlerts, filteredCases);
+  renderAbsences(_lastData.absences);
+}
+
+function renderDash(d, alerts=[], cases=[]) {
+  const pct = d.attendance_today;
+  const pc  = pct===null?'#64748b':pct>=90?'#16a34a':pct>=75?'#ca8a04':'#dc2626';
+  document.getElementById('stat-grid').innerHTML = [
+    {ico:'👨‍🎓', val:d.students||0,                    lbl:'Estudiantes activos'},
+    {ico:'👩‍🏫', val:d.teachers||0,                    lbl:'Docentes activos'},
+    {ico:'📋',  val:d.open_cases||0,                   lbl:'Casos RAICE abiertos'},
+    {ico:'📊',  val:pct!==null?pct+'%':'—', lbl:'Asistencia hoy', col:pc},
+  ].map(c=>`<div class="stat-card"><div class="s-ico2">${c.ico}</div>
+    <div class="s-val" style="color:${c.col||'var(--navy)'};">${c.val}</div>
+    <div class="s-lbl">${c.lbl}</div></div>`).join('');
+
+  document.getElementById('alerts-badge').textContent = alerts.length ? alerts.length+' activas':'';
+  document.getElementById('alerts-bd').innerHTML = alerts.length
+    ? alerts.map(a=>{
+        const dc=a.severity==='high'?'d-red':a.severity==='medium'?'d-orange':'d-blue';
+        return `<div class="a-row"><div class="a-dot ${dc}"></div>
+          <div><div class="a-title">${esc(a.title)}</div>
+          <div class="a-desc">${esc(a.description||'')}</div></div></div>`;
+      }).join('')
+    : '<div class="empty"><div class="ei">✅</div>Sin alertas activas.</div>';
+
+  const gr = d.att_by_grade||[];
+  document.getElementById('grade-bd').innerHTML = gr.length
+    ? gr.map(g=>{
+        const col=g.pct>=90?'#16a34a':g.pct>=75?'#ca8a04':'#dc2626';
+        return `<div class="g-row"><div class="g-lbl">${g.name || (g.grade+'°')}</div>
+          <div class="g-track"><div class="g-fill" style="width:${g.pct}%;background:${col};"></div></div>
+          <div class="g-pct" style="color:${col};">${g.pct}%</div></div>`;
+      }).join('')
+    : '<div class="empty"><div class="ei">📊</div>Sin datos de asistencia hoy.</div>';
+
+  document.getElementById('cases-badge').textContent = cases.length ? cases.length + ' vistos' : '';
+  document.getElementById('cases-bd').innerHTML = cases.length
+    ? cases.map(c=>{
+        const pc2=c.type===3?'pill-t3':c.type===2?'pill-t2':'pill-t1';
+        const sc =c.status==='open'?'pill-open':'pill-closed';
+        const desc=(c.description||'').slice(0,55)+((c.description||'').length>55?'…':'');
+        return `<div class="c-row">
+          <span class="${pc2}">T${c.type}</span>
+          <div style="flex:1;min-width:0;overflow:hidden;cursor:pointer;" onclick="openFicha('${c.student_id}')">
+            <div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(c.student_name)}</div>
+            <div style="font-size:.72rem;color:var(--gray);">${esc(desc)}</div>
+          </div>
+          <span class="${sc}">${c.status==='open'?'Abierto':'Cerrado'}</span></div>`;
+      }).join('')
+    : '<div class="empty"><div class="ei">📋</div>Sin casos recientes.</div>';
+}
+
+function renderAbsences(list) {
+  document.getElementById('abs-badge').textContent = list.length ? list.length+' hoy':'';
+  document.getElementById('abs-bd').innerHTML = !list.length
+    ? '<div class="empty"><div class="ei">✅</div>Ningún docente ausente hoy.</div>'
+    : list.map(a=>{
+        const ini=(a.teacher_name||'D').split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
+        const reps=(a.replacements||[]).length;
+        const rl=reps?reps+' reemplazo'+(reps>1?'s':'')+' asignado'+(reps>1?'s':''):'Sin reemplazo';
+        const rc=reps?'#16a34a':'#dc2626';
+        return `<div class="ab-row">
+          <div class="ab-av">${ini}</div>
+          <div style="flex:1;min-width:0;">
+            <div class="ab-name">${esc(a.teacher_name)}</div>
+            <div class="ab-reason">${esc(a.reason||'Sin motivo')} · <span style="color:${rc};font-weight:600;">${rl}</span></div>
+          </div>
+          ${a.hours_absent?`<span class="ab-badge">${a.hours_absent}h`+`</span>`:''}
+        </div>`;
+      }).join('');
+}
+
+// SEARCH
+let _sTimer=null;
+async function loadStudents() {
+  const {ok,data} = await api('/raice/students');
+  if (ok) _students = data.students||data||[];
+}
+
+function onSearch(val) {
+  document.getElementById('s-clear').style.display=val?'block':'none';
+  const res=document.getElementById('s-results');
+  clearTimeout(_sTimer);
+  if (!val.trim()||val.trim().length<2){res.style.display='none';return;}
+  _sTimer=setTimeout(()=>{
+    const q=val.trim().toLowerCase();
+    const hits=_students.filter(s=>{
+      const full=`${s.first_name||''} ${s.last_name||''} ${s.last_name||''} ${s.first_name||''}`.toLowerCase();
+      return full.includes(q);
+    }).slice(0,8);
+    if(!hits.length){res.innerHTML='<div style="padding:1rem;text-align:center;color:var(--gray);font-size:.83rem;">Sin resultados</div>';res.style.display='block';return;}
+    res.innerHTML=hits.map(s=>{
+      const ini=((s.first_name||'?')[0]+(s.last_name||'?')[0]).toUpperCase();
+      const curso=s.grade?`${s.grade}°${s.number||''}`:s.course_label||'';
+      return `<div class="s-item" onclick="openFicha('${s.id}')">
+        <div class="s-av">${ini}</div>
+        <div><div class="s-name">${esc(s.last_name)}, ${esc(s.first_name)}</div>
+        <div class="s-sub">${esc(curso)}${s.status==='inactive'?' · Retirado':''}</div></div>
+      </div>`;
+    }).join('');
+    res.style.display='block';
+  },220);
+}
+
+function clearSearch() {
+  document.getElementById('s-input').value='';
+  document.getElementById('s-results').style.display='none';
+  document.getElementById('s-clear').style.display='none';
+}
+document.addEventListener('click',e=>{if(!e.target.closest('.search-wrap'))document.getElementById('s-results').style.display='none';});
+
+// FICHA
+function switchTab(name, btn) {
+  ['resumen','asistencia','casos','obs'].forEach(t=>{
+    document.getElementById('t-'+t).style.display=t===name?'':'none';
+  });
+  document.querySelectorAll('.f-tab').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+}
+
+function closeFicha(){document.getElementById('modal-ficha').classList.remove('open');}
+
+async function openFicha(id) {
+  clearSearch();
+  ['t-resumen','t-asistencia','t-casos','t-obs'].forEach(t=>{
+    document.getElementById(t).innerHTML='<div style="text-align:center;padding:1.5rem;"><div class="spin"></div></div>';
+  });
+  document.getElementById('t-asistencia').style.display='none';
+  document.getElementById('t-casos').style.display='none';
+  document.getElementById('t-obs').style.display='none';
+  document.getElementById('t-resumen').style.display='';
+  document.getElementById('f-nombre').textContent='Cargando…';
+  document.getElementById('f-curso').textContent='';
+  document.querySelectorAll('.f-tab').forEach((b,i)=>{ b.classList.toggle('active',i===0); });
+  document.getElementById('modal-ficha').classList.add('open');
+
+  const {ok,data} = await api('/raice/student-ficha?id='+id);
+  if(!ok){toast(data.error||'Error al cargar ficha','error');closeFicha();return;}
+  renderFicha(data);
+}
+
+function renderFicha(d) {
+  const s=d.student, at=d.attendance;
+
+  // header
+  document.getElementById('f-nombre').textContent=s.first_name+' '+s.last_name;
+  const curso=s.grade?'Grado '+s.grade+'°'+(s.number||''):'';
+  document.getElementById('f-curso').textContent=[curso,s.status==='inactive'?'⛔ Retirado':null].filter(Boolean).join(' · ');
+
+  // colors
+  const pc=at.pct===null?'#64748b':at.pct>=90?'#16a34a':at.pct>=75?'#ca8a04':'#dc2626';
+  const openC=(d.cases||[]).filter(c=>c.status==='open').length;
+  const closedC=(d.cases||[]).filter(c=>c.status!=='open').length;
+  const tards=at.late||0; // Use late count from at object (hours)
+
+  // ── RESUMEN ──
+  const warns=[];
+  if(at.pct!==null&&at.pct<80) warns.push({ico:'🚨',txt:'Asistencia crítica: '+at.pct+'%',bg:'#fee2e2',col:'#dc2626'});
+  if(openC>0) warns.push({ico:'⚠️',txt:openC+' caso'+(openC>1?'s':'')+' RAICE abierto'+(openC>1?'s':''),bg:'#fff7ed',col:'#c2410c'});
+  if(tards>12) warns.push({ico:'⏰',txt:tards+' horas de tardanza',bg:'#fffbeb',col:'#92400e'});
+  const unpaid=(d.commitments||[]).filter(c=>!c.fulfilled).length;
+  if(unpaid>0) warns.push({ico:'📝',txt:unpaid+' compromiso'+(unpaid>1?'s':'')+' sin cumplir',bg:'#f0fdf4',col:'#166534'});
+
+  const statsHtml=[
+    {v:at.pct!==null?at.pct+'%':'—',l:'Asistencia',c:pc},
+    {v:at.present||0,l:'Presencias',c:'#16a34a'},
+    {v:at.permit||0,l:'Permisos',c:'#7c3aed'},
+    {v:at.absent||0,l:'Ausencias',c:at.absent>10?'#dc2626':'var(--navy)'},
+    {v:tards,l:'Tardanzas',c:tards>12?'#c2410c':'var(--navy)'},
+    {v:openC,l:'Casos abiertos',c:openC>0?'#dc2626':'#16a34a'},
+  ].map(c=>`<div class="f-stat"><div class="f-val" style="color:${c.c};">${c.v}</div><div class="f-lbl">${c.l}</div></div>`).join('');
+
+  const noteHtml = `<div style="font-size:.65rem;color:var(--gray);text-align:center;margin: -.5rem 0 1rem;text-transform:uppercase;letter-spacing:.02em;">Estadísticas en <b>horas de clase</b> para mayor precisión</div>`;
+
+  const warnsHtml=warns.map(w=>`<div style="background:${w.bg};border-radius:10px;padding:.55rem .85rem;margin-bottom:.45rem;font-size:.82rem;font-weight:600;color:${w.col};">${w.ico} ${w.txt}</div>`).join('');
+
+  const acuds=d.acudientes||[];
+  const acudHtml=acuds.length?`<div style="margin-top:.75rem;">
+    <div style="font-size:.75rem;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.35rem;">Acudientes</div>
+    ${acuds.map(a=>`<div style="font-size:.81rem;padding:.28rem 0;border-bottom:1px solid var(--border);">
+      <strong>${esc(a.name)}</strong>${a.relationship?' · '+esc(a.relationship):''}${a.phone?' · 📞 '+esc(a.phone):''}${a.email?' · ✉️ '+esc(a.email):''}
+    </div>`).join('')}</div>`:'';
+
+  document.getElementById('t-resumen').innerHTML=
+    `<div class="f-stats">${statsHtml}</div>${noteHtml}${warnsHtml}${acudHtml}`;
+
+  // ── ASISTENCIA ──
+  const rec=at.recent||[];
+  const calHtml=rec.map(r=>{
+    const cls=r.status==='P'?'mc-p':r.status==='A'?'mc-a':r.status==='T'?'mc-t':r.status==='PE'?'mc-pe':'mc-x';
+    const [,m,day]=r.date.split('-');
+    const tit={P:'Presente',A:'Ausente',T:'Tarde',PE:'Con permiso'}[r.status]||r.status;
+    return `<div class="mc-c ${cls}" title="${tit} — ${parseInt(day)}/${parseInt(m)}">${parseInt(day)}</div>`;
+  }).join('');
+
+  document.getElementById('t-asistencia').innerHTML=
+    `<div style="font-size:.75rem;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.45rem;">Últimas 30 fechas registradas</div>
+    <div class="mc">${calHtml||'<span style="color:var(--gray);font-size:.82rem;">Sin registros</span>'}</div>
+    <div style="display:flex;gap:.65rem;flex-wrap:wrap;margin:.6rem 0;font-size:.73rem;">
+      <span><span class="mc-c mc-p" style="display:inline-flex;width:14px;height:14px;margin-right:3px;border-radius:3px;"></span>Presente</span>
+      <span><span class="mc-c mc-a" style="display:inline-flex;width:14px;height:14px;margin-right:3px;border-radius:3px;"></span>Ausente</span>
+      <span><span class="mc-c mc-t" style="display:inline-flex;width:14px;height:14px;margin-right:3px;border-radius:3px;"></span>Tarde</span>
+      <span><span class="mc-c mc-pe" style="display:inline-flex;width:14px;height:14px;margin-right:3px;border-radius:3px;"></span>Con permiso</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-top:.75rem;">
+      ${[{l:'Registros',v:at.total||0},{l:'Presentes',v:at.present||0},{l:'Ausentes',v:at.absent||0}]
+        .map(c=>`<div style="background:var(--light);border-radius:10px;padding:.55rem .7rem;text-align:center;">
+          <div style="font-family:'Fraunces',serif;font-size:1.25rem;font-weight:800;color:var(--navy);">${c.v}</div>
+          <div style="font-size:.68rem;color:var(--gray);font-weight:600;">${c.l}</div>
+        </div>`).join('')}
+    </div>`;
+
+  // ── CASOS ──
+  const cases=d.cases||[];
+  document.getElementById('t-casos').innerHTML=cases.length
+    ?cases.map(c=>{
+        const pt=c.type===3?'pill-t3':c.type===2?'pill-t2':'pill-t1';
+        const sc=c.status==='open'?'pill-open':'pill-closed';
+        const fecha=new Date(c.created_at).toLocaleDateString('es-CO',{day:'numeric',month:'short',year:'numeric'});
+        return `<div class="c-row"><span class="${pt}">Tipo ${c.type}</span>
+          <div style="flex:1;min-width:0;overflow:hidden;">
+            <div style="font-size:.82rem;">${esc(c.description||'Sin descripción')}</div>
+            <div style="font-size:.71rem;color:var(--gray);">${fecha}</div>
+          </div>
+          <span class="${sc}">${c.status==='open'?'Abierto':'Cerrado'}</span></div>`;
+      }).join('')
+    :'<div class="empty"><div class="ei">✅</div>Sin casos RAICE registrados.</div>';
+
+  // ── OBSERVACIONES ──
+  const obs=d.observations||[];
+  document.getElementById('t-obs').innerHTML=obs.length
+    ?obs.map(o=>{
+        const fecha=new Date(o.created_at).toLocaleDateString('es-CO',{day:'numeric',month:'short',year:'numeric'});
+        return `<div class="o-row"><div>${esc(o.text||'')}</div>
+          <div class="o-meta">📅 ${fecha} · 👤 ${esc(o.teacher_name||'—')}</div></div>`;
+      }).join('')
+    :'<div class="empty"><div class="ei">📝</div>Sin observaciones registradas.</div>';
+}
+
+function openPerfil() {
+  document.getElementById('modal-perfil').classList.add('open');
+  // Clear password fields each time
+  ['p-pwd-current','p-pwd-new','p-pwd-confirm'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+}
+function closePerfil() { document.getElementById('modal-perfil').classList.remove('open'); }
+
+async function changeMyPassword() {
+  const current = document.getElementById('p-pwd-current').value;
+  const newPwd  = document.getElementById('p-pwd-new').value;
+  const confirm = document.getElementById('p-pwd-confirm').value;
+  if (!current || !newPwd) { toast('Completa todos los campos', 'warning'); return; }
+  if (newPwd !== confirm)  { toast('Las contraseñas no coinciden', 'error'); return; }
+  if (newPwd.length < 6)   { toast('Mínimo 6 caracteres', 'warning'); return; }
+  const btn = document.getElementById('p-pwd-btn');
+  btn.disabled = true; btn.textContent = 'Guardando…';
+  const { ok, data } = await api('/raice/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ current_password: current, new_password: newPwd })
+  });
+  if (ok) {
+    toast('Contraseña actualizada ✅', 'info');
+    ['p-pwd-current','p-pwd-new','p-pwd-confirm'].forEach(id => document.getElementById(id).value = '');
+  } else {
+    toast(data?.error || 'Contraseña actual incorrecta', 'error');
+  }
+}
+
+// REALTIME
+async function initRealtime() {
+  try {
+    const { ok, data } = await api('/raice/realtime-config');
+    if (!ok || !data.supabase_url || !data.supabase_anon_key) return;
+
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+    script.onload = () => {
+      const { createClient } = window.supabase;
+      const sb = createClient(data.supabase_url, data.supabase_anon_key);
+
+      console.log('🔗 Suscribiendo a eventos en tiempo real (Rector)...');
+      
+      const reload = () => loadDashboard();
+
+      sb.channel('realtime:rector')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'raice_excusas' }, reload)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'raice_cases' }, reload)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'raice_alerts' }, reload)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'raice_attendance' }, reload)
+        .subscribe();
+    };
+    document.body.appendChild(script);
+  } catch (err) {}
+}
+
+// INIT
+initSession();
+loadDashboard();
+loadStudents();
+window.addEventListener('load', () => { setTimeout(initRealtime, 2000); });
+</script>
+<script>if('serviceWorker'in navigator){navigator.serviceWorker.register('/sw.js').catch(()=>{});}</script>
+</body>
+</html>
