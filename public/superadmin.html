@@ -831,7 +831,6 @@
         <div class="card-header">
           <h3>🏫 Grados y cursos</h3>
           <div class="card-actions">
-            <button class="btn btn-ghost btn-sm" onclick="openNewSubgroup()">🔀 Nuevo subgrupo</button>
             <button class="btn btn-primary" onclick="openNewCourse()">
               ➕ Nuevo curso
             </button>
@@ -1824,73 +1823,6 @@
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-new-course')">Cancelar</button>
       <button class="btn btn-primary" id="course-modal-btn" onclick="createCourse()">Crear curso</button>
-    </div>
-  </div>
-</div>
-
-<!-- Modal: Nuevo/Editar Subgrupo -->
-<div class="modal-overlay" id="modal-new-subgroup">
-  <div class="modal">
-    <div class="modal-header">
-      <h3 id="ns-modal-title">🔀 Nuevo subgrupo</h3>
-      <button class="modal-close" onclick="closeModal('modal-new-subgroup')">✕</button>
-    </div>
-    <div class="modal-body">
-      <input type="hidden" id="ns-id">
-      <div class="form-grid">
-        <div class="form-group full">
-          <label>Nombre del subgrupo *</label>
-          <input type="text" id="ns-name" placeholder="Ej: Biología 11, Matemáticas Avanzadas">
-        </div>
-        <div class="form-group">
-          <label>Grado de referencia (opcional)</label>
-          <select id="ns-grade">
-            <option value="">— Sin especificar —</option>
-            <option value="6">6°</option><option value="7">7°</option>
-            <option value="8">8°</option><option value="9">9°</option>
-            <option value="10">10°</option><option value="11">11°</option>
-          </select>
-        </div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('modal-new-subgroup')">Cancelar</button>
-      <button class="btn btn-primary" id="ns-modal-btn" onclick="saveSubgroup()">Crear subgrupo</button>
-    </div>
-  </div>
-</div>
-
-<!-- Modal: Miembros del Subgrupo -->
-<div class="modal-overlay" id="modal-subgroup-members">
-  <div class="modal" style="max-width:580px;">
-    <div class="modal-header">
-      <h3 id="sm-modal-title">👥 Miembros del subgrupo</h3>
-      <button class="modal-close" onclick="closeModal('modal-subgroup-members')">✕</button>
-    </div>
-    <div class="modal-body">
-      <div id="sm-members-list" style="margin-bottom:1rem;min-height:60px;">Cargando…</div>
-      <hr style="margin:.75rem 0;border:none;border-top:1.5px solid var(--border);">
-      <div style="margin-top:.75rem;">
-        <div style="font-weight:600;font-size:.83rem;color:var(--navy);margin-bottom:.5rem;">Agregar estudiante</div>
-        <div style="display:flex;gap:.5rem;margin-bottom:.5rem;">
-          <select id="sm-add-grade" onchange="smLoadCoursesForGrade()" style="padding:.5rem .7rem;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:.82rem;flex:1;">
-            <option value="">— Grado —</option>
-            <option value="6">6°</option><option value="7">7°</option>
-            <option value="8">8°</option><option value="9">9°</option>
-            <option value="10">10°</option><option value="11">11°</option>
-          </select>
-          <select id="sm-add-course" onchange="smLoadStudentsForCourse()" style="padding:.5rem .7rem;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:.82rem;flex:1;">
-            <option value="">— Curso —</option>
-          </select>
-        </div>
-        <select id="sm-add-student" style="width:100%;padding:.5rem .7rem;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:.82rem;margin-bottom:.5rem;">
-          <option value="">— Seleccionar estudiante —</option>
-        </select>
-        <button class="btn btn-teal btn-sm" style="width:100%;" onclick="smAddMember()">➕ Agregar al subgrupo</button>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('modal-subgroup-members')">Cerrar</button>
     </div>
   </div>
 </div>
@@ -3050,19 +2982,15 @@
   async function loadCourses() {
     const { ok, data } = await fetchAPI('/raice/courses');
     if (!ok) return;
-    const allCourses = data.courses || [];
+    const courses = data.courses || [];
     const grid = document.getElementById('courses-grid');
-    if (!allCourses.length) {
+    if (!courses.length) {
       grid.innerHTML = '<div class="empty-state"><div class="empty-ico">🏫</div>No hay cursos creados aún.</div>';
       return;
     }
-
-    const normalCourses   = allCourses.filter(c => c.type !== 'subgroup');
-    const subgroupCourses = allCourses.filter(c => c.type === 'subgroup');
-
-    // Group normal courses by grade
+    // Group by grade
     const byGrade = {};
-    normalCourses.forEach(c => {
+    courses.forEach(c => {
       if (!byGrade[c.grade]) byGrade[c.grade] = [];
       byGrade[c.grade].push(c);
     });
@@ -3090,33 +3018,6 @@
       });
       html += '</div></div>';
     });
-
-    // Subgroups section
-    if (subgroupCourses.length) {
-      html += '<div style="margin-top:1.5rem;">';
-      html += '<div style="font-family:\'Fraunces\',serif;font-size:1.05rem;font-weight:700;color:var(--navy);margin-bottom:.6rem;padding-bottom:.4rem;border-bottom:2px solid var(--border);">🔀 Subgrupos</div>';
-      html += '<div style="display:flex;flex-wrap:wrap;gap:.65rem;">';
-      subgroupCourses.forEach(c => {
-        const teacherList = (c.teachers||[]).length ? '👨‍🏫 ' + c.teachers.join(', ') : 'Sin docentes asignados';
-        const gradeRef = c.grade ? (c.grade + '° — ') : '';
-        html += '<div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;padding:.85rem 1rem;min-width:185px;">';
-        html += '<div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.3rem;">';
-        html += '<span style="background:#dcfce7;color:#166534;font-size:.72rem;font-weight:700;padding:.1rem .45rem;border-radius:999px;border:1px solid #86efac;">SUBGRUPO</span>';
-        html += '</div>';
-        html += '<div style="font-weight:700;color:var(--navy);margin-bottom:.25rem;">' + (c.name || 'Sin nombre') + '</div>';
-        html += '<div style="font-size:.78rem;color:var(--gray);margin-bottom:.25rem;">' + gradeRef + (c.students_count||0) + ' miembros</div>';
-        html += '<div style="font-size:.78rem;color:var(--gray);margin-bottom:.6rem;">' + teacherList + '</div>';
-        html += '<button class="btn btn-ghost btn-sm" style="width:100%;font-size:.78rem;margin-bottom:.3rem;" onclick="openAssignTeacher(\'' + c.id + '\',\'' + (c.name||'Subgrupo') + '\')">➕ Asignar docente</button>';
-        html += '<button class="btn btn-teal btn-sm" style="width:100%;font-size:.78rem;margin-bottom:.3rem;" onclick="openCourseSchedule(\'' + c.id + '\',\'' + (c.name||'Subgrupo') + '\')">🕐 Horario</button>';
-        html += '<button class="btn btn-ghost btn-sm" style="width:100%;font-size:.78rem;margin-bottom:.3rem;" onclick="openSubgroupMembers(\'' + c.id + '\',\'' + (c.name||'Subgrupo').replace(/'/g,"\\'") + '\')">👥 Miembros</button>';
-        html += '<div style="display:flex;gap:.3rem;">';
-        html += '<button class="btn btn-ghost btn-sm" style="flex:1;font-size:.78rem;" onclick="editSubgroup(\'' + c.id + '\',\'' + (c.name||'').replace(/'/g,"\\'") + '\',' + (c.grade||'') + ')">✏️ Editar</button>';
-        html += '<button class="btn btn-danger btn-sm" style="font-size:.78rem;" onclick="deleteSubgroup(\'' + c.id + '\',\'' + (c.name||'Subgrupo').replace(/'/g,"\\'") + '\')">🗑️</button>';
-        html += '</div></div>';
-      });
-      html += '</div></div>';
-    }
-
     grid.innerHTML = html;
   }
 
@@ -4009,134 +3910,6 @@
     const { ok } = await fetchAPI('/raice/courses', { method: 'DELETE', body: JSON.stringify({ id }) });
     if (ok) { showToast('Curso eliminado', 'success'); loadCourses(); }
     else showToast('Error al eliminar curso', 'error');
-  }
-
-  // ---- SUBGROUPS ----
-  let _currentSubgroupId = null;
-  let _smAllCoursesList  = [];
-
-  function openNewSubgroup() {
-    document.getElementById('ns-id').value = '';
-    document.getElementById('ns-name').value = '';
-    document.getElementById('ns-grade').value = '';
-    document.getElementById('ns-modal-title').textContent = '🔀 Nuevo subgrupo';
-    document.getElementById('ns-modal-btn').textContent = 'Crear subgrupo';
-    openModal('modal-new-subgroup');
-  }
-
-  function editSubgroup(id, name, grade) {
-    document.getElementById('ns-id').value = id;
-    document.getElementById('ns-name').value = name;
-    document.getElementById('ns-grade').value = grade || '';
-    document.getElementById('ns-modal-title').textContent = '✏️ Editar subgrupo';
-    document.getElementById('ns-modal-btn').textContent = '💾 Guardar';
-    openModal('modal-new-subgroup');
-  }
-
-  async function saveSubgroup() {
-    const id    = document.getElementById('ns-id').value;
-    const name  = document.getElementById('ns-name').value.trim();
-    const grade = document.getElementById('ns-grade').value;
-    if (!name) { showToast('El nombre es requerido', 'warning'); return; }
-    const isEdit = !!id;
-    const body = isEdit
-      ? { id, name, type: 'subgroup' }
-      : { name, grade: grade || undefined, type: 'subgroup' };
-    const { ok, data } = await fetchAPI('/raice/courses', {
-      method: isEdit ? 'PUT' : 'POST',
-      body: JSON.stringify(body)
-    });
-    if (ok) {
-      showToast(isEdit ? 'Subgrupo actualizado' : 'Subgrupo creado', 'success');
-      closeModal('modal-new-subgroup');
-      loadCourses();
-    } else {
-      showToast(data?.error || 'Error al guardar', 'error');
-    }
-  }
-
-  async function deleteSubgroup(id, name) {
-    if (!confirm('¿Eliminar el subgrupo "' + name + '"? Se perderán todos los miembros asignados.')) return;
-    const { ok } = await fetchAPI('/raice/courses', { method: 'DELETE', body: JSON.stringify({ id }) });
-    if (ok) { showToast('Subgrupo eliminado', 'success'); loadCourses(); }
-    else showToast('Error al eliminar subgrupo', 'error');
-  }
-
-  async function openSubgroupMembers(subgroupId, name) {
-    _currentSubgroupId = subgroupId;
-    document.getElementById('sm-modal-title').textContent = '👥 Miembros — ' + name;
-    document.getElementById('sm-add-grade').value = '';
-    document.getElementById('sm-add-course').innerHTML = '<option value="">— Curso —</option>';
-    document.getElementById('sm-add-student').innerHTML = '<option value="">— Seleccionar estudiante —</option>';
-    openModal('modal-subgroup-members');
-    smLoadMembers();
-    // Cache normal courses for the add-student cascade
-    if (!_smAllCoursesList.length) {
-      const { ok, data } = await fetchAPI('/raice/courses');
-      if (ok) _smAllCoursesList = (data.courses || []).filter(c => c.type !== 'subgroup');
-    }
-  }
-
-  async function smLoadMembers() {
-    const el = document.getElementById('sm-members-list');
-    el.innerHTML = '<div style="color:var(--gray);font-size:.83rem;">Cargando…</div>';
-    const { ok, data } = await fetchAPI('/raice/subgroup-members?subgroup_id=' + _currentSubgroupId);
-    if (!ok) { el.innerHTML = '<div style="color:var(--rose);">Error al cargar miembros</div>'; return; }
-    const members = data.members || [];
-    if (!members.length) {
-      el.innerHTML = '<div style="color:var(--gray);font-size:.83rem;text-align:center;padding:1rem 0;">Sin miembros asignados aún.</div>';
-      return;
-    }
-    el.innerHTML = '<div style="font-weight:600;font-size:.83rem;color:var(--navy);margin-bottom:.4rem;">' + members.length + ' miembro' + (members.length!==1?'s':'') + '</div>'
-      + '<div style="max-height:220px;overflow-y:auto;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .5rem;">'
-      + members.map(m =>
-        '<div style="display:flex;align-items:center;justify-content:space-between;padding:.3rem .4rem;border-radius:6px;">'
-        + '<span style="font-size:.83rem;">' + m.last_name + ', ' + m.first_name
-        + ' <span style="color:var(--gray);font-size:.76rem;">— ' + (m.course_grade||'?') + '°' + (m.course_number||'?') + '</span></span>'
-        + '<button class="btn btn-danger btn-sm" style="padding:.12rem .45rem;font-size:.75rem;" onclick="smRemoveMember(\'' + m.student_id + '\')">✕</button>'
-        + '</div>'
-      ).join('')
-      + '</div>';
-  }
-
-  function smLoadCoursesForGrade() {
-    const grade = document.getElementById('sm-add-grade').value;
-    const sel   = document.getElementById('sm-add-course');
-    const cs    = _smAllCoursesList.filter(c => String(c.grade) === grade);
-    sel.innerHTML = '<option value="">— Curso —</option>'
-      + cs.map(c => '<option value="' + c.id + '">' + c.grade + '°' + c.number + '</option>').join('');
-    document.getElementById('sm-add-student').innerHTML = '<option value="">— Seleccionar estudiante —</option>';
-  }
-
-  async function smLoadStudentsForCourse() {
-    const courseId = document.getElementById('sm-add-course').value;
-    const sel = document.getElementById('sm-add-student');
-    if (!courseId) { sel.innerHTML = '<option value="">— Seleccionar estudiante —</option>'; return; }
-    sel.innerHTML = '<option value="">Cargando…</option>';
-    const { ok, data } = await fetchAPI('/raice/students?course_id=' + courseId);
-    const students = (data?.students || []).filter(s => s.status === 'active' || !s.status);
-    sel.innerHTML = '<option value="">— Seleccionar estudiante —</option>'
-      + students.map(s => '<option value="' + s.id + '">' + s.last_name + ', ' + s.first_name + '</option>').join('');
-  }
-
-  async function smAddMember() {
-    const studentId = document.getElementById('sm-add-student').value;
-    if (!studentId) { showToast('Selecciona un estudiante', 'warning'); return; }
-    const { ok, data } = await fetchAPI('/raice/subgroup-members', {
-      method: 'POST',
-      body: JSON.stringify({ subgroup_id: _currentSubgroupId, student_id: studentId })
-    });
-    if (ok) { showToast('Estudiante agregado', 'success'); smLoadMembers(); }
-    else showToast(data?.error || 'Error al agregar', 'error');
-  }
-
-  async function smRemoveMember(studentId) {
-    const { ok, data } = await fetchAPI('/raice/subgroup-members', {
-      method: 'DELETE',
-      body: JSON.stringify({ subgroup_id: _currentSubgroupId, student_id: studentId })
-    });
-    if (ok) { showToast('Miembro eliminado', 'success'); smLoadMembers(); }
-    else showToast(data?.error || 'Error', 'error');
   }
 
   // ---- DATE ----
