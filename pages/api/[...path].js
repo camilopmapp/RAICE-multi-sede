@@ -6310,13 +6310,17 @@ async function handleBackupImport(req, res, user) {
     return total;
   }
 
-  // ── Paso 2: solo asistencia — JWT ya verificado, sin re-confirmación ──────
+  // ── Paso 2: tablas grandes en paralelo — JWT verificado, sin re-confirmación
   if (step === 2) {
-    const att = backup?.tables?.attendance || [];
-    results.attendance = await upsertBatch('raice_attendance', att, 1000);
+    const [attR, obsR, gradeHistR] = await Promise.all([
+      upsertBatch('raice_attendance',          backup?.tables?.attendance          || [], 1000),
+      upsertBatch('raice_observations',        backup?.tables?.observations        || []),
+      upsertBatch('raice_student_grade_history', backup?.tables?.student_grade_history || []),
+    ]);
+    results.attendance = attR; results.observations = obsR; results.student_grade_history = gradeHistR;
     return res.status(200).json({
       success: errors.length === 0, results, errors,
-      message: errors.length > 0 ? `Asistencia con ${errors.length} advertencia(s)` : 'Asistencia restaurada'
+      message: errors.length > 0 ? `Datos grandes con ${errors.length} advertencia(s)` : 'Restaurado correctamente'
     });
   }
 
@@ -6455,7 +6459,7 @@ async function handleBackupImport(req, res, user) {
   const [
     acudientesR, teacherCoursesR, schedulesR,
     casesR, followupsR, citationsR, commitmentsR,
-    suspensionsR, classroomR, teacherAbsR, absReplR, gradeHistR,
+    suspensionsR, classroomR, teacherAbsR, absReplR,
   ] = await Promise.all([
     upsertBatch('raice_acudientes',              t.acudientes),
     upsertBatch('raice_teacher_courses',         t.teacher_courses),
@@ -6468,26 +6472,19 @@ async function handleBackupImport(req, res, user) {
     upsertBatch('raice_classroom_removals',      t.classroom_removals),
     upsertBatch('raice_teacher_absences',        t.teacher_absences),
     upsertBatch('raice_absence_replacements',    t.absence_replacements),
-    upsertBatch('raice_student_grade_history',   t.student_grade_history),
   ]);
   results.acudientes = acudientesR; results.teacher_courses = teacherCoursesR;
   results.schedules = schedulesR; results.cases = casesR;
   results.followups = followupsR; results.citations = citationsR;
   results.commitments = commitmentsR; results.suspensions = suspensionsR;
   results.classroom_removals = classroomR; results.teacher_absences = teacherAbsR;
-  results.absence_replacements = absReplR; results.student_grade_history = gradeHistR;
+  results.absence_replacements = absReplR;
 
   // tipo1_escalones depende de cases — después del Promise.all
   results.tipo1_escalones = await upsertBatch('raice_tipo1_escalones', t.tipo1_escalones);
 
-  // ── 8. Observaciones y asistencia en paralelo ────────────────────────────
+  // ── 8. excusas (pequeña tabla — no afecta tiempo) ────────────────────────
   try { results.excusas = await upsertBatch('raice_excusas', t.excusas); } catch(_) {}
-  const [obsR, attR] = await Promise.all([
-    upsertBatch('raice_observations', t.observations),
-    upsertBatch('raice_attendance',   t.attendance, 1000),
-  ]);
-  results.observations = obsR;
-  results.attendance   = attR;
 
   await logActivity(sb, user.id, 'backup_import',
     `Backup v${backup.version||'?'} restaurado: ${results.students||0} estudiantes, ${results.attendance||0} asistencias, ${results.cases||0} casos. Errores: ${errors.length}`);

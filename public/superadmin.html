@@ -4437,12 +4437,20 @@
     submitBtn.disabled = true;
     submitBtn.textContent = '⏳ Restaurando datos…';
 
-    // Paso 1: todo excepto asistencia (para no exceder el límite de tiempo del servidor)
-    const backupSinAsistencia = { ..._importBackupData, tables: { ..._importBackupData.tables, attendance: [] } };
+    // Paso 1: todo excepto tablas grandes (asistencia, observaciones, historial de grado)
+    const backupPaso1 = {
+      ..._importBackupData,
+      tables: {
+        ..._importBackupData.tables,
+        attendance:            [],
+        observations:          [],
+        student_grade_history: [],
+      }
+    };
     const { ok, data } = await fetchAPI('/raice/backup/import', {
       method: 'POST',
       body: JSON.stringify({
-        backup: backupSinAsistencia,
+        backup: backupPaso1,
         confirm_phrase:   phrase,
         confirm_username: username,
         confirm_password: password
@@ -4462,18 +4470,24 @@
       return;
     }
 
-    // Paso 2: asistencia por separado (puede ser grande)
-    const attRows = _importBackupData?.tables?.attendance || [];
-    let attResult = { results: { attendance: 0 }, errors: [] };
-    if (attRows.length) {
+    // Paso 2: tablas grandes en paralelo (asistencia + observaciones + historial)
+    const attRows   = _importBackupData?.tables?.attendance            || [];
+    const obsRows   = _importBackupData?.tables?.observations          || [];
+    const gradeRows = _importBackupData?.tables?.student_grade_history || [];
+    let step2Result = { results: { attendance: 0, observations: 0, student_grade_history: 0 }, errors: [] };
+    if (attRows.length || obsRows.length || gradeRows.length) {
       closeBackupConfirmModal();
       const status = document.getElementById('backup-import-status');
-      status.innerHTML = `<span style="color:var(--navy);">⏳ Importando asistencia (${attRows.length} registros)…</span>`;
+      const totalStep2 = attRows.length + obsRows.length + gradeRows.length;
+      status.innerHTML = `<span style="color:var(--navy);">⏳ Importando datos grandes (${totalStep2} registros: ${attRows.length} asistencias, ${obsRows.length} observaciones, ${gradeRows.length} historial)…</span>`;
       const { ok: ok2, data: data2 } = await fetchAPI('/raice/backup/import', {
         method: 'POST',
-        body: JSON.stringify({ backup: { tables: { attendance: attRows } }, step: 2 })
+        body: JSON.stringify({
+          backup: { tables: { attendance: attRows, observations: obsRows, student_grade_history: gradeRows } },
+          step: 2
+        })
       });
-      if (ok2) attResult = data2;
+      if (ok2) step2Result = data2;
     } else {
       closeBackupConfirmModal();
     }
@@ -4481,8 +4495,13 @@
     // Combinar resultados de ambos pasos
     const combinedData = {
       ...data,
-      results: { ...data.results, attendance: attResult.results?.attendance || 0 },
-      errors: [...(data.errors || []), ...(attResult.errors || [])],
+      results: {
+        ...data.results,
+        attendance:            step2Result.results?.attendance            || 0,
+        observations:          step2Result.results?.observations          || 0,
+        student_grade_history: step2Result.results?.student_grade_history || 0,
+      },
+      errors: [...(data.errors || []), ...(step2Result.errors || [])],
     };
 
     // Éxito — mostrar resultado
