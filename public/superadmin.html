@@ -4353,7 +4353,11 @@
           const tot = data.totals;
           const issues = [];
           if (tot.role_teachers     !== undefined && tot.role_teachers     !== nDocentes)  issues.push(`Docentes: esperados ${tot.role_teachers}, encontrados ${nDocentes}`);
-          if (tot.role_coordinators !== undefined && tot.role_coordinators !== nCoords)    issues.push(`Coordinadores: esperados ${tot.role_coordinators}, encontrados ${nCoords} (rol 'admin')`);
+          // Si el backup tiene 0 coordinadores pero se encontraron más, es un backup generado
+          // antes de la corrección del conteo (bug conocido: se contaban como role='coordinator'
+          // en vez de role='admin'). No es corrupción de datos.
+          if (tot.role_coordinators !== undefined && tot.role_coordinators !== nCoords && !(tot.role_coordinators === 0 && nCoords > 0))
+            issues.push(`Coordinadores: esperados ${tot.role_coordinators}, encontrados ${nCoords}`);
           if (tot.role_rectores     !== undefined && tot.role_rectores     !== nRectores)  issues.push(`Rectores: esperados ${tot.role_rectores}, encontrados ${nRectores}`);
           if (tot.students          !== undefined && tot.students          !== (t.students||[]).length) issues.push(`Estudiantes: esperados ${tot.students}, encontrados ${(t.students||[]).length}`);
           if (issues.length) {

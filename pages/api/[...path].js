@@ -6367,16 +6367,14 @@ async function handleBackupImport(req, res, user) {
   results.calendar        = await upsertBatch('raice_calendar',        t.calendar);
 
   // ── 2. Cursos (sin director aún para evitar FK a usuarios no existentes) ─
-  // Resolver conflictos UNIQUE(grade, number): si existen cursos con mismo grado/número
-  // pero diferente id, eliminarlos primero para que el upsert pueda insertar con el id correcto.
+  // Restore completo: eliminar cursos cuyo ID no está en el backup para evitar
+  // conflictos de UNIQUE(grade, number) cuando los IDs cambiaron entre instancias.
   if (t.courses?.length) {
     const backupCourseIds = new Set(t.courses.map(c => c.id));
-    for (const c of t.courses) {
-      if (c.grade == null || c.number == null) continue;
-      const { data: conflict } = await sb.from('raice_courses')
-        .select('id').eq('grade', c.grade).eq('number', c.number).maybeSingle();
-      if (conflict && !backupCourseIds.has(conflict.id)) {
-        await sb.from('raice_courses').delete().eq('id', conflict.id);
+    const { data: existingCourses } = await sb.from('raice_courses').select('id');
+    for (const c of (existingCourses || [])) {
+      if (!backupCourseIds.has(c.id)) {
+        await sb.from('raice_courses').delete().eq('id', c.id);
       }
     }
   }
@@ -6430,20 +6428,12 @@ async function handleBackupImport(req, res, user) {
   }
 
   // ── 5. Estudiantes (necesita cursos) ─────────────────────────────────────
-  // Resolver conflictos UNIQUE(code): si existen estudiantes con mismo código
-  // pero diferente id, eliminarlos primero para que el upsert inserte con el id correcto.
+  // Restore completo: eliminar todos los estudiantes existentes primero para evitar
+  // cualquier conflicto de UNIQUE(code) o FK con IDs distintos a los del backup.
+  // La cascada ON DELETE CASCADE limpia asistencia y observaciones dependientes,
+  // que se re-importan desde el backup en los pasos siguientes.
   if (t.students?.length) {
-    const backupStudentIds = new Set(t.students.map(s => s.id));
-    const backupCodes = t.students.filter(s => s.code).map(s => s.code);
-    if (backupCodes.length) {
-      const { data: conflicting } = await sb.from('raice_students')
-        .select('id').in('code', backupCodes);
-      for (const s of (conflicting || [])) {
-        if (!backupStudentIds.has(s.id)) {
-          await sb.from('raice_students').delete().eq('id', s.id);
-        }
-      }
-    }
+    await sb.from('raice_students').delete().not('id', 'is', null);
   }
   results.students = await upsertBatch('raice_students', t.students);
 
