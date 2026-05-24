@@ -1843,12 +1843,16 @@
           <input type="text" id="sm-search" placeholder="Buscar por nombre…" oninput="smFilterChecklist()"
             style="width:100%;padding:.42rem .65rem .42rem 1.8rem;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:.82rem;box-sizing:border-box;">
         </div>
-        <select id="sm-grade-filter" onchange="smFilterChecklist()"
+        <select id="sm-grade-filter" onchange="smOnGradeChange()"
           style="padding:.42rem .6rem;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:.82rem;">
           <option value="">Todos</option>
           <option value="6">6°</option><option value="7">7°</option>
           <option value="8">8°</option><option value="9">9°</option>
           <option value="10">10°</option><option value="11">11°</option>
+        </select>
+        <select id="sm-course-filter" onchange="smFilterChecklist()"
+          style="padding:.42rem .6rem;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:.82rem;">
+          <option value="">Todos</option>
         </select>
       </div>
       <div style="border:1.5px solid var(--border);border-radius:8px;overflow:hidden;">
@@ -4114,6 +4118,8 @@
     document.getElementById('sm-modal-title').textContent = '👥 Miembros — ' + name;
     document.getElementById('sm-search').value = '';
     document.getElementById('sm-grade-filter').value = '';
+    document.getElementById('sm-course-filter').value = '';
+    document.getElementById('sm-course-filter').innerHTML = '<option value="">Todos</option>';
     document.getElementById('sm-members-list').innerHTML = '<div style="color:var(--gray);font-size:.83rem;">Cargando…</div>';
     document.getElementById('sm-checklist').innerHTML = '<div style="padding:.65rem;color:var(--gray);font-size:.82rem;">Cargando…</div>';
     openModal('modal-subgroup-members');
@@ -4148,13 +4154,30 @@
     smFilterChecklist();
   }
 
+  function smOnGradeChange() {
+    const grade = document.getElementById('sm-grade-filter').value;
+    const sel   = document.getElementById('sm-course-filter');
+    sel.innerHTML = '<option value="">Todos</option>';
+    if (grade) {
+      const courses = [...new Set(
+        _smAllStudents
+          .filter(s => String(s.grade) === grade && !_smMemberIds.has(s.id))
+          .map(s => s.course)
+      )].filter(Boolean).sort((a, b) => Number(a) - Number(b));
+      courses.forEach(c => { sel.innerHTML += '<option value="' + c + '">' + grade + '°' + c + '</option>'; });
+    }
+    smFilterChecklist();
+  }
+
   function smFilterChecklist() {
-    const search = (document.getElementById('sm-search')?.value || '').toLowerCase().trim();
-    const grade  = document.getElementById('sm-grade-filter')?.value || '';
-    const el     = document.getElementById('sm-checklist');
-    const selAll = document.getElementById('sm-select-all');
+    const search  = (document.getElementById('sm-search')?.value || '').toLowerCase().trim();
+    const grade   = document.getElementById('sm-grade-filter')?.value  || '';
+    const course  = document.getElementById('sm-course-filter')?.value || '';
+    const el      = document.getElementById('sm-checklist');
+    const selAll  = document.getElementById('sm-select-all');
     let list = _smAllStudents.filter(s => !_smMemberIds.has(s.id));
-    if (grade)  list = list.filter(s => String(s.grade) === grade);
+    if (grade)  list = list.filter(s => String(s.grade)  === grade);
+    if (course) list = list.filter(s => String(s.course) === course);
     if (search) list = list.filter(s => (s.first_name + ' ' + s.last_name).toLowerCase().includes(search)
                                      || (s.last_name  + ' ' + s.first_name).toLowerCase().includes(search));
     if (!list.length) {
@@ -4202,6 +4225,8 @@
       showToast(n + ' estudiante' + (n > 1 ? 's' : '') + ' agregado' + (n > 1 ? 's' : ''), 'success');
       document.getElementById('sm-search').value = '';
       document.getElementById('sm-grade-filter').value = '';
+      document.getElementById('sm-course-filter').value = '';
+      document.getElementById('sm-course-filter').innerHTML = '<option value="">Todos</option>';
       smLoadAll();
     } else showToast(data?.error || 'Error al agregar', 'error');
   }
