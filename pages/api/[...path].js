@@ -1397,6 +1397,15 @@ async function handleSubgroupMembers(req, res, user) {
 
   if (req.method === 'GET') {
     const subgroup_id = url.searchParams.get('subgroup_id');
+    const all_ids     = url.searchParams.get('all_ids');
+
+    // Devuelve todos los student_id que ya están en ALGÚN subgrupo
+    if (all_ids === 'true') {
+      const { data, error } = await sb.from('raice_subgroup_members').select('student_id');
+      if (error) return res.status(500).json({ error: 'Error al cargar ocupados' });
+      return res.status(200).json({ occupied_ids: (data || []).map(r => r.student_id) });
+    }
+
     if (!subgroup_id) return res.status(400).json({ error: 'subgroup_id requerido' });
     const { data: members, error } = await sb.from('raice_subgroup_members')
       .select('student_id, raice_students(id, first_name, last_name, course_id, raice_courses(grade, number))')
@@ -1415,8 +1424,24 @@ async function handleSubgroupMembers(req, res, user) {
   }
 
   if (req.method === 'POST') {
-    const { subgroup_id, student_id } = req.body || {};
-    if (!subgroup_id || !student_id) return res.status(400).json({ error: 'subgroup_id y student_id requeridos' });
+    const { subgroup_id, student_id, student_ids } = req.body || {};
+    if (!subgroup_id) return res.status(400).json({ error: 'subgroup_id requerido' });
+
+    // ── Bulk insert ──
+    if (Array.isArray(student_ids) && student_ids.length) {
+      const { data: crs } = await sb.from('raice_courses').select('type').eq('id', subgroup_id).maybeSingle();
+      if (crs?.type !== 'subgroup') return res.status(400).json({ error: 'El curso indicado no es un subgrupo' });
+      const rows = student_ids.map(id => ({ subgroup_course_id: subgroup_id, student_id: id }));
+      const { error } = await sb.from('raice_subgroup_members').insert(rows);
+      if (error) {
+        if (error.code === '23505') return res.status(409).json({ error: 'Uno o más estudiantes ya pertenecen a otro subgrupo' });
+        return res.status(500).json({ error: 'Error al agregar miembros' });
+      }
+      return res.status(200).json({ success: true, added: student_ids.length });
+    }
+
+    // ── Single insert ──
+    if (!student_id) return res.status(400).json({ error: 'student_id requerido' });
     const { data: crs } = await sb.from('raice_courses').select('type').eq('id', subgroup_id).maybeSingle();
     if (crs?.type !== 'subgroup') return res.status(400).json({ error: 'El curso indicado no es un subgrupo' });
     const { error } = await sb.from('raice_subgroup_members').insert({ subgroup_course_id: subgroup_id, student_id });
