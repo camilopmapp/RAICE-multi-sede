@@ -129,6 +129,7 @@ export default async function handler(req, res) {
     if (route === 'raice/reports/attendance')   return await reportAttendance(req, res, user);
     if (route === 'raice/reports/attendance-v2') return await reportAttendanceV2(req, res, user);
     if (route === 'raice/reports/cases')        return await reportCases(req, res, user);
+    if (route === 'raice/schedules/overview')   return await getSchedulesOverview(req, res, user);
     if (route === 'raice/schedules')            return await handleSchedules(req, res, user);
     if (route === 'raice/bell-schedule')        return await handleBellSchedule(req, res, user);
     if (route === 'raice/teacher-schedule')     return await getTeacherSchedule(req, res, user);
@@ -4121,6 +4122,70 @@ async function handleSchedules(req, res, user) {
   }
 
   return res.status(405).end();
+}
+
+// =====================================================
+// SCHEDULES OVERVIEW — All courses, all teachers, real-time
+// =====================================================
+async function getSchedulesOverview(req, res, user) {
+  requireRole(user, 'superadmin', 'admin');
+  if (req.method !== 'GET') return res.status(405).end();
+  const sb    = getSupabase();
+  const today = todayCO();
+  const todayDow = dayOfWeekCO(today);
+
+  const [schedsRes, bellRes, attRes] = await Promise.all([
+    sb.from('raice_schedules')
+      .select(`
+        id, day_of_week, class_hour,
+        teacher_course_id,
+        raice_teacher_courses!inner(
+          id, subject, teacher_id, course_id,
+          raice_users(id, first_name, last_name),
+          raice_courses(id, grade, number, section, type, name)
+        )
+      `)
+      .order('day_of_week').order('class_hour'),
+    sb.from('raice_bell_schedule').select('*').order('class_hour'),
+    sb.from('raice_attendance')
+      .select('course_id, class_hour')
+      .eq('date', today)
+      .neq('status', 'NR')
+  ]);
+
+  if (schedsRes.error) return res.status(500).json({ error: 'Error al cargar horarios' });
+
+  // Set of "course_hour" keys where attendance was taken today
+  const attSet = new Set((attRes.data || []).map(a => `${a.course_id}_${a.class_hour}`));
+
+  const schedules = (schedsRes.data || []).map(s => {
+    const tc     = s.raice_teacher_courses;
+    const course = tc?.raice_courses;
+    const teacher = tc?.raice_users;
+    return {
+      id:               s.id,
+      day_of_week:      s.day_of_week,
+      class_hour:       s.class_hour,
+      teacher_course_id: s.teacher_course_id,
+      subject:          tc?.subject   || '—',
+      teacher_id:       tc?.teacher_id,
+      teacher_name:     teacher ? `${teacher.first_name} ${teacher.last_name}` : '—',
+      course_id:        tc?.course_id,
+      grade:            course?.grade,
+      number:           course?.number,
+      section:          course?.section || String(course?.number || ''),
+      type:             course?.type    || 'normal',
+      course_name:      course?.name    || null,
+      attendance_taken: attSet.has(`${tc?.course_id}_${s.class_hour}`)
+    };
+  });
+
+  return res.status(200).json({
+    schedules,
+    bell_schedule: bellRes.data || [],
+    today,
+    today_dow: todayDow
+  });
 }
 
 // =====================================================

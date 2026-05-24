@@ -415,6 +415,9 @@
     <button class="nav-item" onclick="showSection('reemplazos',this)">
       <span class="nav-ico">🔄</span> Reemplazos
     </button>
+    <button class="nav-item" onclick="showSection('mapa-escolar',this)">
+      <span class="nav-ico">🗺️</span> Mapa escolar
+    </button>
     <button class="nav-item" onclick="showSection('reportes',this)">
       <span class="nav-ico">📄</span> Reportes e informes
     </button>
@@ -1196,6 +1199,54 @@
       </div>
     </section>
 
+    <!-- ===== MAPA ESCOLAR ===== -->
+    <section class="section" id="sec-mapa-escolar">
+      <!-- Tabs -->
+      <div style="display:flex;gap:.4rem;margin-bottom:1.25rem;flex-wrap:wrap;align-items:center;">
+        <button id="mapa-tab-ahora"   class="btn btn-primary btn-sm" onclick="mapaSetTab('ahora')">🔴 Ahora mismo</button>
+        <button id="mapa-tab-grupo"   class="btn btn-ghost btn-sm"   onclick="mapaSetTab('grupo')">🏫 Por grupo</button>
+        <button id="mapa-tab-docente" class="btn btn-ghost btn-sm"   onclick="mapaSetTab('docente')">👩‍🏫 Por docente</button>
+        <button class="btn btn-ghost btn-sm" onclick="loadMapaEscolar()" style="margin-left:auto;">↻ Actualizar</button>
+        <span id="mapa-last-update" style="font-size:.75rem;color:var(--gray);"></span>
+      </div>
+
+      <!-- Panel: Ahora mismo -->
+      <div id="mapa-panel-ahora">
+        <div id="mapa-hora-actual" class="card" style="margin-bottom:1rem;"></div>
+        <div id="mapa-ahora-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:.75rem;"></div>
+      </div>
+
+      <!-- Panel: Por grupo -->
+      <div id="mapa-panel-grupo" style="display:none;">
+        <div class="card">
+          <div class="card-body" style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;padding-bottom:.75rem;border-bottom:1px solid var(--border);">
+            <select id="mapa-sel-grado" onchange="mapaCargarCursos()"
+              style="padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.83rem;background:var(--white);">
+              <option value="">— Grado —</option>
+            </select>
+            <select id="mapa-sel-curso" onchange="mapaRenderGrupo()"
+              style="padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.83rem;background:var(--white);min-width:140px;">
+              <option value="">— Curso —</option>
+            </select>
+          </div>
+          <div class="card-body" id="mapa-grupo-grid"></div>
+        </div>
+      </div>
+
+      <!-- Panel: Por docente -->
+      <div id="mapa-panel-docente" style="display:none;">
+        <div class="card">
+          <div class="card-body" style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;padding-bottom:.75rem;border-bottom:1px solid var(--border);">
+            <select id="mapa-sel-docente" onchange="mapaRenderDocente()"
+              style="padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.83rem;background:var(--white);min-width:200px;">
+              <option value="">— Docente —</option>
+            </select>
+          </div>
+          <div class="card-body" id="mapa-docente-grid"></div>
+        </div>
+      </div>
+    </section>
+
     <!-- ===== TARDANZAS ===== -->
     <section class="section" id="sec-tardanzas">
       <div class="card">
@@ -1924,7 +1975,8 @@ function showSection(name, btn) {
     periodos:'Períodos académicos', notificaciones:'Notificaciones', perfil:'Mi perfil',
     tardanzas:'Reporte de tardanzas', calendario:'Calendario escolar',
     reemplazos:'Reemplazos docentes', 'convivencia-extra':'Retiros y suspensiones',
-    excusas:'Excusas de estudiantes', subgrupos:'Subgrupos'
+    excusas:'Excusas de estudiantes', subgrupos:'Subgrupos',
+    'mapa-escolar':'Mapa escolar'
   };
   document.getElementById('page-title').textContent = titles[name] || name;
   if (name === 'dashboard')    loadDashboard();
@@ -1943,6 +1995,7 @@ function showSection(name, btn) {
   if (name === 'tardanzas')    loadTardanzas();
   if (name === 'excusas')       initAdminExcusas();
   if (name === 'calendario')   loadCalendar();
+  if (name === 'mapa-escolar')      loadMapaEscolar();
   if (name === 'reemplazos')        { initReemplazosDate(); loadReemplazos(); }
   if (name === 'convivencia-extra') { initRemovalsDate(); loadRemovals(); loadSuspensions(); initEvasionsDate(); loadEvasions(); }
   if (name === 'reportes') { rptApplyPreset(); rptMenuSelect('executive'); }
@@ -5530,6 +5583,263 @@ async function confirmDeleteCalendarEvent() {
   const { ok } = await fetchAPI('/raice/calendar', { method:'DELETE', body:JSON.stringify({id}) });
   if (ok) { showToast('Evento eliminado', 'success'); await loadCalendar(); }
   else showToast('Error al eliminar el evento', 'error');
+}
+
+// =====================================================
+// MAPA ESCOLAR — Vista institucional en tiempo real
+// =====================================================
+let _mapaData  = null;
+let _mapaTab   = 'ahora';
+let _mapaTimer = null;
+
+async function loadMapaEscolar() {
+  document.getElementById('mapa-hora-actual').innerHTML =
+    '<div class="card-body" style="padding:1rem;color:var(--gray);">⏳ Cargando…</div>';
+  document.getElementById('mapa-ahora-grid').innerHTML = '';
+
+  const { ok, data } = await fetchAPI('/raice/schedules/overview');
+  if (!ok) { showToast('Error al cargar el mapa escolar', 'error'); return; }
+  _mapaData = data;
+
+  mapaPopulateSelectors();
+  mapaSetTab(_mapaTab);
+
+  // Auto-refresh cada 2 min mientras la sección esté activa
+  if (_mapaTimer) clearInterval(_mapaTimer);
+  _mapaTimer = setInterval(async () => {
+    if (currentSection !== 'mapa-escolar') return;
+    const r = await fetchAPI('/raice/schedules/overview');
+    if (r.ok) {
+      _mapaData = r.data;
+      if (_mapaTab === 'ahora') mapaRenderAhora();
+      document.getElementById('mapa-last-update').textContent =
+        '↻ ' + new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' });
+    }
+  }, 120000);
+}
+
+function mapaSetTab(tab) {
+  _mapaTab = tab;
+  ['ahora','grupo','docente'].forEach(t => {
+    document.getElementById('mapa-panel-' + t).style.display = t === tab ? '' : 'none';
+    const btn = document.getElementById('mapa-tab-' + t);
+    if (btn) btn.className = t === tab ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm';
+  });
+  if (tab === 'ahora')   mapaRenderAhora();
+  if (tab === 'grupo')   mapaRenderGrupo();
+  if (tab === 'docente') mapaRenderDocente();
+}
+
+// Devuelve el objeto del horario de timbres que corresponde a la hora actual (Colombia)
+function mapaCurrentBell() {
+  if (!_mapaData?.bell_schedule?.length) return null;
+  const now = new Intl.DateTimeFormat('es-CO', {
+    timeZone:'America/Bogota', hour:'2-digit', minute:'2-digit', hour12:false
+  }).format(new Date());
+  return _mapaData.bell_schedule.find(b =>
+    b.start_time && b.end_time &&
+    now >= b.start_time.substring(0,5) &&
+    now <= b.end_time.substring(0,5)
+  ) || null;
+}
+
+function mapaRenderAhora() {
+  if (!_mapaData) return;
+  const { schedules, bell_schedule, today_dow } = _mapaData;
+  const headerEl = document.getElementById('mapa-hora-actual');
+  const gridEl   = document.getElementById('mapa-ahora-grid');
+  const ORD = ['','1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª','10ª'];
+  const DAYS = { 1:'Lunes',2:'Martes',3:'Miércoles',4:'Jueves',5:'Viernes',6:'Sábado',7:'Domingo' };
+
+  if (today_dow >= 6) {
+    headerEl.innerHTML = '<div class="card-body" style="padding:1rem;color:var(--gray);text-align:center;">📅 Hoy es fin de semana.</div>';
+    gridEl.innerHTML = ''; return;
+  }
+  if (!bell_schedule.length) {
+    headerEl.innerHTML = '<div class="card-body" style="padding:1rem;color:var(--gray);">⚠️ El superadministrador aún no configuró el horario de timbres.</div>';
+    gridEl.innerHTML = ''; return;
+  }
+
+  const bell = mapaCurrentBell();
+  if (bell) {
+    headerEl.innerHTML = `<div class="card-body" style="display:flex;align-items:center;gap:1rem;padding:1rem;flex-wrap:wrap;">
+      <div style="background:#dcfce7;color:#166534;border-radius:12px;padding:.55rem 1rem;font-family:'Fraunces',serif;font-size:1.35rem;font-weight:900;white-space:nowrap;">
+        ${ORD[bell.class_hour]||bell.class_hour+'ª'} hora
+      </div>
+      <div>
+        <div style="font-weight:700;">${bell.start_time?.substring(0,5)||''} – ${bell.end_time?.substring(0,5)||''}</div>
+        <div style="font-size:.82rem;color:var(--gray);">${DAYS[today_dow]} · En curso ahora</div>
+      </div>
+    </div>`;
+  } else {
+    const nowStr = new Intl.DateTimeFormat('es-CO',{timeZone:'America/Bogota',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date());
+    const first  = bell_schedule[0]?.start_time?.substring(0,5);
+    const last   = bell_schedule[bell_schedule.length-1]?.end_time?.substring(0,5);
+    let msg = '⏸ Receso entre clases';
+    if (first && nowStr < first) msg = `🌅 Antes de clases — Primera hora a las ${first}`;
+    else if (last && nowStr > last) msg = '🌇 Jornada escolar finalizada';
+    headerEl.innerHTML = `<div class="card-body" style="padding:1rem;color:var(--gray);">${msg}</div>`;
+    gridEl.innerHTML = '<div style="color:var(--gray);font-size:.85rem;padding:.5rem 0;">No hay clase activa en este momento.</div>';
+    return;
+  }
+
+  // Mapa de cursos únicos en el sistema
+  const courseMap = {};
+  schedules.forEach(s => {
+    if (!courseMap[s.course_id]) courseMap[s.course_id] = { course_id:s.course_id, grade:s.grade, number:s.number, section:s.section, type:s.type, course_name:s.course_name };
+  });
+  const courses = Object.values(courseMap).sort((a,b) => a.grade !== b.grade ? a.grade-b.grade : (a.number||0)-(b.number||0));
+
+  // Slots activos ahora: course_id → slot
+  const activeMap = {};
+  schedules.filter(s => s.day_of_week === today_dow && s.class_hour === bell.class_hour)
+    .forEach(s => activeMap[s.course_id] = s);
+
+  if (!courses.length) {
+    gridEl.innerHTML = '<div style="color:var(--gray);font-size:.85rem;">No hay cursos con horario cargado.</div>';
+    return;
+  }
+
+  gridEl.innerHTML = courses.map(c => {
+    const slot  = activeMap[c.course_id];
+    const label = c.type === 'subgroup' ? (c.course_name||'Subgrupo') : `${c.grade}°${c.section||c.number}`;
+    if (slot) {
+      const attOk   = slot.attendance_taken;
+      const attBg   = attOk ? '#dcfce7' : '#fef9c3';
+      const attClr  = attOk ? '#166534' : '#92400e';
+      const attTxt  = attOk ? '✅ Asistencia tomada' : '⏳ Pendiente';
+      return `<div style="background:var(--white);border-radius:14px;padding:1rem;box-shadow:var(--shadow);border-left:4px solid var(--teal2);">
+        <div style="font-family:'Fraunces',serif;font-size:1.15rem;font-weight:900;margin-bottom:.3rem;">${label}</div>
+        <div style="font-size:.82rem;font-weight:600;margin-bottom:.1rem;">📖 ${slot.subject}</div>
+        <div style="font-size:.78rem;color:var(--gray);margin-bottom:.45rem;">👩‍🏫 ${slot.teacher_name}</div>
+        <span style="background:${attBg};color:${attClr};font-size:.7rem;font-weight:700;padding:.15rem .5rem;border-radius:999px;">${attTxt}</span>
+      </div>`;
+    }
+    return `<div style="background:var(--white);border-radius:14px;padding:1rem;box-shadow:var(--shadow);border-left:4px solid var(--border);opacity:.55;">
+      <div style="font-family:'Fraunces',serif;font-size:1.15rem;font-weight:900;margin-bottom:.3rem;">${label}</div>
+      <div style="font-size:.8rem;color:var(--gray);">Sin clase / Hora libre</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('mapa-last-update').textContent =
+    '↻ ' + new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' });
+}
+
+function mapaPopulateSelectors() {
+  if (!_mapaData) return;
+  const { schedules } = _mapaData;
+
+  const grades = [...new Set(schedules.map(s => s.grade).filter(Boolean))].sort((a,b) => a-b);
+  document.getElementById('mapa-sel-grado').innerHTML =
+    '<option value="">— Grado —</option>' + grades.map(g => `<option value="${g}">${g}°</option>`).join('');
+
+  const teacherMap = {};
+  schedules.forEach(s => { if (s.teacher_id) teacherMap[s.teacher_id] = s.teacher_name; });
+  document.getElementById('mapa-sel-docente').innerHTML =
+    '<option value="">— Docente —</option>' +
+    Object.entries(teacherMap)
+      .sort((a,b) => a[1].localeCompare(b[1],'es'))
+      .map(([id,name]) => `<option value="${id}">${name}</option>`).join('');
+}
+
+function mapaCargarCursos() {
+  if (!_mapaData) return;
+  const grade = document.getElementById('mapa-sel-grado').value;
+  const courseMap = {};
+  _mapaData.schedules
+    .filter(s => !grade || String(s.grade) === grade)
+    .forEach(s => {
+      if (!courseMap[s.course_id]) {
+        const lbl = s.type === 'subgroup' ? (s.course_name||'Subgrupo') : `${s.grade}°${s.section||s.number}`;
+        courseMap[s.course_id] = { id:s.course_id, label:lbl };
+      }
+    });
+  document.getElementById('mapa-sel-curso').innerHTML =
+    '<option value="">— Curso —</option>' +
+    Object.values(courseMap)
+      .sort((a,b) => a.label.localeCompare(b.label,'es'))
+      .map(c => `<option value="${c.id}">${c.label}</option>`).join('');
+  document.getElementById('mapa-grupo-grid').innerHTML = '';
+}
+
+function _mapaWeekGrid(slots, cellFn, bell_schedule, today_dow) {
+  if (!slots.length) return '<div style="color:var(--gray);padding:1rem 0;">Sin horario cargado.</div>';
+  const slotMap = {};
+  slots.forEach(s => {
+    if (!slotMap[s.day_of_week]) slotMap[s.day_of_week] = {};
+    slotMap[s.day_of_week][s.class_hour] = s;
+  });
+  const DAYS    = {1:'Lunes',2:'Martes',3:'Miércoles',4:'Jueves',5:'Viernes'};
+  const ORD     = ['','1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª','10ª'];
+  const bellMap = {};
+  bell_schedule.forEach(b => bellMap[b.class_hour] = b);
+  const hours   = bell_schedule.length
+    ? bell_schedule.map(b => b.class_hour)
+    : [...new Set(slots.map(s => s.class_hour))].sort((a,b) => a-b);
+
+  const headCells = [1,2,3,4,5].map(d =>
+    `<th style="padding:.55rem .65rem;font-size:.73rem;font-weight:700;text-align:center;${d===today_dow?'background:rgba(20,184,176,.25);':''}">${DAYS[d]}</th>`
+  ).join('');
+
+  const rows = hours.map((h, i) => {
+    const bell    = bellMap[h];
+    const timeStr = bell?.start_time ? `<div style="font-size:.65rem;color:var(--gray);margin-top:.1rem;">${bell.start_time.substring(0,5)}</div>` : '';
+    const rowBg   = i%2 !== 0 ? 'background:var(--light);' : '';
+    const cells   = [1,2,3,4,5].map(d => {
+      const slot  = slotMap[d]?.[h];
+      const isNow = d === today_dow;
+      const nowBg = isNow ? 'background:rgba(20,184,176,.06);' : '';
+      if (!slot) return `<td style="padding:.55rem .65rem;${nowBg}text-align:center;"><span style="color:var(--border);font-size:.78rem;">—</span></td>`;
+      const attBadge = isNow
+        ? (slot.attendance_taken
+          ? '<div style="font-size:.62rem;color:#166534;font-weight:700;margin-top:.2rem;">✅</div>'
+          : '<div style="font-size:.62rem;color:#b45309;font-weight:700;margin-top:.2rem;">⏳</div>')
+        : '';
+      return `<td style="padding:.55rem .65rem;${nowBg}text-align:center;">${cellFn(slot)}${attBadge}</td>`;
+    }).join('');
+    return `<tr style="border-top:1px solid var(--border);${rowBg}">
+      <td style="padding:.55rem .7rem;font-size:.78rem;font-weight:700;white-space:nowrap;">${ORD[h]||h+'ª'}${timeStr}</td>
+      ${cells}
+    </tr>`;
+  }).join('');
+
+  return `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;min-width:480px;border-radius:14px;overflow:hidden;">
+    <thead><tr style="background:var(--navy);color:#fff;">
+      <th style="padding:.55rem .7rem;font-size:.73rem;font-weight:700;text-align:left;">Hora</th>${headCells}
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+function mapaRenderGrupo() {
+  if (!_mapaData) return;
+  const courseId = document.getElementById('mapa-sel-curso').value;
+  const el = document.getElementById('mapa-grupo-grid');
+  if (!courseId) { el.innerHTML = ''; return; }
+  const slots = _mapaData.schedules.filter(s => s.course_id === courseId);
+  el.innerHTML = _mapaWeekGrid(
+    slots,
+    s => `<div style="font-size:.8rem;font-weight:600;color:var(--navy);">${s.subject}</div><div style="font-size:.73rem;color:var(--gray);">${s.teacher_name}</div>`,
+    _mapaData.bell_schedule,
+    _mapaData.today_dow
+  );
+}
+
+function mapaRenderDocente() {
+  if (!_mapaData) return;
+  const teacherId = document.getElementById('mapa-sel-docente').value;
+  const el = document.getElementById('mapa-docente-grid');
+  if (!teacherId) { el.innerHTML = ''; return; }
+  const slots = _mapaData.schedules.filter(s => s.teacher_id === teacherId);
+  el.innerHTML = _mapaWeekGrid(
+    slots,
+    s => {
+      const lbl = s.type === 'subgroup' ? (s.course_name||'Subgrupo') : `${s.grade}°${s.section||s.number}`;
+      return `<div style="font-size:.8rem;font-weight:700;color:var(--navy);">${lbl}</div><div style="font-size:.73rem;color:var(--gray);">${s.subject}</div>`;
+    },
+    _mapaData.bell_schedule,
+    _mapaData.today_dow
+  );
 }
 
 // =====================================================
