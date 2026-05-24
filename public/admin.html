@@ -6015,6 +6015,7 @@ async function adminConfirmImport() {
   const label     = document.getElementById('admin-import-progress-label');
 
   btn.disabled = true; cancelBtn.disabled = true;
+  cancelBtn.title = 'No se puede cancelar mientras se procesan los datos';
   btn.innerHTML = '⏳ Importando…';
   progWrap.style.display = '';
   bar.style.width = '0%';
@@ -6040,6 +6041,7 @@ async function adminConfirmImport() {
   await new Promise(r => setTimeout(r, 450)); // pausa breve para que se vea el 100%
 
   btn.disabled = false; cancelBtn.disabled = false;
+  cancelBtn.title = '';
   btn.innerHTML = '✅ Importar estudiantes';
   progWrap.style.display = 'none';
   bar.style.width = '0%';
