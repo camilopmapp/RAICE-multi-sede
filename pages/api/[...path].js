@@ -1340,7 +1340,7 @@ async function handleCourses(req, res, user) {
       const insertData = { type: 'subgroup', name: name.trim(), director_id: director_id || null };
       if (grade) insertData.grade = parseInt(grade);
       const { data, error } = await sb.from('raice_courses').insert(insertData).select().single();
-      if (error) return res.status(500).json({ error: 'Error al crear subgrupo' });
+      if (error) return res.status(500).json({ error: 'Error al crear subgrupo', detail: error.message, hint: error.hint });
       return res.status(200).json({ success: true, course: data });
     }
 

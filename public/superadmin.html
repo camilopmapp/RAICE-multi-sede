@@ -3807,7 +3807,40 @@
   }
 
   // ---- EXPORT stubs ----
-  function exportStudentsExcel() { showToast('Exportando estudiantes…', 'info'); }
+  function exportStudentsExcel() {
+    if (!allStudents.length) { showToast('Cargá la sección de estudiantes primero', 'warning'); return; }
+    if (typeof XLSX === 'undefined') { showToast('Librería Excel no disponible, reintentá', 'error'); return; }
+
+    // Respeta los filtros activos en el listado
+    const query  = (document.getElementById('filter-search')?.value || '').toLowerCase().trim();
+    const grade  = document.getElementById('filter-grade')?.value  || '';
+    const course = document.getElementById('filter-course')?.value || '';
+    let list = allStudents;
+    if (query)  list = list.filter(s => `${s.first_name} ${s.last_name}`.toLowerCase().includes(query) || (s.doc_number||'').includes(query));
+    if (grade)  list = list.filter(s => String(s.grade)  === grade);
+    if (course) list = list.filter(s => String(s.course) === course);
+
+    const headers = ['Nombres', 'Apellidos', 'Grado', 'Curso', 'Tipo Doc', 'Documento', 'Fecha Nacimiento', 'Telefono', 'Estado'];
+    const rows = list.map(s => [
+      s.first_name  || '',
+      s.last_name   || '',
+      s.grade       || '',
+      s.course      || '',
+      s.doc_type    || 'TI',
+      s.doc_number  || '',
+      s.birth_date  || '',
+      s.phone       || '',
+      s.status      || 'active',
+    ]);
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    ws['!cols'] = [16, 16, 6, 6, 10, 14, 16, 14, 8].map(w => ({ wch: w }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Estudiantes');
+    const fecha = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(wb, `estudiantes_raice_${fecha}.xlsx`);
+    showToast(`${list.length} estudiantes exportados`, 'success');
+  }
   function exportCases() { showToast('Generando PDF de casos…', 'info'); }
   function exportAttendance() { showToast('Exportando asistencia…', 'info'); }
   function toggleCourseField() {
