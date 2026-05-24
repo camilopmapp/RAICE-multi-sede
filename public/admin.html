@@ -612,9 +612,15 @@
           <div id="admin-import-preview" style="display:none;margin-top:1rem;">
             <div id="admin-import-count" style="font-size:.85rem;font-weight:600;color:var(--navy);margin-bottom:.5rem;"></div>
             <div id="admin-import-table-wrap"></div>
+            <div id="admin-import-progress" style="display:none;margin-top:.75rem;">
+              <div style="font-size:.8rem;color:var(--gray);margin-bottom:.35rem;" id="admin-import-progress-label">Enviando datos…</div>
+              <div style="background:var(--border);border-radius:999px;height:7px;overflow:hidden;">
+                <div id="admin-import-bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--teal),var(--teal2));border-radius:999px;transition:width .25s ease;"></div>
+              </div>
+            </div>
             <div style="display:flex;gap:.6rem;margin-top:.75rem;">
-              <button class="btn btn-teal" onclick="adminConfirmImport()">✅ Importar estudiantes</button>
-              <button class="btn btn-ghost" onclick="adminCancelImport()">Cancelar</button>
+              <button class="btn btn-teal" id="admin-import-btn" onclick="adminConfirmImport()">✅ Importar estudiantes</button>
+              <button class="btn btn-ghost" id="admin-cancel-btn" onclick="adminCancelImport()">Cancelar</button>
             </div>
           </div>
         </div>
@@ -5996,17 +6002,96 @@ function adminShowImportPreview() {
   document.getElementById('admin-import-preview').style.display='';
 }
 
+let _adminLastImportErrors = [];
+
 async function adminConfirmImport() {
   if (!_adminImportedData.length) return;
-  const { ok, data } = await fetchAPI('/raice/students/import', { method:'POST', body:JSON.stringify({ students: _adminImportedData }) });
+
+  // — Mostrar progreso —
+  const btn       = document.getElementById('admin-import-btn');
+  const cancelBtn = document.getElementById('admin-cancel-btn');
+  const progWrap  = document.getElementById('admin-import-progress');
+  const bar       = document.getElementById('admin-import-bar');
+  const label     = document.getElementById('admin-import-progress-label');
+
+  btn.disabled = true; cancelBtn.disabled = true;
+  btn.innerHTML = '⏳ Importando…';
+  progWrap.style.display = '';
+  bar.style.width = '0%';
+
+  // Animación de progreso simulada (la API es una sola llamada)
+  let pct = 0;
+  const ticker = setInterval(() => {
+    pct = Math.min(pct + Math.random() * 7 + 1, 85);
+    bar.style.width = pct + '%';
+  }, 220);
+
+  const total = _adminImportedData.length;
+  label.textContent = `Procesando ${total} estudiante${total !== 1 ? 's' : ''}…`;
+
+  const { ok, data } = await fetchAPI('/raice/students/import', {
+    method: 'POST', body: JSON.stringify({ students: _adminImportedData })
+  });
+
+  clearInterval(ticker);
+  bar.style.width = '100%';
+  label.textContent = ok ? '¡Listo!' : 'Error al importar';
+
+  await new Promise(r => setTimeout(r, 450)); // pausa breve para que se vea el 100%
+
+  btn.disabled = false; cancelBtn.disabled = false;
+  btn.innerHTML = '✅ Importar estudiantes';
+  progWrap.style.display = 'none';
+  bar.style.width = '0%';
+
   if (ok) {
-    const parts = [`✅ ${data.imported} creados`];
-    if (data.updated) parts.push(`${data.updated} actualizados`);
-    if (data.skipped)  parts.push(`${data.skipped} sin cambios`);
-    showToast(parts.join(' · '), 'success');
-    adminCancelImport(); loadStudents();
+    adminCancelImport();
+    loadStudents();
+    adminShowImportSummary(data);
+  } else {
+    showToast(data?.error || 'Error al importar', 'error');
   }
-  else showToast(data?.error||'Error al importar','error');
+}
+
+function adminShowImportSummary(data) {
+  _adminLastImportErrors = data.errors || [];
+  const stats = [
+    { label: 'Nuevos',       value: data.imported || 0,             color: '#0d9488', icon: '🆕' },
+    { label: 'Actualizados', value: data.updated  || 0,             color: '#3b82f6', icon: '✏️'  },
+    { label: 'Omitidos',     value: data.skipped  || 0,             color: '#f59e0b', icon: '⏭️'  },
+    { label: 'Con error',    value: _adminLastImportErrors.length,   color: '#f43f5e', icon: '❌'  },
+  ];
+  document.getElementById('admin-import-summary-cards').innerHTML = stats.map(s =>
+    `<div style="background:var(--white);border:1px solid var(--border);border-left:4px solid ${s.color};border-radius:10px;padding:.6rem .85rem;box-shadow:0 1px 4px rgba(15,31,61,.06);">
+      <div style="font-size:.85rem;margin-bottom:.18rem;">${s.icon}</div>
+      <div style="font-family:'Fraunces',serif;font-size:2rem;font-weight:900;line-height:1;color:var(--navy);">${s.value}</div>
+      <div style="font-size:.72rem;color:var(--gray);font-weight:500;margin-top:.15rem;">${s.label}</div>
+    </div>`
+  ).join('');
+
+  const errEl  = document.getElementById('admin-import-summary-errors');
+  const expBtn = document.getElementById('admin-summary-export-btn');
+  if (_adminLastImportErrors.length) {
+    errEl.style.display  = '';
+    expBtn.style.display = '';
+    errEl.innerHTML = '<div style="font-weight:600;font-size:.82rem;color:var(--rose);margin-bottom:.4rem;">⚠️ Errores encontrados:</div>'
+      + _adminLastImportErrors.map(e =>
+        `<div style="font-size:.79rem;color:#b91c1c;padding:.22rem 0;border-bottom:1px solid #fecaca;">· ${e}</div>`
+      ).join('');
+  } else {
+    errEl.style.display  = 'none';
+    expBtn.style.display = 'none';
+  }
+  openModal('modal-import-summary');
+}
+
+function adminDownloadErrorReport() {
+  if (!_adminLastImportErrors.length || typeof XLSX === 'undefined') return;
+  const ws = XLSX.utils.aoa_to_sheet([['Error'], ..._adminLastImportErrors.map(e => [e])]);
+  ws['!cols'] = [{ wch: 60 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Errores');
+  XLSX.writeFile(wb, `errores_importacion_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 function adminCancelImport() {
@@ -9491,3 +9576,21 @@ ${pages}
     closePrintListModal();
   }
 </script>
+
+<!-- ── Modal: resumen de importación ── -->
+<div class="modal-overlay" id="modal-import-summary" onclick="if(event.target===this)closeModal('modal-import-summary')">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-header">
+      <h3>📋 Resultado de la importación</h3>
+      <button class="modal-close" onclick="closeModal('modal-import-summary')">✕</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:1rem;">
+      <div id="admin-import-summary-cards" style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;"></div>
+      <div id="admin-import-summary-errors" style="display:none;background:#fff5f5;border:1px solid #fecaca;border-radius:10px;padding:.75rem;max-height:160px;overflow-y:auto;"></div>
+      <div style="display:flex;gap:.5rem;justify-content:flex-end;flex-wrap:wrap;">
+        <button class="btn btn-ghost" id="admin-summary-export-btn" style="display:none;" onclick="adminDownloadErrorReport()">📥 Descargar errores</button>
+        <button class="btn btn-teal" onclick="closeModal('modal-import-summary')">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
