@@ -998,10 +998,10 @@ async function importStudents(req, res, user) {
     if (existing) {
       // Update only the fields that come in the Excel (overwrite with new values)
       const patch = {};
-      if (s.doc_type)   patch.doc_type   = s.doc_type;
-      if (s.doc_number) patch.doc_number = s.doc_number;
-      if (s.birth_date) patch.birth_date = s.birth_date;
-      if (s.phone)      patch.phone      = s.phone;
+      if ('doc_type'   in s && s.doc_type)   patch.doc_type   = s.doc_type;
+      if ('doc_number' in s) patch.doc_number = s.doc_number ?? null;
+      if ('birth_date' in s) patch.birth_date = s.birth_date ?? null;
+      if ('phone'      in s) patch.phone      = s.phone      ?? null;
       if (Object.keys(patch).length) {
         const { error: ue } = await sb.from('raice_students').update(patch).eq('id', existing.id);
         if (ue) errors.push(`${s.first_name} ${s.last_name}: ${ue.message}`);

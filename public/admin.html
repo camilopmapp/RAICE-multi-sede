@@ -5567,10 +5567,10 @@ function adminProcessExcelFile(file) {
         .map(r => ({
           first_name: String(r[iN]||'').trim(), last_name: String(r[iA]||'').trim(),
           grade: parseInt(r[iG]||0), course: parseInt(iC>=0?r[iC]:1)||1,
-          doc_type:   iT>=0?String(r[iT]||'TI').trim().toUpperCase():'TI',
-          doc_number: iD>=0?String(r[iD]||'').trim():'',
-          birth_date: iF>=0?parseDate(r[iF]):null,
-          phone:      iP>=0?String(r[iP]||'').trim()||null:null,
+          doc_type:   iT>=0 ? (String(r[iT]||'').trim().toUpperCase() || 'TI') : 'TI',
+          doc_number: iD>=0 ? (String(r[iD]||'').trim() || null) : undefined,
+          birth_date: iF>=0 ? parseDate(r[iF]) : undefined,
+          phone:      iP>=0 ? (String(r[iP]||'').trim() || null) : undefined,
         }))
         .filter(s => s.first_name && s.last_name && s.grade > 0);
       if (!_adminImportedData.length) { showToast('No se encontraron filas válidas', 'error'); return; }
