@@ -2168,11 +2168,11 @@ async function loadDashboard() {
     });
   })();
   const legendEl = document.getElementById('chart-att-legend');
-  if (legendEl) legendEl.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem;">
+  if (legendEl) legendEl.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:.45rem;width:100%;">
     ${[['Presentes',totalP,'#0d9488'],['Ausentes',totalA,'#f43f5e'],['Tarde',totalT,'#f59e0b'],['Permiso',totalPE,'#a78bfa']].map(([l,v,c]) =>
-      `<div style="display:flex;align-items:center;gap:.35rem;font-size:.75rem;">
-        <div style="width:8px;height:8px;border-radius:2px;background:${c};flex-shrink:0;"></div>
-        <span style="color:var(--gray);">${l}</span><span style="font-weight:700;margin-left:auto;">${v}</span>
+      `<div style="background:var(--white);border:1px solid var(--border);border-left:4px solid ${c};border-radius:10px;padding:.55rem .75rem;box-shadow:0 1px 4px rgba(15,31,61,.06);">
+        <div style="font-family:'Fraunces',serif;font-size:1.75rem;font-weight:900;line-height:1;color:var(--navy);">${v}</div>
+        <div style="font-size:.72rem;color:var(--gray);font-weight:500;margin-top:.15rem;">${l}</div>
       </div>`).join('')}
   </div>`;
 
