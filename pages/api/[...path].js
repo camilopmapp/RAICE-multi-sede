@@ -400,23 +400,30 @@ function dayOfWeekCO(dateStr) {
  * or null for roles that see everything (superadmin, rector).
  * Returns [] if the admin has no sedes assigned.
  */
-async function getAdminSedeIds(sb, user) {
-  if (user.role !== 'admin') return null; // superadmin/rector → no restriction
+// sedeFilter: UUID opcional — si el coordinador está trabajando en una sede activa
+// lo pasa el cliente como ?sede_filter=UUID y se valida aquí contra sus sedes reales.
+async function getAdminSedeIds(sb, user, sedeFilter = null) {
+  if (user.role !== 'admin') return null; // superadmin/rector → sin restricción
   try {
     const { data: rows } = await sb
       .from('raice_user_sedes')
       .select('sede_id')
       .eq('user_id', user.id);
-    return (rows || []).map(r => r.sede_id);
+    const all = (rows || []).map(r => r.sede_id);
+    // Si el cliente pide filtrar a una sola sede y esa sede está en la lista del admin
+    if (sedeFilter && all.includes(sedeFilter)) return [sedeFilter];
+    return all;
   } catch (_) {
-    // tabla no disponible → fallback to JWT value or empty
-    return user.sede_ids || [];
+    // tabla aún no migrada → fallback al JWT
+    const all = user.sede_ids || [];
+    if (sedeFilter && all.includes(sedeFilter)) return [sedeFilter];
+    return all;
   }
 }
 
-async function getAllowedCourseIdsForAdmin(sb, user) {
+async function getAllowedCourseIdsForAdmin(sb, user, sedeFilter = null) {
   if (user.role !== 'admin') return null;
-  const adminSedeIds = await getAdminSedeIds(sb, user);
+  const adminSedeIds = await getAdminSedeIds(sb, user, sedeFilter);
   if (!adminSedeIds || adminSedeIds.length === 0) return ['00000000-0000-0000-0000-000000000000'];
   const { data: courses } = await sb.from('raice_courses').select('id').in('sede_id', adminSedeIds);
   const ids = (courses || []).map(c => c.id);
@@ -488,10 +495,11 @@ async function getAlertsEndpoint(req, res, user) {
 
   // Sede scope: pre-cargar course_ids de las sedes del coordinador
   // Siempre leemos sede_ids desde la BD para evitar tokens JWT desactualizados
+  const alertSedeFilter = url.searchParams.get('sede_filter');
   let sedeCourseIds = null;      // null = sin restricción (superadmin / rector)
   let sedeGradeCourseKeys = null; // Set de "grade_course" para filtrar resultados del RPC
   if (user.role === 'admin') {
-    const adminSedeIds = await getAdminSedeIds(sb, user);
+    const adminSedeIds = await getAdminSedeIds(sb, user, alertSedeFilter);
     if (adminSedeIds && adminSedeIds.length > 0) {
       const { data: scs } = await sb.from('raice_courses')
         .select('id, grade, number').in('sede_id', adminSedeIds).neq('type', 'subgroup');
@@ -781,8 +789,21 @@ async function handleUsers(req, res, user) {
       .select('id, username, first_name, last_name, email, role, active, last_login, subject, sede_id')
       .order('first_name');
     if (user.role !== 'superadmin') q = q.neq('role', 'superadmin');
-    // En modo directorio, el admin ve todo el personal sin filtro de sede
-    if (!isDirectory) q = sedeScope(q, user);
+    // En modo directorio el admin ve todo el personal (para planillas de asistencia a reuniones)
+    if (!isDirectory) {
+      if (user.role === 'admin') {
+        // Leer sedes desde BD siempre (JWT puede estar desactualizado — bug #4)
+        const sedeFilter = url.searchParams.get('sede_filter');
+        const adminSedeIds = await getAdminSedeIds(sb, user, sedeFilter);
+        if (adminSedeIds && adminSedeIds.length > 0) {
+          q = q.in('sede_id', adminSedeIds);
+        } else {
+          q = q.in('sede_id', ['00000000-0000-0000-0000-000000000000']);
+        }
+      } else {
+        q = sedeScope(q, user);
+      }
+    }
     const { data, error } = await q;
     if (error) return res.status(500).json({ error: 'Error al cargar usuarios' });
 
@@ -873,9 +894,8 @@ async function handleUsers(req, res, user) {
     } else if (user.role === 'superadmin') {
       effectiveSede = newUserSede || null;
     } else {
-      // Admin coordinador creando un docente: usa la sede enviada desde el form
-      // si está en sus sedes asignadas; si no, usa la primera de las suyas
-      const adminSedes = user.sede_ids || [];
+      // Admin coordinador creando un docente: valida la sede desde la BD (no JWT)
+      const adminSedes = await getAdminSedeIds(sb, user) || [];
       if (newUserSede && (adminSedes.length === 0 || adminSedes.includes(newUserSede))) {
         effectiveSede = newUserSede;
       } else {
@@ -1027,10 +1047,10 @@ async function handleStudents(req, res, user) {
       if (ids.length) query = query.in('course_id', ids);
       else return res.status(200).json({ students: [] });
     } else if (user.role === 'admin') {
-      // Siempre leemos desde la BD para evitar tokens JWT desactualizados
-      const adminSedeIds = await getAdminSedeIds(sb, user);
+      // Siempre leemos desde la BD — soporte de sede_filter (sede activa del coordinador)
+      const stuSedeFilter = url.searchParams.get('sede_filter');
+      const adminSedeIds = await getAdminSedeIds(sb, user, stuSedeFilter);
       if (adminSedeIds && adminSedeIds.length > 0) {
-        // Coordinador con sedes: solo estudiantes de cursos en sus sedes
         const { data: sedeCourses } = await sb.from('raice_courses')
           .select('id').in('sede_id', adminSedeIds).neq('type', 'subgroup');
         const ids = (sedeCourses || []).map(c => c.id);
@@ -2685,9 +2705,10 @@ async function handleCases(req, res, user) {
       .range(offset, offset + limit - 1);
 
     if (user.role === 'teacher') query = query.eq('teacher_id', user.id);
-    // Filtrar por sedes para coordinadores — siempre leemos desde la BD
+    // Filtrar por sedes para coordinadores — siempre leemos desde la BD, con sede_filter opcional
     if (user.role === 'admin') {
-      const adminSedeIds = await getAdminSedeIds(sb, user);
+      const caseSedeFilter = url.searchParams.get('sede_filter');
+      const adminSedeIds = await getAdminSedeIds(sb, user, caseSedeFilter);
       if (adminSedeIds && adminSedeIds.length > 0) {
         const { data: scs } = await sb.from('raice_courses')
           .select('id').in('sede_id', adminSedeIds).neq('type','subgroup');
@@ -3239,10 +3260,11 @@ async function getDashboardV2(req, res, user) {
 
   // Sede scope: coordinadores con sedes solo ven sus sedes
   // Siempre leemos desde la BD para evitar tokens JWT desactualizados
+  const dashSedeFilter = url.searchParams.get('sede_filter');
   let sedeCourseIds = null; // null = sin restricción
   let adminSedeIds  = null; // expuesto para applySedeToUsers (conteo de docentes)
   if (user.role === 'admin') {
-    adminSedeIds = await getAdminSedeIds(sb, user);
+    adminSedeIds = await getAdminSedeIds(sb, user, dashSedeFilter);
     if (adminSedeIds && adminSedeIds.length > 0) {
       const { data: scs } = await sb.from('raice_courses')
         .select('id').in('sede_id', adminSedeIds).neq('type','subgroup');
@@ -3669,10 +3691,11 @@ async function getStatsByPeriod(req, res, user) {
     endDate = todayCO();
   }
 
-  // Sede scope para coordinadores — siempre leemos desde la BD
+  // Sede scope para coordinadores — siempre leemos desde la BD, con sede_filter opcional
+  const statsSedeFilter = url.searchParams.get('sede_filter');
   let statsCourseIds = null;
   if (user.role === 'admin') {
-    const adminSedeIds = await getAdminSedeIds(sb, user);
+    const adminSedeIds = await getAdminSedeIds(sb, user, statsSedeFilter);
     if (adminSedeIds && adminSedeIds.length > 0) {
       const { data: scs } = await sb.from('raice_courses')
         .select('id').in('sede_id', adminSedeIds).neq('type', 'subgroup');
@@ -3878,11 +3901,12 @@ async function globalSearch(req, res, user) {
   const escaped = q.replace(/%/g, '\\%').replace(/_/g, '\\_');
   const term = `%${escaped}%`;
 
-  // Sede scope para búsqueda de coordinadores — siempre leemos desde la BD
+  // Sede scope para búsqueda de coordinadores — siempre leemos desde la BD, con sede_filter opcional
+  const searchSedeFilter = url.searchParams.get('sede_filter');
   let searchCourseIds = null;
   let searchAdminSedeIds = null;
   if (user.role === 'admin') {
-    searchAdminSedeIds = await getAdminSedeIds(sb, user);
+    searchAdminSedeIds = await getAdminSedeIds(sb, user, searchSedeFilter);
     if (searchAdminSedeIds && searchAdminSedeIds.length > 0) {
       const { data: scs } = await sb.from('raice_courses')
         .select('id').in('sede_id', searchAdminSedeIds).neq('type','subgroup');
@@ -5068,6 +5092,7 @@ async function handleBackupExport(req, res, user) {
       tipo1Escalones,
       sedes,
       userSedes,
+      subgroupMembers,
     ] = await Promise.all([
       sq(sb.from('raice_students').select('*').order('grade').order('last_name')),
       sq(sb.from('raice_cases').select('*').order('created_at', { ascending: false })),
@@ -5096,6 +5121,7 @@ async function handleBackupExport(req, res, user) {
       sq(sb.from('raice_tipo1_escalones').select('*').order('created_at', { ascending: false })),
       sq(sb.from('raice_sedes').select('*').order('created_at')),
       sq(sb.from('raice_user_sedes').select('*')),
+      sq(sb.from('raice_subgroup_members').select('*')),
     ]);
 
     // Asistencia paginada (sin límite)
@@ -5164,6 +5190,7 @@ async function handleBackupExport(req, res, user) {
         // Sedes (multi-sede)
         sedes,
         user_sedes:             userSedes,
+        subgroup_members:       subgroupMembers,
         // Sistema
         notifications,
         student_grade_history:  studentGradeHistory,
@@ -7195,7 +7222,7 @@ async function handleBackupImport(req, res, user) {
 
   // ── 6. Asignaciones de sedes a coordinadores ─────────────────────────────
   if (t.user_sedes?.length) {
-    // raice_user_sedes tiene PK compuesta (user_id, sede_id) — upsert con onConflict específico
+    // raice_user_sedes tiene PK compuesta (user_id, sede_id)
     const validUserIds = new Set((t.teachers || []).map(u => u.id));
     const validSedeIds = new Set((t.sedes    || []).map(s => s.id));
     const safeUserSedes = t.user_sedes.filter(r => validUserIds.has(r.user_id) && validSedeIds.has(r.sede_id));
@@ -7204,6 +7231,21 @@ async function handleBackupImport(req, res, user) {
         .upsert(safeUserSedes, { onConflict: 'user_id,sede_id', ignoreDuplicates: true });
       if (error) errors.push('user_sedes: ' + error.message);
       else results.user_sedes = safeUserSedes.length;
+    }
+  }
+
+  // ── 7. Miembros de subgrupos ──────────────────────────────────────────────
+  if (t.subgroup_members?.length) {
+    const validStudentIds = new Set((t.students || []).map(s => s.id));
+    const validCourseIds  = new Set((t.courses  || []).map(c => c.id));
+    const safeMembers = t.subgroup_members.filter(
+      m => validStudentIds.has(m.student_id) && validCourseIds.has(m.subgroup_course_id)
+    );
+    if (safeMembers.length) {
+      const { error } = await sb.from('raice_subgroup_members')
+        .upsert(safeMembers, { onConflict: 'id', ignoreDuplicates: true });
+      if (error) errors.push('subgroup_members: ' + error.message);
+      else results.subgroup_members = safeMembers.length;
     }
   }
 
@@ -7386,8 +7428,10 @@ async function handleSedes(req, res, user) {
       .order('name');
       
     if (user.role === 'admin') {
-      if (user.sede_ids && user.sede_ids.length > 0) {
-        query = query.in('id', user.sede_ids);
+      // Siempre leer desde la BD — el JWT puede estar desactualizado
+      const adminSedeIds = await getAdminSedeIds(sb, user);
+      if (adminSedeIds && adminSedeIds.length > 0) {
+        query = query.in('id', adminSedeIds);
       } else {
         query = query.in('id', ['00000000-0000-0000-0000-000000000000']);
       }

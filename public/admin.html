@@ -473,7 +473,15 @@
           oninput="onGlobalSearch(this.value)" onfocus="this.style.borderColor='var(--teal2)'" onblur="setTimeout(()=>closeSearch(),300)">
         <div id="global-search-results" style="display:none;position:absolute;top:calc(100% + 6px);right:0;width:320px;background:var(--white);border:1.5px solid var(--border);border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:200;overflow:hidden;"></div>
       </div>
-      <div class="topbar-badge">🗂️ Coordinador</div>
+      <!-- Para coordinador de 1 sede: badge estático. Para 2+ sedes: select dinámico -->
+      <div id="sede-badge-wrap">
+        <div class="topbar-badge" id="topbar-sede-badge" style="display:none;">🗂️ Coordinador</div>
+        <select id="sede-selector" onchange="cambiarSedeActiva(this.value, this.options[this.selectedIndex].text)"
+          style="display:none;cursor:pointer;background:rgba(11,122,117,.12);color:var(--teal);
+                 border:1.5px solid rgba(11,122,117,.25);border-radius:999px;padding:.25rem .9rem;
+                 font-size:.75rem;font-weight:700;letter-spacing:.04em;outline:none;font-family:'DM Sans',sans-serif;">
+        </select>
+      </div>
       <span id="refresh-indicator" style="font-size:.72rem;color:var(--gray);transition:color .3s;"></span>
       <span style="font-size:.82rem;color:var(--gray);" id="topbar-date"></span>
     </div>
@@ -1946,6 +1954,10 @@ let currentUser = null;
 let allStudents = [], allCases = [], allCommitments = [], allAlerts = [];
 let currentCaseData = null;
 let caseTypeFilter = '', caseStatusFilter = '', caseSearchQuery = '';
+// Sede activa para coordinadores multi-sede (Opción B)
+// null = coordinador de 1 sola sede o superadmin (sin restricción adicional)
+// { id, name } = coordinador con 2+ sedes trabajando en una sede específica
+let activeSede = null;
 
 // ---- AUTH ----
 function initSession() {
@@ -1960,16 +1972,44 @@ function initSession() {
     const ini = ((user.first_name||'C')[0]+(user.last_name||'O')[0]).toUpperCase();
     document.getElementById('user-avatar-sb').textContent = ini;
     document.getElementById('user-name-sb').textContent   = `${user.first_name||''} ${user.last_name||''}`.trim();
-    // Badge multi-sede en topbar: muestra las sedes del coordinador
-    const badge = document.querySelector('.topbar-badge');
-    if (badge) {
-      const names = user.sede_names && user.sede_names.length ? user.sede_names
-                  : user.sede_name  ? [user.sede_name]        : [];
-      if (names.length) {
-        badge.textContent = '🏢 ' + (names.length === 1 ? names[0] : names.join(' · '));
+
+    const ids   = user.sede_ids   || [];
+    const names = user.sede_names || (user.sede_name ? [user.sede_name] : []);
+
+    if (ids.length > 1) {
+      // ── Multi-sede: mostrar selector desplegable ─────────────────────────
+      const sel = document.getElementById('sede-selector');
+      if (sel) {
+        sel.innerHTML = ids.map((id, i) =>
+          `<option value="${id}">🏢 ${names[i] || id}</option>`
+        ).join('');
+        sel.style.display = '';
+        document.getElementById('topbar-sede-badge').style.display = 'none';
+        // Primera sede activa por defecto
+        activeSede = { id: ids[0], name: names[0] || ids[0] };
       }
+    } else if (ids.length === 1) {
+      // ── Una sola sede: badge estático ───────────────────────────────────
+      const badge = document.getElementById('topbar-sede-badge');
+      if (badge) {
+        badge.textContent = '🏢 ' + (names[0] || ids[0]);
+        badge.style.display = '';
+      }
+      activeSede = { id: ids[0], name: names[0] || ids[0] };
+    } else {
+      // ── Sin sedes asignadas: badge genérico ─────────────────────────────
+      const badge = document.getElementById('topbar-sede-badge');
+      if (badge) { badge.textContent = '🗂️ Coordinador'; badge.style.display = ''; }
     }
   }
+}
+
+function cambiarSedeActiva(id, name) {
+  // Quitar el prefijo "🏢 " que ponemos en los options
+  const cleanName = name.replace(/^🏢\s*/, '');
+  activeSede = { id, name: cleanName };
+  showSection(currentSection);
+  showToast(`📍 Sede activa: ${cleanName}`, 'info');
 }
 
 function logout() {
@@ -2080,10 +2120,19 @@ function daysAgo(iso) {
 
 async function fetchAPI(path, opts = {}) {
   const token = sessionStorage.getItem('raice_token');
+  // Extraer flag interno (no se envía al servidor)
+  const { _skipSedeFilter, ...fetchOpts } = opts;
+  // Inyectar sede_filter automáticamente en GETs cuando hay una sede activa seleccionada.
+  // _skipSedeFilter: true omite la inyección (p.ej. al cargar selectores de sedes/cursos del modal).
+  let fullPath = path;
+  if (!_skipSedeFilter && activeSede && activeSede.id && (!fetchOpts.method || fetchOpts.method === 'GET')) {
+    const sep = path.includes('?') ? '&' : '?';
+    fullPath = path + sep + 'sede_filter=' + activeSede.id;
+  }
   try {
-    const res = await fetch(API_URL + path, {
-      ...opts,
-      headers: {'Content-Type':'application/json','Authorization':`Bearer ${token}`,...(opts.headers||{})}
+    const res = await fetch(API_URL + fullPath, {
+      ...fetchOpts,
+      headers: {'Content-Type':'application/json','Authorization':`Bearer ${token}`,...(fetchOpts.headers||{})}
     });
     const data = await res.json().catch(() => ({}));
     return { ok: res.ok, status: res.status, data };
@@ -2674,12 +2723,12 @@ async function deleteStudentAdmin(id) {
 
 
 async function adminLoadSedesForModal(selectedSedeId, selectedGrade, selectedCourseId) {
-  // Solo los admin ven los estudiantes de sus sedes asignadas, 
-  // Fetch sedes uses the user token, it might just return what the admin has access to, or all sedes.
-  const { data: sData } = await fetchAPI('/raice/sedes');
+  // _skipSedeFilter: true → carga TODAS las sedes del coordinador (no solo la activa)
+  // El estudiante puede asignarse a cualquiera de las sedes del coordinador.
+  const { data: sData } = await fetchAPI('/raice/sedes', { _skipSedeFilter: true });
   const sedes = sData?.sedes || [];
-  
-  const { data: cData } = await fetchAPI('/raice/courses');
+
+  const { data: cData } = await fetchAPI('/raice/courses', { _skipSedeFilter: true });
   window._adminCoursesForModal = (cData?.courses || []).filter(c => c.type !== 'subgroup');
   
   if (!selectedSedeId && selectedCourseId) {
@@ -9416,11 +9465,21 @@ if (!navigator.onLine) showOfflineBanner();
         </div>
       </div>
 
-      <!-- Filas en blanco -->
-      <div class="form-group" style="margin:0;">
-        <label>Filas en blanco al final <span style="font-weight:400;color:var(--gray);font-size:.78rem;">(para invitados externos)</span></label>
-        <input type="number" id="ps-blank-rows" value="3" min="0" max="20"
-          style="width:90px;padding:.35rem .6rem;border:1.5px solid var(--border);border-radius:8px;">
+      <!-- Orientación -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;">
+        <div class="form-group" style="margin:0;">
+          <label>Orientación</label>
+          <select id="ps-orient" style="width:100%;padding:.35rem .6rem;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;">
+            <option value="landscape">Horizontal (carta)</option>
+            <option value="portrait">Vertical (carta)</option>
+          </select>
+        </div>
+        <!-- Filas en blanco -->
+        <div class="form-group" style="margin:0;">
+          <label>Filas en blanco al final <span style="font-weight:400;color:var(--gray);font-size:.78rem;">(invitados)</span></label>
+          <input type="number" id="ps-blank-rows" value="3" min="0" max="20"
+            style="width:90px;padding:.35rem .6rem;border:1.5px solid var(--border);border-radius:8px;">
+        </div>
       </div>
 
     </div>
@@ -9584,6 +9643,7 @@ if (!navigator.onLine) showOfflineBanner();
     const inclAdmin   = document.getElementById('ps-role-admin')?.checked;
     const inclTeacher = document.getElementById('ps-role-teacher')?.checked;
     const blankRows   = Math.max(0, Math.min(20, parseInt(document.getElementById('ps-blank-rows').value) || 3));
+    const orient      = document.getElementById('ps-orient')?.value || 'landscape';
 
     if (!inclRector && !inclAdmin && !inclTeacher) {
       showToast('Selecciona al menos un tipo de personal', 'warning'); return;
@@ -9674,7 +9734,7 @@ if (!navigator.onLine) showOfflineBanner();
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>Planilla de Asistencia — ${schoolName}</title>
 <style>
-  @page { size: letter landscape; margin: 12mm 14mm 12mm 14mm; }
+  @page { size: letter ${orient}; margin: 12mm 14mm 12mm 14mm; }
   * { box-sizing: border-box; }
   body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
   table { border-collapse: collapse; }
