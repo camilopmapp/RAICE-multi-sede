@@ -474,6 +474,7 @@
         <div id="global-search-results" style="display:none;position:absolute;top:calc(100% + 6px);right:0;width:320px;background:var(--white);border:1.5px solid var(--border);border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:200;overflow:hidden;"></div>
       </div>
       <div class="topbar-badge">🗂️ Coordinador</div>
+      <div id="topbar-sede-badge" class="topbar-badge" style="display:none;background:rgba(232,160,32,.12);color:var(--gold);border-color:rgba(232,160,32,.3);">🏢 Sede</div>
       <span id="refresh-indicator" style="font-size:.72rem;color:var(--gray);transition:color .3s;"></span>
       <span style="font-size:.82rem;color:var(--gray);" id="topbar-date"></span>
     </div>
@@ -1953,6 +1954,11 @@ function initSession() {
     const ini = ((user.first_name||'C')[0]+(user.last_name||'O')[0]).toUpperCase();
     document.getElementById('user-avatar-sb').textContent = ini;
     document.getElementById('user-name-sb').textContent   = `${user.first_name||''} ${user.last_name||''}`.trim();
+    // Badge de sede en topbar
+    if (user.sede_name) {
+      const badge = document.getElementById('topbar-sede-badge');
+      if (badge) { badge.textContent = '🏢 ' + user.sede_name; badge.style.display = ''; }
+    }
   }
 }
 

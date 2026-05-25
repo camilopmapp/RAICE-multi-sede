@@ -512,6 +512,7 @@
     <div class="topbar-right">
       <button onclick="openMySchedule()" style="background:none;border:1.5px solid var(--border);border-radius:20px;padding:.3rem .75rem;font-size:.78rem;cursor:pointer;font-family:'DM Sans',sans-serif;color:var(--navy);">🗓️ Mi horario</button>
       <div class="topbar-badge">👨‍🏫 Docente</div>
+      <div id="topbar-sede-badge" class="topbar-badge" style="display:none;background:rgba(232,160,32,.12);color:#92400e;border-color:rgba(232,160,32,.3);">🏢 Sede</div>
       <span style="font-size:.8rem;color:var(--gray);" id="topbar-date"></span>
     </div>
   </div>
@@ -1227,6 +1228,12 @@
       const hr = new Date().getHours();
       const greeting = hr < 12 ? 'Buenos días' : hr < 18 ? 'Buenas tardes' : 'Buenas noches';
       document.getElementById('welcome-title').textContent = `${greeting}, ${fn} 👋`;
+
+      // Badge de sede en topbar
+      if (user.sede_name) {
+        const badge = document.getElementById('topbar-sede-badge');
+        if (badge) { badge.textContent = '🏢 ' + user.sede_name; badge.style.display = ''; }
+      }
     }
   }
 

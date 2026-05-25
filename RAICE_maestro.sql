@@ -32,6 +32,22 @@
 -- =====================================================================
 
 -- ─────────────────────────────────────────────────────────────────────
+-- 00. SEDES DE LA INSTITUCIÓN
+--     Una sede = campus físico (primaria, bachillerato, mixta, etc.)
+--     sede_id NULL en users → superadmin/rector (acceso global)
+-- ─────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS raice_sedes (
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  name       TEXT        NOT NULL,
+  type       TEXT        NOT NULL DEFAULT 'mixta'
+                         CHECK (type IN ('primaria','bachillerato','mixta')),
+  address    TEXT,
+  active     BOOLEAN     NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+
+-- ─────────────────────────────────────────────────────────────────────
 -- 01. USUARIOS DEL SISTEMA
 --     Roles: superadmin (dueño), admin/rector (coordinación),
 --            teacher (docente)
@@ -45,6 +61,7 @@ CREATE TABLE IF NOT EXISTS raice_users (
   role                 TEXT        NOT NULL
                                    CHECK (role IN ('superadmin','admin','rector','teacher')),
   subject              TEXT,
+  sede_id              UUID        REFERENCES raice_sedes(id) ON DELETE SET NULL,
   password_hash        TEXT        NOT NULL,
   active               BOOLEAN     NOT NULL DEFAULT true,
   must_change_password BOOLEAN     NOT NULL DEFAULT false,
@@ -99,9 +116,10 @@ CREATE TABLE IF NOT EXISTS raice_courses (
   type        TEXT        NOT NULL DEFAULT 'normal'
                           CHECK (type IN ('normal','subgroup')),
   name        TEXT,
+  sede_id     UUID        REFERENCES raice_sedes(id) ON DELETE SET NULL,
   director_id UUID        REFERENCES raice_users(id) ON DELETE SET NULL,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (grade, number)
+  UNIQUE (grade, number, sede_id)
 );
 
 
@@ -642,10 +660,36 @@ ALTER TABLE raice_teacher_courses
   ADD  CONSTRAINT raice_teacher_courses_course_id_fkey
        FOREIGN KEY (course_id) REFERENCES raice_courses(id) ON DELETE RESTRICT;
 
+-- ── Multi-sede ───────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS raice_sedes (
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  name       TEXT        NOT NULL,
+  type       TEXT        NOT NULL DEFAULT 'mixta'
+                         CHECK (type IN ('primaria','bachillerato','mixta')),
+  address    TEXT,
+  active     BOOLEAN     NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE raice_users   ADD COLUMN IF NOT EXISTS sede_id UUID REFERENCES raice_sedes(id) ON DELETE SET NULL;
+ALTER TABLE raice_courses ADD COLUMN IF NOT EXISTS sede_id UUID REFERENCES raice_sedes(id) ON DELETE SET NULL;
+
+-- Actualizar constraint único de cursos para incluir sede
+ALTER TABLE raice_courses DROP CONSTRAINT IF EXISTS raice_courses_grade_number_key;
+ALTER TABLE raice_courses ADD CONSTRAINT IF NOT EXISTS raice_courses_grade_number_sede_key
+  UNIQUE (grade, number, sede_id);
+
 
 -- =====================================================================
 -- SECCIÓN 3: ÍNDICES
 -- =====================================================================
+
+-- Sedes
+CREATE INDEX IF NOT EXISTS idx_sedes_active   ON raice_sedes(active);
+-- Usuarios por sede
+CREATE INDEX IF NOT EXISTS idx_users_sede     ON raice_users(sede_id);
+-- Cursos por sede
+CREATE INDEX IF NOT EXISTS idx_courses_sede   ON raice_courses(sede_id);
 
 -- Usuarios
 CREATE INDEX IF NOT EXISTS idx_users_role     ON raice_users(role);
@@ -955,6 +999,11 @@ INSERT INTO raice_faltas_catalogo (tipo, categoria, numeral, descripcion, orden)
 (3,'bullying','3.10','Todo acto de Acoso escolar o bullying y/o ciberacoso por ser una conducta negativa, intencional, metódica y sistemática de agresión y por conllevar a la intimidación, humillación, ridiculización, difamación, coacción, aislamiento deliberado, amenaza o incitación a la violencia o cualquier forma de maltrato psicológico, verbal, físico o por medios electrónicos contra un niño, niña o adolescente.',10)
 ON CONFLICT DO NOTHING;
 
+
+-- ── Sede principal por defecto ──────────────────────────────────────
+INSERT INTO raice_sedes (id, name, type, active)
+VALUES ('00000000-0000-0000-0000-000000000001', 'Sede Principal', 'mixta', true)
+ON CONFLICT (id) DO NOTHING;
 
 -- =====================================================================
 -- SECCIÓN 7: VERIFICACIÓN FINAL

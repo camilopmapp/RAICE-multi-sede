@@ -492,6 +492,9 @@
     </button>
 
     <div class="nav-group-title">Institución</div>
+    <button class="nav-item" onclick="showSection('sedes',this)">
+      <span class="nav-ico">🏢</span> Sedes
+    </button>
     <button class="nav-item" onclick="showSection('estudiantes',this)">
       <span class="nav-ico">👥</span> Estudiantes
     </button>
@@ -617,6 +620,34 @@
     </section>
 
     <!-- ===== USUARIOS ===== -->
+    <!-- ===== SEDES ===== -->
+    <section class="section" id="sec-sedes">
+      <div class="card">
+        <div class="card-header">
+          <h3>🏢 Sedes de la institución</h3>
+          <button class="btn btn-primary" onclick="openNewSede()">➕ Nueva sede</button>
+        </div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Tipo</th>
+                  <th>Dirección</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="sedes-tbody">
+                <tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--gray);">Cargando…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="section" id="sec-usuarios">
       <div class="card">
         <div class="card-header">
@@ -645,6 +676,7 @@
                   <th>Usuario</th>
                   <th>Nombre completo</th>
                   <th>Rol</th>
+                  <th>Sede</th>
                   <th>Cursos asignados</th>
                   <th>Último acceso</th>
                   <th>Estado</th>
@@ -1635,6 +1667,12 @@
           </select>
         </div>
         <div class="form-group">
+          <label>Sede <span style="font-weight:400;color:var(--gray);font-size:.78rem;">(rector = sin sede)</span></label>
+          <select id="nu-sede">
+            <option value="">— Sin sede asignada —</option>
+          </select>
+        </div>
+        <div class="form-group">
           <label>Contraseña inicial</label>
           <input type="text" id="nu-password" placeholder="raice2025">
         </div>
@@ -1685,6 +1723,12 @@
             <option value="rector">🏫 Rector</option>
             <option value="teacher">👨‍🏫 Docente</option>
             <option value="superadmin">🛡️ Superadministrador</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Sede</label>
+          <select id="eu-sede">
+            <option value="">— Sin sede asignada —</option>
           </select>
         </div>
         <div class="form-group">
@@ -1901,6 +1945,12 @@
           <label>Número de curso</label>
           <input type="number" id="nc-number" min="1" max="10" placeholder="1">
         </div>
+        <div class="form-group">
+          <label>Sede</label>
+          <select id="nc-sede">
+            <option value="">— Sin sede —</option>
+          </select>
+        </div>
         <div class="form-group full">
           <label>Director(a) de grupo (opcional)</label>
           <select id="nc-director">
@@ -1947,6 +1997,12 @@
           <input type="text" id="mt-subject" placeholder="Ej: Matemáticas">
         </div>
         <div class="form-group full">
+          <label>Sede</label>
+          <select id="mt-sede">
+            <option value="">— Sin sede —</option>
+          </select>
+        </div>
+        <div class="form-group full">
           <label>Estado</label>
           <select id="mt-active">
             <option value="true">✅ Activo</option>
@@ -1958,6 +2014,48 @@
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-teacher')">Cancelar</button>
       <button class="btn btn-primary" id="teacher-modal-btn" onclick="saveTeacher()">✅ Crear docente</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Nueva / Editar sede -->
+<div class="modal-overlay" id="modal-sede" onclick="if(event.target===this)closeModal('modal-sede')">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-header">
+      <h3 id="sede-modal-title">🏢 Nueva sede</h3>
+      <button class="modal-close" onclick="closeModal('modal-sede')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="sede-id">
+      <div class="form-grid">
+        <div class="form-group full">
+          <label>Nombre de la sede *</label>
+          <input type="text" id="sede-name" placeholder="Sede Bachillerato">
+        </div>
+        <div class="form-group">
+          <label>Tipo</label>
+          <select id="sede-type">
+            <option value="mixta">Mixta (todos los grados)</option>
+            <option value="primaria">Primaria</option>
+            <option value="bachillerato">Bachillerato</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Estado</label>
+          <select id="sede-active">
+            <option value="true">✅ Activa</option>
+            <option value="false">❌ Inactiva</option>
+          </select>
+        </div>
+        <div class="form-group full">
+          <label>Dirección (opcional)</label>
+          <input type="text" id="sede-address" placeholder="Calle 10 # 5-20, Municipio">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-sede')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveSede()">Guardar sede</button>
     </div>
   </div>
 </div>
@@ -2135,7 +2233,7 @@
 <script>
   const API_URL = '/api';
   let currentUser = null;
-  let allStudents = [], allUsers = [], allTeachers = [];
+  let allStudents = [], allUsers = [], allTeachers = [], allSedes = [];
   let importedData = [];
   let activeUserRoleFilter = 'all';
 
@@ -2175,6 +2273,7 @@
     btn.classList.add('active');
     const titles = {
       dashboard: 'Dashboard', usuarios: 'Usuarios del sistema',
+      sedes: 'Sedes de la institución',
       estudiantes: 'Estudiantes', docentes: 'Docentes',
       cursos: 'Grados y cursos', casos: 'Casos RAICE',
       asistencia: 'Asistencia general', config: 'Configuración',
@@ -2187,6 +2286,7 @@
     document.getElementById('page-title').textContent = titles[name] || name;
 
     // Lazy load
+    if (name === 'sedes')       loadSedes();
     if (name === 'estudiantes') loadStudents();
     if (name === 'usuarios')    loadUsers();
     if (name === 'docentes')    loadTeachers();
@@ -2945,6 +3045,112 @@
     XLSX.writeFile(wb, 'formato_importacion_estudiantes.xlsx');
   }
 
+  // ---- SEDES ----
+  async function loadSedes() {
+    const { ok, data } = await fetchAPI('/raice/sedes');
+    if (!ok) return;
+    allSedes = data.sedes || [];
+    renderSedes(allSedes);
+    populateSedeSelects();
+  }
+
+  function renderSedes(list) {
+    const tbody = document.getElementById('sedes-tbody');
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--gray);">Sin sedes registradas</td></tr>';
+      return;
+    }
+    const typeLabel = { mixta: '🏫 Mixta', primaria: '📚 Primaria', bachillerato: '🎓 Bachillerato' };
+    tbody.innerHTML = list.map(s => `
+      <tr>
+        <td><strong>${s.name}</strong></td>
+        <td class="td-muted">${typeLabel[s.type] || s.type || '—'}</td>
+        <td class="td-muted">${s.address || '—'}</td>
+        <td><span class="pill ${s.active !== false ? 'pill-green' : 'pill-red'}">${s.active !== false ? 'Activa' : 'Inactiva'}</span></td>
+        <td>
+          <div style="display:flex;gap:.3rem;">
+            <button class="btn btn-gold btn-sm" onclick='editSede(${JSON.stringify(s).replace(/'/g,"&#39;")})'>✏️</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteSede('${s.id}','${s.name.replace(/'/g,"\\'") }')">🗑️</button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  function populateSedeSelects() {
+    const base = '<option value="">— Sin sede —</option>';
+    const opts = allSedes.filter(s => s.active !== false)
+      .map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    ['nu-sede','eu-sede','nc-sede','mt-sede'].forEach(selId => {
+      const sel = document.getElementById(selId);
+      if (!sel) return;
+      const prev = sel.value;
+      sel.innerHTML = base + opts;
+      if (prev) sel.value = prev; // preserve current selection
+    });
+  }
+
+  function openNewSede() {
+    document.getElementById('sede-modal-title').textContent = '🏢 Nueva sede';
+    document.getElementById('sede-id').value      = '';
+    document.getElementById('sede-name').value    = '';
+    document.getElementById('sede-type').value    = 'mixta';
+    document.getElementById('sede-active').value  = 'true';
+    document.getElementById('sede-address').value = '';
+    openModal('modal-sede');
+  }
+
+  function editSede(s) {
+    document.getElementById('sede-modal-title').textContent = '✏️ Editar sede';
+    document.getElementById('sede-id').value      = s.id;
+    document.getElementById('sede-name').value    = s.name    || '';
+    document.getElementById('sede-type').value    = s.type    || 'mixta';
+    document.getElementById('sede-active').value  = String(s.active !== false);
+    document.getElementById('sede-address').value = s.address || '';
+    openModal('modal-sede');
+  }
+
+  async function saveSede() {
+    const id      = document.getElementById('sede-id').value;
+    const name    = document.getElementById('sede-name').value.trim();
+    const type    = document.getElementById('sede-type').value;
+    const active  = document.getElementById('sede-active').value === 'true';
+    const address = document.getElementById('sede-address').value.trim();
+    if (!name) { showToast('El nombre de la sede es requerido', 'warning'); return; }
+
+    const body = id
+      ? { id, name, type, active, address: address || null }
+      : { name, type, address: address || null };
+    const { ok, data } = await fetchAPI('/raice/sedes', {
+      method: id ? 'PUT' : 'POST',
+      body: JSON.stringify(body)
+    });
+    if (ok) {
+      showToast(id ? '✅ Sede actualizada' : '✅ Sede creada', 'success');
+      closeModal('modal-sede');
+      loadSedes();
+    } else {
+      showToast(data?.error || 'Error al guardar la sede', 'error');
+    }
+  }
+
+  async function deleteSede(id, name) {
+    if (!confirm(`¿Eliminar la sede "${name}"?\nSolo es posible si no tiene usuarios ni cursos asignados.`)) return;
+    const { ok, data } = await fetchAPI('/raice/sedes', {
+      method: 'DELETE', body: JSON.stringify({ id })
+    });
+    if (ok) {
+      showToast('Sede eliminada', 'success');
+      loadSedes();
+    } else {
+      const refs = data?.refs;
+      const detail = refs
+        ? ` (${refs.users || 0} usuarios, ${refs.courses || 0} cursos)`
+        : '';
+      showToast((data?.error || 'No se pudo eliminar') + detail, 'error');
+    }
+  }
+
   // ---- USERS ----
   async function loadUsers() {
     const { ok, data } = await fetchAPI('/raice/users');
@@ -2985,6 +3191,7 @@
         </td>
         <td><strong>${u.first_name} ${u.last_name}</strong><div class="td-muted">${u.email||''}</div></td>
         <td><span class="pill ${rolePills[u.role]||'pill-blue'}">${roleLabels[u.role]||u.role}</span></td>
+        <td class="td-muted">${u.sede_name ? `<span style="background:rgba(11,122,117,.1);color:var(--teal);padding:.15rem .45rem;border-radius:999px;font-size:.75rem;font-weight:600;">🏢 ${u.sede_name}</span>` : '<span style="color:var(--gray);font-size:.75rem;">Global</span>'}</td>
         <td class="td-muted">${u.courses_count || 0} cursos</td>
         <td class="td-muted">${formatDate(u.last_login)}</td>
         <td><span class="pill ${u.active ? 'pill-green' : 'pill-red'}">${u.active ? 'Activo' : 'Inactivo'}</span></td>
@@ -3007,6 +3214,7 @@
       email:      document.getElementById('nu-email').value.trim(),
       role:       document.getElementById('nu-role').value,
       password:   document.getElementById('nu-password').value,
+      sede_id:    document.getElementById('nu-sede').value || null,
     };
     if (!payload.first_name || !payload.username || !payload.password) {
       showToast('Completa los campos requeridos', 'warning');
@@ -3069,6 +3277,7 @@
     document.getElementById('eu-email').value     = u.email       || '';
     document.getElementById('eu-role').value      = u.role        || 'teacher';
     document.getElementById('eu-active').value    = String(u.active !== false);
+    document.getElementById('eu-sede').value      = u.sede_id     || '';
     openModal('modal-edit-user');
   }
 
@@ -3082,6 +3291,7 @@
       email:      document.getElementById('eu-email').value.trim(),
       role:       document.getElementById('eu-role').value,
       active:     document.getElementById('eu-active').value === 'true',
+      sede_id:    document.getElementById('eu-sede')?.value || null,
     };
     if (!payload.first_name || !payload.username) {
       showToast('Nombre y usuario son requeridos', 'warning'); return;
@@ -3178,7 +3388,7 @@
         html += '<button class="btn btn-ghost btn-sm" style="width:100%;font-size:.78rem;margin-bottom:.3rem;" onclick="openAssignTeacher(\'' + c.id + '\',\'' + c.grade + '°' + c.number + '\')">➕ Asignar docente</button>';
         html += '<button class="btn btn-teal btn-sm" style="width:100%;font-size:.78rem;margin-bottom:.3rem;" onclick="openCourseSchedule(\'' + c.id + '\',\'' + c.grade + '°' + c.number + '\')">🕐 Horario</button>';
         html += '<div style="display:flex;gap:.3rem;">';
-        html += '<button class="btn btn-ghost btn-sm" style="flex:1;font-size:.78rem;" onclick="editCourse(\'' + c.id + '\',' + c.grade + ',' + c.number + ',\'' + (c.director_id||'') + '\')">✏️ Editar</button>';
+        html += '<button class="btn btn-ghost btn-sm" style="flex:1;font-size:.78rem;" onclick="editCourse(\'' + c.id + '\',' + c.grade + ',' + c.number + ',\'' + (c.director_id||'') + '\',\'' + (c.sede_id||'') + '\')">✏️ Editar</button>';
         html += '<button class="btn btn-danger btn-sm" style="font-size:.78rem;" onclick="deleteCourse(\'' + c.id + '\',\'' + c.grade + '°' + c.number + '\')">🗑️</button>';
         html += '</div>';
         html += '</div>';
@@ -3225,16 +3435,17 @@
   }
 
   async function createCourse() {
-    const id     = document.getElementById('nc-id').value;
-    const grade  = parseInt(document.getElementById('nc-grade').value);
-    const number = parseInt(document.getElementById('nc-number').value);
+    const id       = document.getElementById('nc-id').value;
+    const grade    = parseInt(document.getElementById('nc-grade').value);
+    const number   = parseInt(document.getElementById('nc-number').value);
     const directorId = document.getElementById('nc-director').value || null;
+    const sedeId   = document.getElementById('nc-sede')?.value || null;
     if (!number) { showToast('Ingresa el número de curso', 'warning'); return; }
 
     const isEdit = !!id;
     const { ok, data } = await fetchAPI('/raice/courses', {
       method: isEdit ? 'PUT' : 'POST',
-      body: JSON.stringify({ id: id||undefined, grade, number, director_id: directorId })
+      body: JSON.stringify({ id: id||undefined, grade, number, director_id: directorId, sede_id: sedeId })
     });
     if (ok) {
       showToast(isEdit ? 'Curso actualizado' : 'Curso ' + grade + '°' + number + ' creado', 'success');
@@ -4064,6 +4275,7 @@
     document.getElementById('mt-pwd-hint').textContent         = '(requerida)';
     ['mt-id','mt-firstname','mt-lastname','mt-username','mt-password','mt-subject'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('mt-active').value = 'true';
+    document.getElementById('mt-sede').value   = '';
     openModal('modal-teacher');
   }
 
@@ -4078,6 +4290,7 @@
     document.getElementById('mt-password').value  = '';
     document.getElementById('mt-subject').value   = t.subject || '';
     document.getElementById('mt-active').value    = t.active ? 'true' : 'false';
+    document.getElementById('mt-sede').value      = t.sede_id || '';
     openModal('modal-teacher');
   }
 
@@ -4093,7 +4306,8 @@
     if (!firstName || !lastName || !username) { showToast('Nombre, apellido y usuario son obligatorios', 'warning'); return; }
     if (!id && !password) { showToast('La contraseña es obligatoria para nuevos docentes', 'warning'); return; }
 
-    const payload = { first_name: firstName, last_name: lastName, username, subject, active, role: 'teacher' };
+    const sedeId  = document.getElementById('mt-sede')?.value || null;
+    const payload = { first_name: firstName, last_name: lastName, username, subject, active, role: 'teacher', sede_id: sedeId };
     if (password) payload.password = password;
     if (id) payload.id = id;
 
@@ -4114,13 +4328,15 @@
   async function openNewCourse() {
     document.getElementById('nc-id').value = '';
     document.getElementById('nc-number').value = '';
+    const sedeEl = document.getElementById('nc-sede');
+    if (sedeEl) sedeEl.value = '';
     document.getElementById('course-modal-title').textContent = '🏫 Nuevo curso';
     document.getElementById('course-modal-btn').textContent   = 'Crear curso';
     await loadDirectorsSelect();
     openModal('modal-new-course');
   }
 
-  async function editCourse(id, grade, number, directorId) {
+  async function editCourse(id, grade, number, directorId, sedeId) {
     document.getElementById('course-modal-title').textContent = '✏️ Editar curso ' + grade + '°' + number;
     document.getElementById('course-modal-btn').textContent   = '💾 Guardar cambios';
     document.getElementById('nc-id').value     = id;
@@ -4129,6 +4345,8 @@
     // Load directors
     await loadDirectorsSelect();
     document.getElementById('nc-director').value = directorId || '';
+    const sedeEl = document.getElementById('nc-sede');
+    if (sedeEl) sedeEl.value = sedeId || '';
     openModal('modal-new-course');
   }
 
@@ -5123,6 +5341,7 @@
   initSession();
   loadSchoolConfig();
   loadDashboard();
+  loadSedes(); // carga sedes en segundo plano para poblar selects de toda la app
 
   // ==================== SIMAT IMPORT ====================
   let _simatWB = null;      // parsed workbook
