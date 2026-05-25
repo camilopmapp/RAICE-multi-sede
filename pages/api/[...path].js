@@ -414,6 +414,16 @@ async function getAlertsEndpoint(req, res, user) {
   const threeDaysAgo = todayCO(-3);
   const oneDayAgo    = todayCO(-1);
 
+  // Sede scope: pre-cargar course_ids de la sede del coordinador
+  let sedeCourseIds = null;      // null = sin restricción (superadmin / rector)
+  let sedeGradeCourseKeys = null; // Set de "grade_course" para filtrar resultados del RPC
+  if (user.role === 'admin' && user.sede_id) {
+    const { data: scs } = await sb.from('raice_courses')
+      .select('id, grade, number').eq('sede_id', user.sede_id).neq('type', 'subgroup');
+    sedeCourseIds = (scs || []).map(c => c.id);
+    sedeGradeCourseKeys = new Set((scs || []).map(c => `${c.grade}_${c.number}`));
+  }
+
   const alerts = [];
 
   // ── 1. Notificaciones no leídas ──
@@ -506,11 +516,13 @@ async function getAlertsEndpoint(req, res, user) {
 
   // ── 3. Todos los casos RAICE abiertos ──
   try {
-    const { data: openCases } = await sb.from('raice_cases')
+    let casesQ = sb.from('raice_cases')
       .select('id, student_name, type, created_at, grade, course')
       .eq('status', 'open')
       .order('created_at', { ascending: false })
       .limit(10);
+    if (sedeCourseIds) casesQ = casesQ.in('course_id', sedeCourseIds.length ? sedeCourseIds : ['__none__']);
+    const { data: openCases } = await casesQ;
 
     (openCases || []).forEach(c => {
       const daysOpen = Math.floor((Date.now() - new Date(c.created_at)) / 86400000);
@@ -528,7 +540,12 @@ async function getAlertsEndpoint(req, res, user) {
   // ── 4. Estudiantes con 2+ ausencias en los últimos 7 días ──
   try {
     const r = await sb.rpc('get_repeated_absences', { since_date: sevenAgo });
-    (r.data || []).forEach(a => alerts.push({
+    let absRows = r.data || [];
+    // Filtrar por sede usando el set de grade_course (el RPC no acepta parámetro de sede)
+    if (sedeGradeCourseKeys) {
+      absRows = absRows.filter(a => sedeGradeCourseKeys.has(`${a.grade}_${a.course}`));
+    }
+    absRows.forEach(a => alerts.push({
       source: 'computed', type: 'absence', severity: a.count >= 4 ? 'high' : 'medium', ico: '📋',
       title: `${a.student_name} — ${a.count} ausencias en 7 días`,
       description: `${a.grade}°${a.course} · Última falta: ${a.last_date}`
@@ -536,11 +553,13 @@ async function getAlertsEndpoint(req, res, user) {
   } catch (_) {
     // RPC fallback: manual query if function doesn't exist
     try {
-      const { data: abRows } = await sb.from('raice_attendance')
-        .select('student_id, raice_students(first_name,last_name,grade,course)')
+      let abQ = sb.from('raice_attendance')
+        .select('student_id, course_id, raice_students(first_name,last_name,grade,course)')
         .eq('status', 'A')
         .gte('date', sevenAgo)
         .limit(200);
+      if (sedeCourseIds) abQ = abQ.in('course_id', sedeCourseIds.length ? sedeCourseIds : ['__none__']);
+      const { data: abRows } = await abQ;
       const countMap = {};
       (abRows||[]).forEach(a => {
         const sid = a.student_id;
@@ -604,10 +623,15 @@ async function getAlertsEndpoint(req, res, user) {
           .select('course_id, class_hour').eq('date', today);
         const takenSet = new Set((todayAtt || []).map(a => `${a.course_id}_${a.class_hour}`));
 
-        const pastScheds = scheds.filter(s => {
+        let pastScheds = scheds.filter(s => {
           const st = s.start_time || bellMap[s.class_hour];
           return st && st < currentTimeStr;
         });
+        // Filtrar por sede si aplica
+        if (sedeCourseIds) {
+          const sedeSet = new Set(sedeCourseIds);
+          pastScheds = pastScheds.filter(s => s.raice_teacher_courses?.course_id && sedeSet.has(s.raice_teacher_courses.course_id));
+        }
 
         pastScheds.forEach(s => {
           const tc = s.raice_teacher_courses;

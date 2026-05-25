@@ -676,8 +676,15 @@ ALTER TABLE raice_courses ADD COLUMN IF NOT EXISTS sede_id UUID REFERENCES raice
 
 -- Actualizar constraint único de cursos para incluir sede
 ALTER TABLE raice_courses DROP CONSTRAINT IF EXISTS raice_courses_grade_number_key;
-ALTER TABLE raice_courses ADD CONSTRAINT IF NOT EXISTS raice_courses_grade_number_sede_key
-  UNIQUE (grade, number, sede_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'raice_courses_grade_number_sede_key'
+  ) THEN
+    ALTER TABLE raice_courses ADD CONSTRAINT raice_courses_grade_number_sede_key
+      UNIQUE (grade, number, sede_id);
+  END IF;
+END $$;
 
 
 -- =====================================================================
