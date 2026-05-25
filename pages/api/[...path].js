@@ -394,6 +394,26 @@ function dayOfWeekCO(dateStr) {
   return jsDay === 0 ? 7 : jsDay; // convert to 1=Mon, 7=Sun
 }
 
+/**
+ * Always reads sede_ids from DB for admin users — never trusts stale JWT.
+ * Returns an array of sede UUIDs for the given admin user,
+ * or null for roles that see everything (superadmin, rector).
+ * Returns [] if the admin has no sedes assigned.
+ */
+async function getAdminSedeIds(sb, user) {
+  if (user.role !== 'admin') return null; // superadmin/rector → no restriction
+  try {
+    const { data: rows } = await sb
+      .from('raice_user_sedes')
+      .select('sede_id')
+      .eq('user_id', user.id);
+    return (rows || []).map(r => r.sede_id);
+  } catch (_) {
+    // tabla no disponible → fallback to JWT value or empty
+    return user.sede_ids || [];
+  }
+}
+
 async function logActivity(sb, userId, type, detail) {
   try {
     await sb.from('raice_logs').insert({ user_id: userId, event_type: type, detail });
@@ -458,12 +478,14 @@ async function getAlertsEndpoint(req, res, user) {
   const oneDayAgo    = todayCO(-1);
 
   // Sede scope: pre-cargar course_ids de las sedes del coordinador
+  // Siempre leemos sede_ids desde la BD para evitar tokens JWT desactualizados
   let sedeCourseIds = null;      // null = sin restricción (superadmin / rector)
   let sedeGradeCourseKeys = null; // Set de "grade_course" para filtrar resultados del RPC
   if (user.role === 'admin') {
-    if (user.sede_ids && user.sede_ids.length > 0) {
+    const adminSedeIds = await getAdminSedeIds(sb, user);
+    if (adminSedeIds && adminSedeIds.length > 0) {
       const { data: scs } = await sb.from('raice_courses')
-        .select('id, grade, number').in('sede_id', user.sede_ids).neq('type', 'subgroup');
+        .select('id, grade, number').in('sede_id', adminSedeIds).neq('type', 'subgroup');
       sedeCourseIds = (scs || []).map(c => c.id);
       sedeGradeCourseKeys = new Set((scs || []).map(c => `${c.grade}_${c.number}`));
     } else {
@@ -996,10 +1018,12 @@ async function handleStudents(req, res, user) {
       if (ids.length) query = query.in('course_id', ids);
       else return res.status(200).json({ students: [] });
     } else if (user.role === 'admin') {
-      if (user.sede_ids && user.sede_ids.length > 0) {
+      // Siempre leemos desde la BD para evitar tokens JWT desactualizados
+      const adminSedeIds = await getAdminSedeIds(sb, user);
+      if (adminSedeIds && adminSedeIds.length > 0) {
         // Coordinador con sedes: solo estudiantes de cursos en sus sedes
         const { data: sedeCourses } = await sb.from('raice_courses')
-          .select('id').in('sede_id', user.sede_ids).neq('type', 'subgroup');
+          .select('id').in('sede_id', adminSedeIds).neq('type', 'subgroup');
         const ids = (sedeCourses || []).map(c => c.id);
         if (ids.length) query = query.in('course_id', ids);
         else return res.status(200).json({ students: [] });
@@ -2638,11 +2662,12 @@ async function handleCases(req, res, user) {
       .range(offset, offset + limit - 1);
 
     if (user.role === 'teacher') query = query.eq('teacher_id', user.id);
-    // Filtrar por sedes para coordinadores
+    // Filtrar por sedes para coordinadores — siempre leemos desde la BD
     if (user.role === 'admin') {
-      if (user.sede_ids && user.sede_ids.length > 0) {
+      const adminSedeIds = await getAdminSedeIds(sb, user);
+      if (adminSedeIds && adminSedeIds.length > 0) {
         const { data: scs } = await sb.from('raice_courses')
-          .select('id').in('sede_id', user.sede_ids).neq('type','subgroup');
+          .select('id').in('sede_id', adminSedeIds).neq('type','subgroup');
         const cIds = (scs||[]).map(c=>c.id);
         query = query.in('course_id', cIds.length ? cIds : ['00000000-0000-0000-0000-000000000000']);
       } else {
@@ -3190,11 +3215,13 @@ async function getDashboardV2(req, res, user) {
   };
 
   // Sede scope: coordinadores con sedes solo ven sus sedes
+  // Siempre leemos desde la BD para evitar tokens JWT desactualizados
   let sedeCourseIds = null; // null = sin restricción
   if (user.role === 'admin') {
-    if (user.sede_ids && user.sede_ids.length > 0) {
+    const adminSedeIds = await getAdminSedeIds(sb, user);
+    if (adminSedeIds && adminSedeIds.length > 0) {
       const { data: scs } = await sb.from('raice_courses')
-        .select('id').in('sede_id', user.sede_ids).neq('type','subgroup');
+        .select('id').in('sede_id', adminSedeIds).neq('type','subgroup');
       sedeCourseIds = (scs || []).map(c => c.id);
     } else {
       sedeCourseIds = ['00000000-0000-0000-0000-000000000000'];
@@ -3617,12 +3644,13 @@ async function getStatsByPeriod(req, res, user) {
     endDate = todayCO();
   }
 
-  // Sede scope para coordinadores
+  // Sede scope para coordinadores — siempre leemos desde la BD
   let statsCourseIds = null;
   if (user.role === 'admin') {
-    if (user.sede_ids && user.sede_ids.length > 0) {
+    const adminSedeIds = await getAdminSedeIds(sb, user);
+    if (adminSedeIds && adminSedeIds.length > 0) {
       const { data: scs } = await sb.from('raice_courses')
-        .select('id').in('sede_id', user.sede_ids).neq('type', 'subgroup');
+        .select('id').in('sede_id', adminSedeIds).neq('type', 'subgroup');
       statsCourseIds = (scs || []).map(c => c.id);
     } else {
       statsCourseIds = ['00000000-0000-0000-0000-000000000000'];
@@ -3825,12 +3853,14 @@ async function globalSearch(req, res, user) {
   const escaped = q.replace(/%/g, '\\%').replace(/_/g, '\\_');
   const term = `%${escaped}%`;
 
-  // Sede scope para búsqueda de coordinadores
+  // Sede scope para búsqueda de coordinadores — siempre leemos desde la BD
   let searchCourseIds = null;
+  let searchAdminSedeIds = null;
   if (user.role === 'admin') {
-    if (user.sede_ids && user.sede_ids.length > 0) {
+    searchAdminSedeIds = await getAdminSedeIds(sb, user);
+    if (searchAdminSedeIds && searchAdminSedeIds.length > 0) {
       const { data: scs } = await sb.from('raice_courses')
-        .select('id').in('sede_id', user.sede_ids).neq('type','subgroup');
+        .select('id').in('sede_id', searchAdminSedeIds).neq('type','subgroup');
       searchCourseIds = (scs||[]).map(c=>c.id);
     } else {
       searchCourseIds = ['00000000-0000-0000-0000-000000000000'];
@@ -3857,8 +3887,8 @@ async function globalSearch(req, res, user) {
             .or(`first_name.ilike.${term},last_name.ilike.${term},username.ilike.${term}`)
             .eq('active',true).limit(5);
           if (user.role === 'admin') {
-            if (user.sede_ids && user.sede_ids.length > 0) {
-              q2 = q2.in('sede_id', user.sede_ids);
+            if (searchAdminSedeIds && searchAdminSedeIds.length > 0) {
+              q2 = q2.in('sede_id', searchAdminSedeIds);
             } else {
               q2 = q2.in('sede_id', ['00000000-0000-0000-0000-000000000000']);
             }
