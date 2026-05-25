@@ -5879,17 +5879,17 @@ function mapaRenderAhora() {
     return;
   }
 
-  // Mapa de cursos únicos en el sistema
-  const courseMap = {};
-  schedules.forEach(s => {
-    if (!courseMap[s.course_id]) courseMap[s.course_id] = { course_id:s.course_id, grade:s.grade, number:s.number, section:s.section, type:s.type, course_name:s.course_name };
-  });
-  const courses = Object.values(courseMap).sort((a,b) => a.grade !== b.grade ? a.grade-b.grade : (a.number||0)-(b.number||0));
-
   // Slots activos ahora: course_id → slot
   const activeMap = {};
   schedules.filter(s => s.day_of_week === today_dow && s.class_hour === bell.class_hour)
     .forEach(s => activeMap[s.course_id] = s);
+
+  // Solo los cursos que tienen clase en la hora actual
+  const courseMap = {};
+  schedules.forEach(s => {
+    if (!courseMap[s.course_id]) courseMap[s.course_id] = { course_id:s.course_id, grade:s.grade, number:s.number, section:s.section, type:s.type, course_name:s.course_name };
+  });
+  const courses = Object.values(courseMap).filter(c => activeMap[c.course_id]).sort((a,b) => a.grade !== b.grade ? a.grade-b.grade : (a.number||0)-(b.number||0));
 
   if (!courses.length) {
     gridEl.innerHTML = '<div style="color:var(--gray);font-size:.85rem;">No hay cursos con horario cargado.</div>';

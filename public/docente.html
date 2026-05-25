@@ -3558,7 +3558,8 @@
     const infoEl  = document.getElementById('unlock-window-info');
     const textEl  = document.getElementById('unlock-window-text');
     infoEl.style.display = 'none';
-    // Load config to show the active window rule
+    openModal('modal-unlock');
+    // Load correction window info in background after modal is already open
     try {
       const { ok, data } = await fetchAPI('/raice/config');
       if (ok && data.correction_window) {
@@ -3572,7 +3573,6 @@
         if (msg) { textEl.textContent = msg; infoEl.style.display = ''; }
       }
     } catch (_) {}
-    openModal('modal-unlock');
   }
 
   async function submitUnlock() {
