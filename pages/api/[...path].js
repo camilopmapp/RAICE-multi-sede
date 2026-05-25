@@ -1554,12 +1554,21 @@ async function simatImport(req, res, user) {
 
 async function handleTeachers(req, res, user) {
   requireRole(user, 'superadmin', 'admin');
-  const sb = getSupabase();
+  const sb  = getSupabase();
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const sedeFilter = url.searchParams.get('sede_filter');
 
   let tq = sb.from('raice_users')
     .select('id, username, first_name, last_name, email, subject, active, last_login, sede_id')
     .eq('role', 'teacher').order('first_name');
-  tq = sedeScope(tq, user);
+
+  if (user.role === 'superadmin' && sedeFilter) {
+    // Superadmin filtra por sede específica (p.ej. al elegir director de grupo en el modal de curso)
+    tq = tq.eq('sede_id', sedeFilter);
+  } else {
+    tq = sedeScope(tq, user);
+  }
+
   const { data, error } = await tq;
 
   if (error) return res.status(500).json({ error: 'Error al cargar docentes' });

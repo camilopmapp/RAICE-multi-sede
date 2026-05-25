@@ -1939,6 +1939,8 @@
 
 <script>
 const API_URL = '/api';
+/** Formatea un número de grado: 0 → 'Transición', 1-11 → '1°'…'11°' */
+function gradeLbl(g) { return (g === 0 || g === '0' || g === null) && g !== undefined ? 'Transición' : (g + '°'); }
 
 // HTML escape — prevent XSS when inserting user data into innerHTML
 function escHtml(str) {
@@ -2349,7 +2351,7 @@ async function loadDashboard() {
       <thead><tr><th>Estudiante</th><th>Tipo</th><th>Docente</th><th>Hace</th><th>Estado</th><th></th></tr></thead>
       <tbody>${data.recent_cases.slice(0,6).map(c => `
         <tr>
-          <td><strong>${c.student_name}</strong><div class="td-muted">${c.grade}°${c.course}</div></td>
+          <td><strong>${c.student_name}</strong><div class="td-muted">${gradeLbl(c.grade)}${c.course}</div></td>
           <td>${typePills[c.type]||c.type}</td>
           <td class="td-muted">${c.teacher_name||'—'}</td>
           <td class="td-muted">${daysAgo(c.created_at)}</td>
@@ -2533,7 +2535,7 @@ function populateGradeFilter() {
   const sel = document.getElementById('filter-grade');
   const cur = sel.value;
   sel.innerHTML = '<option value="">Todos los grados</option>' +
-    grades.map(g => `<option value="${g}"${String(g)===cur?' selected':''}>${g}°</option>`).join('');
+    grades.map(g => `<option value="${g}"${String(g)===cur?' selected':''}>${gradeLbl(g)}</option>`).join('');
   populateCourseFilter();
 }
 
@@ -2632,7 +2634,7 @@ function renderStudents(list) {
           <strong>${s.first_name} ${s.last_name}</strong>
         </div>
       </td>
-      <td><strong>${s.grade}°${s.course}</strong></td>
+      <td><strong>${gradeLbl(s.grade)}${s.course}</strong></td>
       <td>
         <div style="font-size:.82rem;font-weight:700;color:${attColor};">${attPct !== '—' ? attPct+'%' : '—'}</div>
         ${attPct !== '—' ? `<div class="att-bar" style="width:80px;"><div class="att-bar-fill" style="width:${attPct}%;background:${attColor};"></div></div>` : ''}
@@ -2805,7 +2807,7 @@ function adminLoadCoursesForGrade(selectedCourseId) {
   );
   const cSel    = document.getElementById('asa-course');
   cSel.innerHTML = '<option value="">— Curso —</option>' +
-    courses.map(c => `<option value="${c.id}" ${c.id === selectedCourseId || c.number == selectedCourseId ? 'selected' : ''}>${c.grade === 0 ? 'Transición' : c.grade + '°'}${c.number}</option>`).join('');
+    courses.map(c => `<option value="${c.id}" ${c.id === selectedCourseId || c.number == selectedCourseId ? 'selected' : ''}>${gradeLbl(c.grade)}${c.number}</option>`).join('');
 }
 
 async function saveStudentAdmin() {
@@ -2936,7 +2938,7 @@ async function saveStudentAdmin() {
           .filter(s => String(s.grade) === grade && !_admSmMemberIds.has(s.id))
           .map(s => s.course)
       )].filter(Boolean).sort((a, b) => Number(a) - Number(b));
-      courses.forEach(c => { sel.innerHTML += '<option value="' + c + '">' + grade + '°' + c + '</option>'; });
+      courses.forEach(c => { sel.innerHTML += '<option value="' + c + '">' + gradeLbl(grade) + c + '</option>'; });
     }
     admSmFilterChecklist();
   }
@@ -2959,7 +2961,7 @@ async function saveStudentAdmin() {
     }
     el.innerHTML = list.map(s => {
       const occ   = _admSmOccupiedIds.has(s.id);
-      const lbl   = s.last_name + ', ' + s.first_name + ' <span style="color:var(--gray);font-size:.72rem;">— ' + s.grade + '°' + s.course + '</span>';
+      const lbl   = s.last_name + ', ' + s.first_name + ' <span style="color:var(--gray);font-size:.72rem;">— ' + gradeLbl(s.grade) + s.course + '</span>';
       const style = 'display:flex;align-items:center;gap:.5rem;padding:.38rem .65rem;border-bottom:1px solid var(--border);';
       if (occ) return '<label style="' + style + 'opacity:.45;cursor:not-allowed;">'
         + '<input type="checkbox" disabled>'
@@ -3123,7 +3125,7 @@ function _attPopulateGradeFilter(courses) {
   const sel = document.getElementById('att-grade-filter');
   const cur = sel.value;
   sel.innerHTML = '<option value="">Todos los grados</option>' +
-    grades.map(g => `<option value="${g}">${g}°</option>`).join('');
+    grades.map(g => `<option value="${g}">${gradeLbl(g)}</option>`).join('');
   if (cur) sel.value = cur;
 }
 
@@ -3168,7 +3170,7 @@ async function _loadAttendanceRange() {
 
   const rows = courses.map(c => `
     <tr data-grade="${c.grade}">
-      <td><strong>${c.grade}°${c.course}</strong></td>
+      <td><strong>${gradeLbl(c.grade)}${c.course}</strong></td>
       <td class="td-muted">${c.teacher||'—'}</td>
       <td style="text-align:center;"><span class="pill pill-green">${c.present}</span></td>
       <td style="text-align:center;"><span class="pill pill-red">${c.absent}</span></td>
@@ -3199,7 +3201,7 @@ async function loadAttStudents(courseId, grade, course) {
   _attStudentView = true;
   _attStudentCourse = { course_id: courseId, grade, course };
   document.getElementById('att-back-btn').style.display = '';
-  document.getElementById('att-card-title').textContent = `👥 ${grade}°${course} — Detalle de estudiantes`;
+  document.getElementById('att-card-title').textContent = `👥 ${gradeLbl(grade)}${course} — Detalle de estudiantes`;
 
   const body = document.getElementById('att-body');
   body.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--gray);">⏳ Cargando…</div>';
@@ -3271,7 +3273,7 @@ function attBack() {
   if (!_attRangeCourses.length) { loadAttendance(); return; }
   const rows = _attRangeCourses.map(c => `
     <tr data-grade="${c.grade}">
-      <td><strong>${c.grade}°${c.course}</strong></td>
+      <td><strong>${gradeLbl(c.grade)}${c.course}</strong></td>
       <td class="td-muted">${c.teacher||'—'}</td>
       <td style="text-align:center;"><span class="pill pill-green">${c.present}</span></td>
       <td style="text-align:center;"><span class="pill pill-red">${c.absent}</span></td>
@@ -3317,13 +3319,13 @@ async function loadAttFull() {
   };
 
   const grades = [...new Set(students.map(s => s.grade).filter(Boolean))].sort((a,b) => a - b);
-  const gradeOpts = grades.map(g => `<option value="${g}">${g}°</option>`).join('');
+  const gradeOpts = grades.map(g => `<option value="${g}">${gradeLbl(g)}</option>`).join('');
   const hourTh = hours.map(h => `<th style="text-align:center;white-space:nowrap;">Hora ${h}</th>`).join('');
   const rows = students.map(s => {
     const hCells = hours.map(h => `<td style="text-align:center;">${statusBadge(s.by_hour[h])}</td>`).join('');
     return `<tr data-grade="${s.grade}" data-course="${s.course_id}">
       <td>${s.name}</td>
-      <td><strong>${s.grade}°${s.course}</strong></td>
+      <td><strong>${gradeLbl(s.grade)}${s.course}</strong></td>
       ${hCells}
     </tr>`;
   }).join('');
@@ -3349,7 +3351,7 @@ function _attFullFilterGrade(grade) {
   const sel = document.getElementById('att-full-course');
   const opts = [...new Map(
     stu.filter(s => !grade || String(s.grade) === grade)
-       .map(s => [s.course_id, `${s.grade}°${s.course}`])
+       .map(s => [s.course_id, `${gradeLbl(s.grade)}${s.course}`])
   ).entries()]
     .sort((a,b) => a[1].localeCompare(b[1]))
     .map(([id, lbl]) => `<option value="${id}">${lbl}</option>`).join('');
@@ -3405,7 +3407,7 @@ async function loadAttendance() {
     });
     nrRows = Object.values(nrByCourse).map(m => `
       <tr style="background:#fafafa;opacity:.85;">
-        <td><strong>${m.grade}°${m.course_num}</strong></td>
+        <td><strong>${gradeLbl(m.grade)}${m.course_num}</strong></td>
         <td class="td-muted">${m.teacher}</td>
         <td colspan="4" style="text-align:center;">
           <span style="font-size:.78rem;color:#64748b;">⏰ ${m.subject} — hora${m.hours.length>1?'s':''} ${m.hours.join(', ')}</span>
@@ -3427,7 +3429,7 @@ async function loadAttendance() {
 
   const attRows = (data.courses || []).map(c => `
       <tr>
-        <td><strong>${c.grade}°${c.course}</strong></td>
+        <td><strong>${gradeLbl(c.grade)}${c.course}</strong></td>
         <td class="td-muted">${_teacherCell(c)}</td>
         <td style="text-align:center;"><span class="pill pill-green">${c.present}</span></td>
         <td style="text-align:center;"><span class="pill pill-red">${c.absent}</span></td>
@@ -3474,7 +3476,7 @@ async function openAttEdit(courseId, grade, course) {
   _attEditDate     = document.getElementById('att-date').value;
 
   document.getElementById('modal-att-edit-title').textContent =
-    `✏️ Corregir asistencia — ${grade}°${course}`;
+    `✏️ Corregir asistencia — ${gradeLbl(grade)}${course}`;
 
   // Load bell schedule to build hour options dynamically
   const sel = document.getElementById('att-edit-hour');
@@ -3673,7 +3675,7 @@ function renderCases() {
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem;">
         <div style="flex:1;min-width:0;">
           <div class="cc-name">${c.student_name}</div>
-          <div class="cc-meta">${c.grade}°${c.course} · ${formatDate(c.created_at)}</div>
+          <div class="cc-meta">${gradeLbl(c.grade)}${c.course} · ${formatDate(c.created_at)}</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.3rem;flex-shrink:0;">
           ${typePill[c.type]||''}
@@ -3737,7 +3739,7 @@ async function viewCase(id) {
           <div>
             <div style="font-size:.68rem;font-weight:700;letter-spacing:.08em;opacity:.6;margin-bottom:.2rem;">EXPEDIENTE RAICE</div>
             <div style="font-family:'Fraunces',serif;font-size:1.2rem;font-weight:900;">${c.student_name}</div>
-            <div style="font-size:.8rem;opacity:.75;margin-top:.15rem;">${c.grade}°${c.course} · ${c.case_number}</div>
+            <div style="font-size:.8rem;opacity:.75;margin-top:.15rem;">${gradeLbl(c.grade)}${c.course} · ${c.case_number}</div>
           </div>
           <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;">
             ${statusBadge}
@@ -3756,7 +3758,7 @@ async function viewCase(id) {
             <div style="font-size:.7rem;font-weight:700;color:var(--gray);margin-bottom:.5rem;letter-spacing:.06em;">DATOS DEL ESTUDIANTE</div>
             <div style="font-size:.85rem;line-height:1.7;">
               <div><strong>${c.student_name}</strong></div>
-              <div>${c.grade}°${c.course}</div>
+              <div>${gradeLbl(c.grade)}${c.course}</div>
               ${c.student_doc_type ? `<div>${c.student_doc_type}: ${c.student_doc_number}</div>` : ''}
               ${c.student_birth_date ? `<div>Nac: ${formatDate(c.student_birth_date)}</div>` : ''}
             </div>
@@ -4036,7 +4038,7 @@ function printIndividualCase(id) {
     <div class="info-box">
       <label>Estudiante</label>
       <div class="val"><strong>${c.student_name}</strong></div>
-      <div style="font-size:8.5pt;color:#555;">Grado ${c.grade}°${c.course}
+      <div style="font-size:8.5pt;color:#555;">Grado ${gradeLbl(c.grade)}${c.course}
         ${c.student_doc_type ? ' · ' + c.student_doc_type + ' ' + c.student_doc_number : ''}
       </div>
     </div>
@@ -4130,7 +4132,7 @@ function printIndividualCase(id) {
     <div class="sig-block">
       <div class="sig-line"></div>
       <div class="sig-name">${c.student_name}</div>
-      <div class="sig-role">Estudiante — ${c.grade}°${c.course}</div>
+      <div class="sig-role">Estudiante — ${gradeLbl(c.grade)}${c.course}</div>
     </div>
     <div class="sig-block">
       <div class="sig-line"></div>
@@ -4217,7 +4219,7 @@ async function generateCasosReportPDF() {
       <tbody>${list.map(c=>`<tr>
         <td style="font-family:monospace;font-size:8pt;">${c.case_number}</td>
         <td><strong>${c.student_name}</strong></td>
-        <td>${c.grade}°${c.course}</td>
+        <td>${gradeLbl(c.grade)}${c.course}</td>
         <td>${formatDate(c.created_at)}</td>
         <td>${c.teacher_name}</td>
         <td>${c.status==='open'?'Abierto':c.status==='tracking'?'Seguimiento':'Cerrado'}</td>
@@ -4368,7 +4370,7 @@ function renderCommitments(list) {
       : overdue ? '<span class="pill pill-red">⚠️ Vencido</span>'
       : '<span class="pill pill-yellow">⏳ Pendiente</span>';
     return `<tr>
-      <td><strong>${c.student_name}</strong><div class="td-muted">${c.grade}°${c.course}</div></td>
+      <td><strong>${c.student_name}</strong><div class="td-muted">${gradeLbl(c.grade)}${c.course}</div></td>
       <td style="max-width:220px;font-size:.85rem;">${c.description}</td>
       <td class="td-muted">${c.signed_by||'—'}</td>
       <td class="td-muted" style="color:${overdue?'var(--rose)':'inherit'};font-weight:${overdue?700:400};">${formatDate(c.due_date)}</td>
@@ -4405,7 +4407,7 @@ function populateObsGradeFilter() {
   const grades = [...new Set(_obsAllStudents.map(s => s.grade))].sort((a,b) => a-b);
   const sel = document.getElementById('obs-grade-filter');
   sel.innerHTML = '<option value="">Todos los grados</option>' +
-    grades.map(g => `<option value="${g}">${g}°</option>`).join('');
+    grades.map(g => `<option value="${g}">${gradeLbl(g)}</option>`).join('');
   populateObsCourseFilter();
 }
 
@@ -4449,7 +4451,7 @@ function renderObserverList(students) {
           <div class="avatar" style="background:${avatarColor(s.first_name)};">${ini}</div>
           <strong>${s.first_name} ${s.last_name}</strong>
         </div></td>
-        <td>${s.grade}°${s.course}</td>
+        <td>${gradeLbl(s.grade)}${s.course}</td>
         <td style="text-align:center;"><strong>${s.obs_count||0}</strong></td>
         <td style="text-align:center;"><strong>${s.cases_count||0}</strong></td>
         <td><button class="btn btn-ghost btn-sm" onclick="viewStudentObs('${s.id}','${s.first_name} ${s.last_name}')">📖 Ver observador</button></td>
@@ -4481,7 +4483,7 @@ async function viewStudentObs(studentId, name) {
           <div style="position:absolute;left:-1.05rem;top:.35rem;width:10px;height:10px;border-radius:50%;background:${i===0?'var(--teal2,#0d9488)':'var(--border)'};border:2px solid var(--white);"></div>
           <div style="background:var(--light);border-radius:10px;padding:.6rem .85rem;">
             <div style="font-size:.85rem;color:var(--navy);font-weight:600;">
-              ${h.from_grade}°${h.from_course} → ${h.to_grade}°${h.to_course}
+              ${gradeLbl(h.from_grade)}${h.from_course} → ${gradeLbl(h.to_grade)}${h.to_course}
               <span style="font-weight:400;color:var(--gray);font-size:.78rem;margin-left:.5rem;">${reasonLabels[h.reason]||h.reason}</span>
             </div>
             <div style="font-size:.75rem;color:var(--gray);margin-top:.2rem;">
@@ -4709,7 +4711,7 @@ async function loadStats() {
           const pct = Math.round((g.count/max)*100);
           return `<div style="margin-bottom:.75rem;">
             <div style="display:flex;justify-content:space-between;font-size:.82rem;font-weight:600;margin-bottom:.3rem;">
-              <span>${g.name || (g.course ? g.grade+'°'+g.course : 'Grado '+g.grade+'°')}</span><span>${g.count} casos</span>
+              <span>${g.name || (g.course ? gradeLbl(g.grade)+g.course : 'Grado '+gradeLbl(g.grade))}</span><span>${g.count} casos</span>
             </div>
             <div class="att-bar"><div class="att-bar-fill" style="width:${pct}%;"></div></div>
           </div>`;
@@ -4723,7 +4725,7 @@ async function loadStats() {
         ${(data.att_by_grade || []).map(g => `
           <div style="background:var(--light);border-radius:12px;padding:.85rem;text-align:center;">
             <div style="font-family:'Fraunces',serif;font-size:1.6rem;font-weight:900;color:${g.pct>=90?'var(--teal2)':g.pct>=75?'var(--gold)':'var(--rose)'};">${g.pct}%</div>
-            <div style="font-size:.78rem;color:var(--gray);">${g.name || ('Grado ' + g.grade + '°')}</div>
+            <div style="font-size:.78rem;color:var(--gray);">${g.name || ('Grado ' + gradeLbl(g.grade))}</div>
           </div>`).join('') || '<div style="color:var(--gray);font-size:.85rem;">Sin datos de asistencia</div>'}
       </div>
     </div>
@@ -4819,7 +4821,7 @@ function onCitStudentSearch(q) {
         style="padding:.55rem 1rem;cursor:pointer;border-bottom:1px solid var(--border);font-size:.85rem;transition:background .1s;"
         onmouseenter="this.style.background='var(--bg)'" onmouseleave="this.style.background=''">
         <span style="font-weight:600;">${s.first_name} ${s.last_name}</span>
-        <span style="color:var(--gray);margin-left:.5rem;">${s.grade}°${s.course}</span>
+        <span style="color:var(--gray);margin-left:.5rem;">${gradeLbl(s.grade)}${s.course}</span>
       </div>`).join('');
     box.querySelectorAll('[data-cit-idx]').forEach(el => {
       el.addEventListener('mousedown', (e) => {
@@ -4837,7 +4839,7 @@ function selectCitStudent(s) {
   document.getElementById('cit-student-results').style.display = 'none';
   const sel = document.getElementById('cit-student-selected');
   sel.style.display = 'flex';
-  document.getElementById('cit-student-selected-name').textContent = `👤 ${s.first_name} ${s.last_name} — ${s.grade}°${s.course}`;
+  document.getElementById('cit-student-selected-name').textContent = `👤 ${s.first_name} ${s.last_name} — ${gradeLbl(s.grade)}${s.course}`;
 }
 
 function clearCitStudent() {
@@ -5306,7 +5308,7 @@ async function openStudentFicha(studentId) {
       </div>
       <div>
         <div style="font-family:'Fraunces',serif;font-size:1.2rem;font-weight:700;">${s.first_name} ${s.last_name}</div>
-        <div style="font-size:.82rem;color:var(--gray);">${s.grade}°${s.course} · ${s.doc_type||'Doc'}: ${s.doc_number||'—'}</div>
+        <div style="font-size:.82rem;color:var(--gray);">${gradeLbl(s.grade)}${s.course} · ${s.doc_type||'Doc'}: ${s.doc_number||'—'}</div>
       </div>
       <div style="margin-left:auto;display:flex;gap:.5rem;">
         <button class="btn btn-ghost btn-sm" onclick="openAcudientesModal('${s.id}','${s.first_name} ${s.last_name}')">👨‍👩‍👦 Acudientes</button>
@@ -5403,7 +5405,7 @@ async function printFicha(studentId) {
     <style>@page{size:A4;margin:15mm}body{font-family:Arial,sans-serif;font-size:10pt}table{width:100%;border-collapse:collapse;margin-bottom:1rem}th,td{border:1px solid #ddd;padding:.3rem .5rem;font-size:9pt}th{background:#f1f5f9}h3{margin:.8rem 0 .3rem;font-size:10pt;}</style>
     </head><body>
     ${header}
-    <table><tr><th>Nombre</th><td><strong>${s.first_name} ${s.last_name}</strong></td><th>Grado/Curso</th><td>${s.grade}°${s.course}</td></tr>
+    <table><tr><th>Nombre</th><td><strong>${s.first_name} ${s.last_name}</strong></td><th>Grado/Curso</th><td>${gradeLbl(s.grade)}${s.course}</td></tr>
     <tr><th>Documento</th><td>${s.doc_type||'—'}: ${s.doc_number||'—'}</td><th>Estado</th><td>${s.status==='active'?'Activo':'Retirado'}</td></tr></table>
     <table><tr><th>Asistencia</th><td>${att.pct!==null?att.pct+'%':'—'}</td><th>Presentes</th><td>${att.present||0}</td><th>Con permiso</th><td>${att.permit||0}</td><th>Ausencias</th><td>${att.absent||0}</td><th>Tardanzas</th><td>${att.late||0}</td></tr></table>
     ${attCells ? `<h3>Asistencia reciente:</h3><div style="margin-bottom:.5rem;">${attCells}</div>` : ''}
@@ -5540,7 +5542,7 @@ async function loadTardanzas() {
           <div style="background:${i===0?'#fff7ed':i===1?'#fefce8':'var(--bg)'};border:1.5px solid ${i===0?'#fed7aa':i===1?'#fde68a':'var(--border)'};border-radius:14px;padding:1rem;text-align:center;cursor:pointer;" onclick="openStudentFicha('${t.student_id}')">
             <div style="font-size:2rem;font-weight:900;color:${i===0?'#c2410c':i===1?'#b45309':'var(--gray)'};">${t.count}</div>
             <div style="font-size:.82rem;font-weight:600;margin:.2rem 0;">${t.student_name}</div>
-            <div style="font-size:.72rem;color:var(--gray);">${t.grade}°${t.course} · ${t.days_count} día(s)</div>
+            <div style="font-size:.72rem;color:var(--gray);">${gradeLbl(t.grade)}${t.course} · ${t.days_count} día(s)</div>
           </div>`).join('')}
       </div>
     </div>` : ''}
@@ -5556,7 +5558,7 @@ async function loadTardanzas() {
         <tbody>
           ${data.tardanzas.map(t => `<tr>
             <td><strong>${t.student_name}</strong></td>
-            <td class="td-muted">${t.grade}°${t.course}</td>
+            <td class="td-muted">${gradeLbl(t.grade)}${t.course}</td>
             <td style="text-align:center;"><span class="pill" style="background:#fff7ed;color:#c2410c;">${t.count}</span></td>
             <td style="text-align:center;"><span class="pill pill-yellow">${t.days_count}</span></td>
             <td><button class="btn btn-ghost btn-sm" onclick="openStudentFicha('${t.student_id}')">👤 Ficha</button></td>
@@ -5896,7 +5898,7 @@ function mapaRenderAhora() {
 
   gridEl.innerHTML = courses.map(c => {
     const slot  = activeMap[c.course_id];
-    const label = c.type === 'subgroup' ? (c.course_name||'Subgrupo') : `${c.grade}°${c.section||c.number}`;
+    const label = c.type === 'subgroup' ? (c.course_name||'Subgrupo') : `${gradeLbl(c.grade)}${c.section||c.number}`;
     if (slot) {
       const attOk   = slot.attendance_taken;
       const attBg   = attOk ? '#dcfce7' : '#fef9c3';
@@ -5925,7 +5927,7 @@ function mapaPopulateSelectors() {
 
   const grades = [...new Set(schedules.map(s => s.grade).filter(Boolean))].sort((a,b) => a-b);
   document.getElementById('mapa-sel-grado').innerHTML =
-    '<option value="">— Grado —</option>' + grades.map(g => `<option value="${g}">${g}°</option>`).join('');
+    '<option value="">— Grado —</option>' + grades.map(g => `<option value="${g}">${gradeLbl(g)}</option>`).join('');
 
   const teacherMap = {};
   schedules.forEach(s => { if (s.teacher_id) teacherMap[s.teacher_id] = s.teacher_name; });
@@ -5944,7 +5946,7 @@ function mapaCargarCursos() {
     .filter(s => !grade || String(s.grade) === grade)
     .forEach(s => {
       if (!courseMap[s.course_id]) {
-        const lbl = s.type === 'subgroup' ? (s.course_name||'Subgrupo') : `${s.grade}°${s.section||s.number}`;
+        const lbl = s.type === 'subgroup' ? (s.course_name||'Subgrupo') : `${gradeLbl(s.grade)}${s.section||s.number}`;
         courseMap[s.course_id] = { id:s.course_id, label:lbl };
       }
     });
@@ -6028,7 +6030,7 @@ function mapaRenderDocente() {
   el.innerHTML = _mapaWeekGrid(
     slots,
     s => {
-      const lbl = s.type === 'subgroup' ? (s.course_name||'Subgrupo') : `${s.grade}°${s.section||s.number}`;
+      const lbl = s.type === 'subgroup' ? (s.course_name||'Subgrupo') : `${gradeLbl(s.grade)}${s.section||s.number}`;
       return `<div style="font-size:.8rem;font-weight:700;color:var(--navy);">${lbl}</div><div style="font-size:.73rem;color:var(--gray);">${s.subject}</div>`;
     },
     _mapaData.bell_schedule,
@@ -6118,7 +6120,7 @@ function adminShowImportPreview() {
   const rows = _adminImportedData.slice(0,8).map(s=>`<tr>
     <td style="padding:.4rem .65rem;font-size:.82rem;">${s.first_name}</td>
     <td style="padding:.4rem .65rem;font-size:.82rem;">${s.last_name}</td>
-    <td style="padding:.4rem .65rem;font-size:.82rem;"><strong>${s.grade===0?'Trans.':s.grade+'°'}${s.course}</strong></td>
+    <td style="padding:.4rem .65rem;font-size:.82rem;"><strong>${gradeLbl(s.grade)}${s.course}</strong></td>
     <td style="padding:.4rem .65rem;font-size:.79rem;color:var(--gray);">${s.doc_type} ${s.doc_number||'—'}</td>
     <td style="padding:.4rem .65rem;font-size:.79rem;color:var(--gray);">${s.birth_date||'—'}</td>
     <td style="padding:.4rem .65rem;font-size:.79rem;color:var(--gray);">${s.phone||'—'}</td>
@@ -6373,7 +6375,7 @@ async function exportAttendanceReport() {
         <div class="table-wrap"><table>
           <thead><tr><th>Curso</th><th>Docente</th><th>Presentes</th><th>Ausentes</th><th>Tarde</th><th>Permiso</th><th>%</th></tr></thead>
           <tbody>${(data.courses||[]).map(c=>`<tr>
-            <td>${c.grade}°${c.course}</td><td>${c.teacher||'—'}</td>
+            <td>${gradeLbl(c.grade)}${c.course}</td><td>${c.teacher||'—'}</td>
             <td>${c.present}</td><td>${c.absent}</td>
             <td>${c.late||0}</td><td>${c.permit}</td>
             <td><strong style="color:${c.pct>=90?'var(--teal)':c.pct>=75?'var(--gold)':'var(--rose)'};">${c.pct}%</strong></td>
@@ -6416,7 +6418,7 @@ async function exportCasesReport() {
         <div class="table-wrap"><table>
           <thead><tr><th>Estudiante</th><th>Tipo</th><th>Descripción</th><th>Docente</th><th>Fecha</th><th>Estado</th></tr></thead>
           <tbody>${cases.map(c=>`<tr>
-            <td><strong>${c.student_name}</strong><div style="font-size:.75rem;color:var(--gray);">${c.grade}°${c.course}</div></td>
+            <td><strong>${c.student_name}</strong><div style="font-size:.75rem;color:var(--gray);">${gradeLbl(c.grade)}${c.course}</div></td>
             <td><span class="pill ${c.type===1?'pill-yellow':c.type===2?'pill-red':'pill-purple'}">Tipo ${c.type}</span></td>
             <td style="font-size:.82rem;max-width:200px;">${(c.description||'').substring(0,70)}${c.description?.length>70?'…':''}</td>
             <td class="td-muted">${c.teacher_name||'—'}</td>
@@ -6461,7 +6463,7 @@ async function generateComiteReport() {
   <p><strong>CASOS ABIERTOS (${cases.length}):</strong></p>
   ${cases.map((c,i) => `
     <div class="case-block">
-      <p><strong>${i+1}. Estudiante:</strong> ${c.student_name} — ${c.grade}°${c.course}</p>
+      <p><strong>${i+1}. Estudiante:</strong> ${c.student_name} — ${gradeLbl(c.grade)}${c.course}</p>
       <p><strong>Tipo de situación:</strong> Tipo ${c.type}</p>
       <p><strong>Descripción:</strong> ${c.description || '—'}</p>
       <p><strong>Reportado por:</strong> ${c.teacher_name||'—'}</p>
@@ -6657,7 +6659,7 @@ document.addEventListener('visibilitychange', () => {
         onmouseleave="this.style.background=''"
         onclick="pickStudentForCase(this)">
         <strong>${fullName}</strong>
-        <span style="color:var(--gray);font-size:.78rem;">${s.grade}°${s.course}</span>
+        <span style="color:var(--gray);font-size:.78rem;">${gradeLbl(s.grade)}${s.course}</span>
       </div>`;
     }).join('');
   }
@@ -7191,7 +7193,7 @@ document.addEventListener('visibilitychange', () => {
               <span style="font-size:.82rem;">${s.best_affinity==='same_subject'?'★ ':s.best_affinity==='same_grade'?'☆ ':''}${s.teacher_name}${s.replacements_week>0?' · <span style="color:#b45309;">'+s.replacements_week+' esta sem.</span>':''}</span>
               <div style="display:flex;gap:.3rem;align-items:center;">
                 <select class="status-select" style="font-size:.75rem;width:auto;" id="bsycourse-${i}-${s.teacher_id}">
-                  ${(s.absent_courses||[]).map(c=>`<option value="${c.id}">${c.grade}°${c.number}${c.affinity==='same_subject'?' ★':c.affinity==='same_grade'?' ☆':''}</option>`).join('')}
+                  ${(s.absent_courses||[]).map(c=>`<option value="${c.id}">${gradeLbl(c.grade)}${c.number}${c.affinity==='same_subject'?' ★':c.affinity==='same_grade'?' ☆':''}</option>`).join('')}
                 </select>
                 <button class="btn btn-sm" style="font-size:.75rem;background:#fef3c7;border:1px solid #fcd34d;color:#92400e;"
                   onclick="assignBusyReemplazo('${absenceId}','${s.teacher_id}',${p.class_hour},'${date}',${i})">
@@ -7325,7 +7327,7 @@ document.addEventListener('visibilitychange', () => {
     body.innerHTML = list.map(s => {
       const stu = s.raice_students;
       const stuName = stu ? `${stu.first_name} ${stu.last_name}` : '—';
-      const stuGrade = stu ? `${stu.grade}°${stu.course}` : '';
+      const stuGrade = stu ? `${gradeLbl(stu.grade)}${stu.course}` : '';
       const days = Math.round((new Date(s.end_date) - new Date(s.start_date)) / 86400000) + 1;
       return `<div style="padding:.85rem 1rem;border:1.5px solid #fbbf24;border-radius:12px;background:#fffbeb;margin-bottom:.6rem;display:flex;gap:.75rem;align-items:flex-start;flex-wrap:wrap;">
         <div style="flex:1;min-width:0;">
@@ -7376,7 +7378,7 @@ document.addEventListener('visibilitychange', () => {
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;flex-wrap:wrap;">
           <div style="flex:1;min-width:0;">
             <div style="font-weight:700;color:var(--navy);">🏃 ${e.student_name||e.title||'—'}
-              ${e.grade ? `<span style="font-size:.78rem;font-weight:600;background:#fee2e2;color:#b91c1c;padding:.1rem .45rem;border-radius:6px;margin-left:.3rem;">${e.grade}°${e.course||''}</span>` : ''}
+              ${e.grade ? `<span style="font-size:.78rem;font-weight:600;background:#fee2e2;color:#b91c1c;padding:.1rem .45rem;border-radius:6px;margin-left:.3rem;">${gradeLbl(e.grade)}${e.course||''}</span>` : ''}
             </div>
             <div style="font-size:.8rem;color:var(--gray);margin:.15rem 0;">
               👤 ${e.teacher_name||e.reported_by||'—'} · 📅 ${e.date||date}
@@ -7402,7 +7404,7 @@ document.addEventListener('visibilitychange', () => {
   function openConfirmEvasion(notifId, studentId, studentName, grade, course) {
     document.getElementById('cev-notif-id').value      = notifId;
     document.getElementById('cev-student-id').value    = studentId;
-    document.getElementById('cev-student-name').textContent = studentName + (grade ? ` — ${grade}°${course||''}` : '');
+    document.getElementById('cev-student-name').textContent = studentName + (grade ? ` — ${gradeLbl(grade)}${course||''}` : '');
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('cev-description').value =
       `Evasión de clase confirmada el ${today}. El estudiante estaba presente en una hora y ausente en la siguiente.`;
@@ -7859,7 +7861,7 @@ if (!navigator.onLine) showOfflineBanner();
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:.5rem;">
         <div>
           <h3 style="margin:0;font-family:'Fraunces',serif;">📊 Vista Ejecutiva</h3>
-          <span style="font-size:.8rem;color:var(--gray);">${rptLabel(data.from, data.to)}${data.grade?' · Grado '+data.grade+'°':''}${data.course?' · Curso '+data.course:''}</span>
+          <span style="font-size:.8rem;color:var(--gray);">${rptLabel(data.from, data.to)}${data.grade!=null?' · Grado '+gradeLbl(data.grade):''}${data.course?' · Curso '+data.course:''}</span>
         </div>
         <div style="display:flex;gap:.5rem;">
           <button class="btn btn-ghost btn-sm" onclick="rptExportExcel()">📥 Excel</button>
@@ -7912,7 +7914,7 @@ if (!navigator.onLine) showOfflineBanner();
               <div class="rpt-risk-row">
                 <span style="font-weight:700;color:var(--gray);width:18px;text-align:right;flex-shrink:0;">${i+1}</span>
                 <span style="flex:1;font-weight:600;">${s.name}</span>
-                <span style="font-size:.75rem;color:var(--gray);">${s.grade}°${s.course}</span>
+                <span style="font-size:.75rem;color:var(--gray);">${gradeLbl(s.grade)}${s.course}</span>
                 <span class="badge-red">${s.A} ausencias</span>
                 <button style="background:none;border:none;cursor:pointer;font-size:.8rem;color:var(--indigo);" onclick="rptDrillStudent('${s.id}','${s.name}')">ver →</button>
               </div>`).join('') || '<div style="padding:1rem;text-align:center;color:var(--gray);">Sin datos</div>'}
@@ -7932,7 +7934,7 @@ if (!navigator.onLine) showOfflineBanner();
             <tbody>
               ${atRisk.map(s => `<tr>
                 <td style="font-weight:600;">${s.name}</td>
-                <td>${s.grade}°${s.course}</td>
+                <td>${gradeLbl(s.grade)}${s.course}</td>
                 <td style="color:#15803d;">${s.P}</td>
                 <td style="color:#b91c1c;">${s.A}</td>
                 <td style="color:#a16207;">${s.T}</td>
@@ -7965,7 +7967,7 @@ if (!navigator.onLine) showOfflineBanner();
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:.5rem;">
         <div>
           <h3 style="margin:0;font-family:'Fraunces',serif;">🏫 Asistencia por Curso</h3>
-          <span style="font-size:.8rem;color:var(--gray);">${rptLabel(data.from, data.to)}${data.grade?' · Grado '+data.grade+'°':''}${data.course?' · Curso '+data.course:''}</span>
+          <span style="font-size:.8rem;color:var(--gray);">${rptLabel(data.from, data.to)}${data.grade!=null?' · Grado '+gradeLbl(data.grade):''}${data.course?' · Curso '+data.course:''}</span>
         </div>
         <div style="display:flex;gap:.5rem;">
           <button class="btn btn-ghost btn-sm" onclick="rptExportExcel()">📥 Excel</button>
@@ -7979,7 +7981,7 @@ if (!navigator.onLine) showOfflineBanner();
       html += `
       <div class="card" style="margin-bottom:1rem;">
         <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
-          <h3 style="margin:0;">Grado ${c.grade}° — Curso ${c.course}</h3>
+          <h3 style="margin:0;">Grado ${gradeLbl(c.grade)} — Curso ${c.course}</h3>
           <div style="display:flex;align-items:center;gap:.75rem;">
             <span style="font-size:.8rem;color:var(--gray);">${c.students.length} estudiantes · ${c.total} clases registradas</span>
             ${pctBadge(pct)}
@@ -8020,7 +8022,7 @@ if (!navigator.onLine) showOfflineBanner();
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:.5rem;">
         <div>
           <h3 style="margin:0;font-family:'Fraunces',serif;">👤 Reporte por Estudiante</h3>
-          <span style="font-size:.8rem;color:var(--gray);">${rptLabel(data.from, data.to)}${data.grade?' · Grado '+data.grade+'°':''}${data.course?' · Curso '+data.course:''}</span>
+          <span style="font-size:.8rem;color:var(--gray);">${rptLabel(data.from, data.to)}${data.grade!=null?' · Grado '+gradeLbl(data.grade):''}${data.course?' · Curso '+data.course:''}</span>
         </div>
       </div>
       <div style="margin-bottom:1rem;">
@@ -8041,7 +8043,7 @@ if (!navigator.onLine) showOfflineBanner();
     const bg    = s.pct_attendance>=85?'#dcfce7':s.pct_attendance>=75?'#fef9c3':'#fee2e2';
     return `<div style="background:#fff;border:1.5px solid ${s.alert?'#fca5a5':'var(--border)'};border-radius:12px;padding:.85rem 1rem;cursor:pointer;" onclick="rptDrillStudent('${s.id}','${s.name}')">
       <div style="font-weight:700;font-size:.88rem;margin-bottom:.2rem;">${s.name}</div>
-      <div style="font-size:.75rem;color:var(--gray);margin-bottom:.5rem;">${s.grade}°${s.course}</div>
+      <div style="font-size:.75rem;color:var(--gray);margin-bottom:.5rem;">${gradeLbl(s.grade)}${s.course}</div>
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <div style="font-size:.78rem;color:var(--gray);">
           ✅ ${s.P} &nbsp;❌ ${s.A} &nbsp;⏰ ${s.T} &nbsp;🤒 ${s.PE}
@@ -8128,7 +8130,7 @@ if (!navigator.onLine) showOfflineBanner();
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:.5rem;">
         <div>
           <h3 style="margin:0;font-family:'Fraunces',serif;">⚠️ Reporte de Convivencia</h3>
-          <span style="font-size:.8rem;color:var(--gray);">${rptLabel(from, to)}${grade?' · Grado '+grade+'°':''}</span>
+          <span style="font-size:.8rem;color:var(--gray);">${rptLabel(from, to)}${grade!=null?' · Grado '+gradeLbl(grade):''}</span>
         </div>
         <button class="btn btn-ghost btn-sm" onclick="rptExportConvivenciaPDF()">🖨️ Imprimir</button>
       </div>
@@ -8178,7 +8180,7 @@ if (!navigator.onLine) showOfflineBanner();
             <tbody id="cv-stu-tbody">
               ${studentsWithEvents.map(st => `<tr data-name="${st.name.toLowerCase()}">
                 <td style="font-weight:600;">${st.name}</td>
-                <td style="color:var(--gray);">${st.grade?st.grade+'°'+st.course:''}</td>
+                <td style="color:var(--gray);">${st.grade!=null?gradeLbl(st.grade)+st.course:''}</td>
                 <td style="text-align:center;color:${st.removals>0?'#b45309':'var(--gray)'};">${st.removals||'—'}</td>
                 <td style="text-align:center;color:${st.evasions>0?'#b91c1c':'var(--gray)'};">${st.evasions||'—'}</td>
                 <td style="text-align:center;color:${st.suspensions>0?'#6d28d9':'var(--gray)'};">${st.suspensions||'—'}</td>
@@ -8201,7 +8203,7 @@ if (!navigator.onLine) showOfflineBanner();
               ${removals.map(r=>`<tr>
                 <td>${fmtDate(r.date)}</td>
                 <td style="font-weight:600;">${r.student_name||'—'}</td>
-                <td style="color:var(--gray);font-size:.8rem;">${r.grade?r.grade+'°'+r.course:''}</td>
+                <td style="color:var(--gray);font-size:.8rem;">${r.grade!=null?gradeLbl(r.grade)+r.course:''}</td>
                 <td style="font-size:.8rem;">${r.teacher_name||'—'}</td>
                 <td style="font-size:.8rem;max-width:180px;">${(r.reason||'').substring(0,55)}${r.reason?.length>55?'…':''}</td>
                 <td><span class="pill ${r.status==='reviewed'?'pill-green':r.status==='case_opened'?'pill-red':'pill-yellow'}">${r.status==='reviewed'?'Revisado':r.status==='case_opened'?'Caso abierto':'Pendiente'}</span></td>
@@ -8228,7 +8230,7 @@ if (!navigator.onLine) showOfflineBanner();
                 return `<tr>
                   <td>${fmtDate(e.date||e.created_at?.slice(0,10))}</td>
                   <td style="font-weight:600;">${e.student_name||e.name||'—'}</td>
-                  <td style="color:var(--gray);font-size:.8rem;">${e.grade?e.grade+'°'+e.course:''}</td>
+                  <td style="color:var(--gray);font-size:.8rem;">${e.grade!=null?gradeLbl(e.grade)+e.course:''}</td>
                   <td style="font-size:.8rem;">${e.teacher_name||e.by_name||'—'}</td>
                   <td style="font-size:.8rem;">${(e.description||e.body||'Evasión detectada').substring(0,60)}</td>
                   <td>${st}</td>
@@ -8252,7 +8254,7 @@ if (!navigator.onLine) showOfflineBanner();
                 const dias=Math.round((d2-d1)/(1000*60*60*24))+1;
                 return `<tr>
                   <td style="font-weight:600;">${s.student_name||'—'}</td>
-                  <td style="color:var(--gray);font-size:.8rem;">${s.grade?s.grade+'°'+s.course:''}</td>
+                  <td style="color:var(--gray);font-size:.8rem;">${s.grade!=null?gradeLbl(s.grade)+s.course:''}</td>
                   <td>${fmtDate(s.start_date)}</td>
                   <td>${fmtDate(s.end_date)}</td>
                   <td><span style="font-weight:700;color:#7c3aed;">${dias}</span></td>
@@ -8287,11 +8289,11 @@ if (!navigator.onLine) showOfflineBanner();
       @media print{@page{margin:1.5cm;size:A4;}}
       </style></head><body>
       <h1>${school} — Reporte de Convivencia</h1>
-      <h2>Período: ${rptLabel(d.from, d.to)}${d.grade?' · Grado '+d.grade+'°':''}</h2>
+      <h2>Período: ${rptLabel(d.from, d.to)}${d.grade!=null?' · Grado '+gradeLbl(d.grade):''}</h2>
       <p><strong>Retiros:</strong> ${d.removals.length} &nbsp; <strong>Evasiones:</strong> ${d.evasions.length} &nbsp; <strong>Suspensiones:</strong> ${d.suspensions.length}</p>
-      ${d.removals.length?`<h2>Retiros de clase</h2><table><thead><tr><th>Fecha</th><th>Estudiante</th><th>Grado</th><th>Docente</th><th>Motivo</th></tr></thead><tbody>${d.removals.map(r=>`<tr><td>${fmtDate(r.date)}</td><td>${r.student_name||''}</td><td>${r.grade?r.grade+'°'+r.course:''}</td><td>${r.teacher_name||''}</td><td>${r.reason||''}</td></tr>`).join('')}</tbody></table>`:''}
+      ${d.removals.length?`<h2>Retiros de clase</h2><table><thead><tr><th>Fecha</th><th>Estudiante</th><th>Grado</th><th>Docente</th><th>Motivo</th></tr></thead><tbody>${d.removals.map(r=>`<tr><td>${fmtDate(r.date)}</td><td>${r.student_name||''}</td><td>${r.grade!=null?gradeLbl(r.grade)+r.course:''}</td><td>${r.teacher_name||''}</td><td>${r.reason||''}</td></tr>`).join('')}</tbody></table>`:''}
       ${d.evasions.length?`<h2>Posibles evasiones</h2><table><thead><tr><th>Fecha</th><th>Estudiante</th><th>Docente</th><th>Detalle</th></tr></thead><tbody>${d.evasions.map(e=>`<tr><td>${fmtDate(e.date||e.created_at?.slice(0,10))}</td><td>${e.student_name||e.name||''}</td><td>${e.teacher_name||e.by_name||''}</td><td>${e.description||e.body||''}</td></tr>`).join('')}</tbody></table>`:''}
-      ${d.suspensions.length?`<h2>Suspensiones</h2><table><thead><tr><th>Estudiante</th><th>Grado</th><th>Desde</th><th>Hasta</th><th>Días</th><th>Motivo</th></tr></thead><tbody>${d.suspensions.map(s=>{const dias=Math.round((new Date(s.end_date)-new Date(s.start_date))/(1000*60*60*24))+1;return`<tr><td>${s.student_name||''}</td><td>${s.grade?s.grade+'°'+s.course:''}</td><td>${fmtDate(s.start_date)}</td><td>${fmtDate(s.end_date)}</td><td>${dias}</td><td>${s.reason||''}</td></tr>`;}).join('')}</tbody></table>`:''}
+      ${d.suspensions.length?`<h2>Suspensiones</h2><table><thead><tr><th>Estudiante</th><th>Grado</th><th>Desde</th><th>Hasta</th><th>Días</th><th>Motivo</th></tr></thead><tbody>${d.suspensions.map(s=>{const dias=Math.round((new Date(s.end_date)-new Date(s.start_date))/(1000*60*60*24))+1;return`<tr><td>${s.student_name||''}</td><td>${s.grade!=null?gradeLbl(s.grade)+s.course:''}</td><td>${fmtDate(s.start_date)}</td><td>${fmtDate(s.end_date)}</td><td>${dias}</td><td>${s.reason||''}</td></tr>`;}).join('')}</tbody></table>`:''}
     </body></html>`);
     win.document.close(); win.focus();
     setTimeout(() => win.print(), 600);
@@ -8585,7 +8587,7 @@ if (!navigator.onLine) showOfflineBanner();
       <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.75rem;margin-bottom:1.25rem;">
         <div>
           <h3 style="margin:0;font-family:'Fraunces',serif;">${name}</h3>
-          <span style="font-size:.8rem;color:var(--gray);">Grado ${s.grade}°${s.course} · ${rptLabel(data.from, data.to)}</span>
+          <span style="font-size:.8rem;color:var(--gray);">Grado ${gradeLbl(s.grade)}${s.course} · ${rptLabel(data.from, data.to)}</span>
         </div>
         <div style="display:flex;gap:.5rem;">
           <button class="btn btn-ghost btn-sm" onclick="rptExportStudentExcel('${id}','${name}')">📥 Excel</button>
@@ -8785,7 +8787,7 @@ if (!navigator.onLine) showOfflineBanner();
         </thead>
         <tbody>
           ${students.map(s => `<tr ${s.alert?'style="background:#fff5f5;"':''}>
-            <td>${s.name}</td><td>${s.grade}°${s.course}</td>
+            <td>${s.name}</td><td>${gradeLbl(s.grade)}${s.course}</td>
             <td>${s.P}</td><td>${s.A}</td><td>${s.T}</td><td>${s.PE}</td><td>${s.total}</td>
             <td style="font-weight:bold;color:${s.pct_attendance>=85?'green':s.pct_attendance>=75?'orange':'red'};">${s.pct_attendance??'—'}%</td>
           </tr>`).join('')}
@@ -8795,7 +8797,7 @@ if (!navigator.onLine) showOfflineBanner();
       // course view
       const grouped = {};
       students.forEach(st => {
-        const k = `${st.grade}°${st.course}`;
+        const k = `${gradeLbl(st.grade)}${st.course}`;
         if (!grouped[k]) grouped[k] = [];
         grouped[k].push(st);
       });
@@ -8815,7 +8817,7 @@ if (!navigator.onLine) showOfflineBanner();
         @media print{@page{margin:1.5cm;size:A4 landscape;}}
       </style></head><body>
       <h1>📋 RAICE — Reporte de Asistencia · ${title}</h1>
-      <h2>Período: ${rptLabel(data.from, data.to)}${data.grade?' · Grado '+data.grade+'°':''}</h2>
+      <h2>Período: ${rptLabel(data.from, data.to)}${data.grade!=null?' · Grado '+gradeLbl(data.grade):''}</h2>
       <p style="font-size:11px;color:#64748b;">Generado el ${new Date().toLocaleString('es-CO')} · Asistencia global: <strong>${s.pct_attendance??'—'}%</strong> · Estudiantes en riesgo: <strong>${s.at_risk_count??0}</strong></p>
       <hr style="margin:12px 0;">
       ${body}
@@ -8832,7 +8834,7 @@ if (!navigator.onLine) showOfflineBanner();
       th{background:#f1f5f9;}
       @media print{@page{margin:1.5cm;}}</style></head><body>
       <h2>📋 RAICE — Reporte Individual: ${name}</h2>
-      <p>Grado ${s.grade}°${s.course} · Asistencia: <strong>${s.pct_attendance??'—'}%</strong> (${s.P} presentes / ${s.A} ausencias / ${s.T} tardanzas)</p>
+      <p>Grado ${gradeLbl(s.grade)}${s.course} · Asistencia: <strong>${s.pct_attendance??'—'}%</strong> (${s.P} presentes / ${s.A} ausencias / ${s.T} tardanzas)</p>
       ${s.alert?'<p style="color:red;font-weight:bold;">⚠️ En riesgo de pérdida de año por inasistencia</p>':''}
       <table><thead><tr><th>Fecha</th><th>Hora</th><th>Estado</th></tr></thead>
       <tbody>${rows.map(r=>`<tr><td>${fmtDate(r.date)}</td><td>${r.class_hour}ª hora</td><td>${statusName2(r)}</td></tr>`).join('')}</tbody></table>
@@ -9015,7 +9017,7 @@ if (!navigator.onLine) showOfflineBanner();
           ${excusas.map(e => {
             const st = e.raice_students;
             const name = st ? `${st.first_name} ${st.last_name}` : '—';
-            const grade = st ? `${st.grade}°${st.course}` : '';
+            const grade = st ? `${gradeLbl(st.grade)}${st.course}` : '';
             const horas = e.horas && e.horas.length
               ? `Horas ${e.horas.join(', ')}`
               : 'Todas las horas';
@@ -9046,11 +9048,11 @@ if (!navigator.onLine) showOfflineBanner();
   async function initAdminExcusasForm() {
     // Populate grade selects (form + filter)
     const grades = [...new Set(_adminExcusasAllStudents.map(s => s.grade))].sort((a,b) => a-b);
-    const gradeOpts = '<option value="">Todos</option>' + grades.map(g => `<option value="${g}">${g}°</option>`).join('');
+    const gradeOpts = '<option value="">Todos</option>' + grades.map(g => `<option value="${g}">${gradeLbl(g)}</option>`).join('');
     const gradeEl = document.getElementById('admin-excusa-grade');
     const gradeFilterEl = document.getElementById('admin-excusa-filter-grade');
     if (gradeEl) gradeEl.innerHTML = gradeOpts;
-    if (gradeFilterEl) gradeFilterEl.innerHTML = '<option value="">Todos los grados</option>' + grades.map(g => `<option value="${g}">${g}°</option>`).join('');
+    if (gradeFilterEl) gradeFilterEl.innerHTML = '<option value="">Todos los grados</option>' + grades.map(g => `<option value="${g}">${gradeLbl(g)}</option>`).join('');
     const courseFilterEl = document.getElementById('admin-excusa-filter-course');
     if (courseFilterEl) courseFilterEl.innerHTML = '<option value="">Todos los cursos</option>';
 
@@ -9121,7 +9123,7 @@ if (!navigator.onLine) showOfflineBanner();
 
     sel.innerHTML = '<option value="">— Selecciona un estudiante —</option>' +
       sorted.map(s =>
-        `<option value="${s.id}" data-course="${s.course_id || ''}">${s.last_name} ${s.first_name} — ${s.grade}°${s.course}</option>`
+        `<option value="${s.id}" data-course="${s.course_id || ''}">${s.last_name} ${s.first_name} — ${gradeLbl(s.grade)}${s.course}</option>`
       ).join('');
 
     // Auto-select if only one result
@@ -9895,9 +9897,9 @@ if (!navigator.onLine) showOfflineBanner();
     const el = document.getElementById('pl-courses');
     el.innerHTML = Object.keys(byGrade).sort((a,b) => Number(a)-Number(b)).map(g => {
       const courses = [...byGrade[g]].sort((a,b) => Number(a)-Number(b));
-      const gradeLbl = g === '0' ? 'Transición' : `Grado ${g}°`;
+      const _gLbl = g === '0' ? 'Transición' : `Grado ${gradeLbl(Number(g))}`;
       return `<div>
-        <div style="font-size:.72rem;font-weight:700;color:var(--gray);text-transform:uppercase;margin-bottom:.25rem;">${gradeLbl}</div>
+        <div style="font-size:.72rem;font-weight:700;color:var(--gray);text-transform:uppercase;margin-bottom:.25rem;">${_gLbl}</div>
         <div style="display:flex;flex-wrap:wrap;gap:.3rem .85rem;">
           ${courses.map(c => `<label style="display:flex;align-items:center;gap:.35rem;cursor:pointer;font-size:.84rem;font-weight:600;">
             <input type="checkbox" class="pl-course-cb" value="${g}_${c}" checked style="accent-color:var(--teal);">

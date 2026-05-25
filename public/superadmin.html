@@ -1935,6 +1935,12 @@
         <div class="form-group">
           <label>Grado</label>
           <select id="nc-grade">
+            <option value="0">Transición (0°)</option>
+            <option value="1">Primero (1°)</option>
+            <option value="2">Segundo (2°)</option>
+            <option value="3">Tercero (3°)</option>
+            <option value="4">Cuarto (4°)</option>
+            <option value="5">Quinto (5°)</option>
             <option value="6">Sexto (6°)</option>
             <option value="7">Séptimo (7°)</option>
             <option value="8">Octavo (8°)</option>
@@ -1949,7 +1955,7 @@
         </div>
         <div class="form-group">
           <label>Sede</label>
-          <select id="nc-sede">
+          <select id="nc-sede" onchange="loadDirectorsSelect()">
             <option value="">— Sin sede —</option>
           </select>
         </div>
@@ -2235,6 +2241,9 @@
 <script>
   const API_URL = '/api';
   let currentUser = null;
+
+  /** Formatea un número de grado: 0 → 'Transición', 1-11 → '1°'…'11°' */
+  function gradeLbl(g) { return (g === 0 || g === '0' || g === null) && g !== undefined ? 'Transición' : (g + '°'); }
   let allStudents = [], allUsers = [], allTeachers = [], allSedes = [];
   let importedData = [];
   let activeUserRoleFilter = 'all';
@@ -2458,7 +2467,7 @@
               </div>
             </div>
           </td>
-          <td><strong>${s.grade}°${s.course}</strong></td>
+          <td><strong>${gradeLbl(s.grade)}${s.course}</strong></td>
           <td class="td-muted">🏢 ${s.sede_name || '—'}</td>
           <td class="td-muted">${s.doc_number || '—'}</td>
           <td>${statusPill}</td>
@@ -2511,7 +2520,7 @@
     const grades = [...new Set(allStudents.map(s => s.grade))].sort((a,b) => a-b);
     const sel = document.getElementById('filter-grade');
     sel.innerHTML = '<option value="">Todos los grados</option>' +
-      grades.map(g => `<option value="${g}">${g}°</option>`).join('');
+      grades.map(g => `<option value="${g}">${gradeLbl(g)}</option>`).join('');
     populateCourseFilter();
   }
 
@@ -2598,7 +2607,7 @@
     );
     const cSel = document.getElementById('es-course');
     cSel.innerHTML = '<option value="">— Curso —</option>' +
-      courses.map(c => `<option value="${c.id}" ${c.id === selectedCourse || c.number == selectedCourse ? 'selected' : ''}>${c.grade === 0 ? 'Transición' : c.grade + '°'}${c.number}</option>`).join('');
+      courses.map(c => `<option value="${c.id}" ${c.id === selectedCourse || c.number == selectedCourse ? 'selected' : ''}>${gradeLbl(c.grade)}${c.number}</option>`).join('');
   }
 
   async function saveStudent() {
@@ -2623,7 +2632,7 @@
       }
       const newCourseText = document.getElementById('es-course')
         .options[document.getElementById('es-course').selectedIndex]?.text || '—';
-      const origText = orig ? `${orig.grade}°${orig.course}` : '—';
+      const origText = orig ? `${gradeLbl(orig.grade)}${orig.course}` : '—';
       const reasonLabel = {
         promotion: 'Promoción anticipada', coexistence: 'Cambio por convivencia',
         correction: 'Corrección de matrícula', other: 'Otro motivo'
@@ -2698,7 +2707,7 @@
       const modalBody = document.querySelector('#modal-edit-student .modal-body');
       modalBody.insertBefore(banner, modalBody.firstChild);
     }
-    banner.innerHTML = `⚠️ <strong>Grado actual:</strong> ${s.grade}°${s.course} &nbsp;→&nbsp; Selecciona el nuevo grado y curso abajo.`;
+    banner.innerHTML = `⚠️ <strong>Grado actual:</strong> ${gradeLbl(s.grade)}${s.course} &nbsp;→&nbsp; Selecciona el nuevo grado y curso abajo.`;
     banner.style.display = 'flex';
 
     // Bloquear campos no relevantes para el cambio de grado
@@ -2727,7 +2736,7 @@
       const reasonLabels = { promotion:'🎓 Promoción anticipada', coexistence:'🤝 Convivencia', correction:'📋 Corrección', other:'📌 Otro' };
       const rows = data.history.slice(0,3).map(h =>
         `<div style="font-size:.78rem;color:#78350f;margin-top:.3rem;">
-          ${formatDate(h.changed_at)} — ${h.from_grade}°${h.from_course} → ${h.to_grade}°${h.to_course}
+          ${formatDate(h.changed_at)} — ${gradeLbl(h.from_grade)}${h.from_course} → ${gradeLbl(h.to_grade)}${h.to_course}
           &nbsp;·&nbsp; ${reasonLabels[h.reason]||h.reason}
           &nbsp;·&nbsp; por ${h.changed_by_name}
           ${h.notes ? `<br><em style="color:#92400e;">"${h.notes}"</em>` : ''}
@@ -2958,7 +2967,7 @@
       <tr>
         <td style="padding:.45rem .7rem;font-size:.82rem;">${s.first_name}</td>
         <td style="padding:.45rem .7rem;font-size:.82rem;">${s.last_name}</td>
-        <td style="padding:.45rem .7rem;font-size:.82rem;"><strong>${s.grade === 0 ? 'Trans.' : s.grade + '°'}${s.course}</strong></td>
+        <td style="padding:.45rem .7rem;font-size:.82rem;"><strong>${gradeLbl(s.grade)}${s.course}</strong></td>
         <td style="padding:.45rem .7rem;font-size:.79rem;color:var(--gray);">${s.doc_type} ${s.doc_number || '—'}</td>
         <td style="padding:.45rem .7rem;font-size:.79rem;color:var(--gray);">${s.birth_date || '—'}</td>
         <td style="padding:.45rem .7rem;font-size:.79rem;color:var(--gray);">${s.phone || '—'}</td>
@@ -3528,15 +3537,15 @@
         const teacherList = (c.teachers||[]).length ? '👨‍🏫 ' + c.teachers.join(', ') : 'Sin docentes asignados';
         const director    = c.director ? '👤 ' + c.director : '— Sin director de grupo';
         html += '<div style="background:var(--light);border:1.5px solid var(--border);border-radius:12px;padding:.85rem 1rem;min-width:185px;">';
-        html += '<div style="font-weight:700;color:var(--navy);margin-bottom:.3rem;">' + c.grade + '°' + c.number + '</div>';
+        html += '<div style="font-weight:700;color:var(--navy);margin-bottom:.3rem;">' + gradeLbl(c.grade) + c.number + '</div>';
         html += '<div style="font-size:.8rem;color:var(--gray);margin-bottom:.3rem;">' + (c.students_count||0) + ' estudiantes</div>';
         html += '<div style="font-size:.78rem;color:var(--teal);margin-bottom:.35rem;">' + director + '</div>';
         html += '<div style="font-size:.78rem;color:var(--gray);margin-bottom:.6rem;">' + teacherList + '</div>';
-        html += '<button class="btn btn-ghost btn-sm" style="width:100%;font-size:.78rem;margin-bottom:.3rem;" onclick="openAssignTeacher(\'' + c.id + '\',\'' + c.grade + '°' + c.number + '\')">➕ Asignar docente</button>';
-        html += '<button class="btn btn-teal btn-sm" style="width:100%;font-size:.78rem;margin-bottom:.3rem;" onclick="openCourseSchedule(\'' + c.id + '\',\'' + c.grade + '°' + c.number + '\')">🕐 Horario</button>';
+        html += '<button class="btn btn-ghost btn-sm" style="width:100%;font-size:.78rem;margin-bottom:.3rem;" onclick="openAssignTeacher(\'' + c.id + '\',\'' + gradeLbl(c.grade) + c.number + '\')">➕ Asignar docente</button>';
+        html += '<button class="btn btn-teal btn-sm" style="width:100%;font-size:.78rem;margin-bottom:.3rem;" onclick="openCourseSchedule(\'' + c.id + '\',\'' + gradeLbl(c.grade) + c.number + '\')">🕐 Horario</button>';
         html += '<div style="display:flex;gap:.3rem;">';
         html += '<button class="btn btn-ghost btn-sm" style="flex:1;font-size:.78rem;" onclick="editCourse(\'' + c.id + '\',' + c.grade + ',' + c.number + ',\'' + (c.director_id||'') + '\',\'' + (c.sede_id||'') + '\')">✏️ Editar</button>';
-        html += '<button class="btn btn-danger btn-sm" style="font-size:.78rem;" onclick="deleteCourse(\'' + c.id + '\',\'' + c.grade + '°' + c.number + '\')">🗑️</button>';
+        html += '<button class="btn btn-danger btn-sm" style="font-size:.78rem;" onclick="deleteCourse(\'' + c.id + '\',\'' + gradeLbl(c.grade) + c.number + '\')">🗑️</button>';
         html += '</div>';
         html += '</div>';
       });
@@ -3573,11 +3582,14 @@
   }
 
   async function loadDirectorsSelect() {
-    const { data } = await fetchAPI('/raice/teachers');
+    const sedeId = document.getElementById('nc-sede')?.value || '';
+    const url = sedeId ? '/raice/teachers?sede_filter=' + sedeId : '/raice/teachers';
+    const { data } = await fetchAPI(url);
     const sel = document.getElementById('nc-director');
     const current = sel.value;
+    const teachers = data?.teachers || [];
     sel.innerHTML = '<option value="">— Sin asignar —</option>' +
-      (data?.teachers || []).map(t => '<option value="' + t.id + '">' + t.first_name + ' ' + t.last_name + '</option>').join('');
+      teachers.map(t => '<option value="' + t.id + '">' + t.first_name + ' ' + t.last_name + '</option>').join('');
     if (current) sel.value = current;
   }
 
@@ -3595,7 +3607,7 @@
       body: JSON.stringify({ id: id||undefined, grade, number, director_id: directorId, sede_id: sedeId })
     });
     if (ok) {
-      showToast(isEdit ? 'Curso actualizado' : 'Curso ' + grade + '°' + number + ' creado', 'success');
+      showToast(isEdit ? 'Curso actualizado' : 'Curso ' + gradeLbl(grade) + number + ' creado', 'success');
       closeModal('modal-new-course');
       loadCourses();
     } else {
@@ -3626,7 +3638,7 @@
     };
     tbody.innerHTML = cases.map(c => `
       <tr>
-        <td><strong>${c.student_name}</strong><div class="td-muted">${c.grade}°${c.course}</div></td>
+        <td><strong>${c.student_name}</strong><div class="td-muted">${gradeLbl(c.grade)}${c.course}</div></td>
         <td>${typePills[c.type] || c.type}</td>
         <td style="max-width:200px;font-size:.82rem;">${(c.description||'').substring(0,80)}${(c.description||'').length>80?'…':''}</td>
         <td class="td-muted">${c.teacher_name}</td>
@@ -3670,7 +3682,7 @@
           <div style="background:var(--light);border-radius:10px;padding:.75rem;">
             <div style="font-size:.7rem;font-weight:700;color:var(--gray);margin-bottom:.35rem;letter-spacing:.05em;">ESTUDIANTE</div>
             <div style="font-weight:700;color:var(--navy);">${c.student_name}</div>
-            <div style="font-size:.8rem;color:var(--gray);">${c.grade}°${c.course}</div>
+            <div style="font-size:.8rem;color:var(--gray);">${gradeLbl(c.grade)}${c.course}</div>
           </div>
           <div style="background:var(--light);border-radius:10px;padding:.75rem;">
             <div style="font-size:.7rem;font-weight:700;color:var(--gray);margin-bottom:.35rem;letter-spacing:.05em;">DOCENTE</div>
@@ -3742,7 +3754,7 @@
           <thead><tr><th>Curso</th><th>Docente</th><th style="text-align:center;">Presentes</th><th style="text-align:center;">Ausentes</th><th style="text-align:center;">Con permiso</th><th style="text-align:center;">% Asistencia</th></tr></thead>
           <tbody>${courses.map(c => `
             <tr>
-              <td><strong>${c.grade}°${c.course}</strong></td>
+              <td><strong>${gradeLbl(c.grade)}${c.course}</strong></td>
               <td class="td-muted">${c.teacher || '—'}</td>
               <td style="text-align:center;"><span class="pill pill-green">${c.present}</span></td>
               <td style="text-align:center;"><span class="pill pill-red">${c.absent}</span></td>
@@ -4485,16 +4497,16 @@
   }
 
   async function editCourse(id, grade, number, directorId, sedeId) {
-    document.getElementById('course-modal-title').textContent = '✏️ Editar curso ' + grade + '°' + number;
+    document.getElementById('course-modal-title').textContent = '✏️ Editar curso ' + gradeLbl(grade) + number;
     document.getElementById('course-modal-btn').textContent   = '💾 Guardar cambios';
     document.getElementById('nc-id').value     = id;
     document.getElementById('nc-grade').value  = grade;
     document.getElementById('nc-number').value = number;
-    // Load directors
-    await loadDirectorsSelect();
-    document.getElementById('nc-director').value = directorId || '';
+    // Fijar sede ANTES de cargar docentes para que el filtro aplique correctamente
     const sedeEl = document.getElementById('nc-sede');
     if (sedeEl) sedeEl.value = sedeId || '';
+    await loadDirectorsSelect();
+    document.getElementById('nc-director').value = directorId || '';
     openModal('modal-new-course');
   }
 
@@ -4589,7 +4601,7 @@
           + members.map(m =>
             '<span style="background:var(--light);border:1px solid var(--border);border-radius:999px;padding:.18rem .55rem;font-size:.78rem;display:inline-flex;align-items:center;gap:.35rem;">'
             + m.last_name + ', ' + m.first_name
-            + ' <span style="color:var(--gray);font-size:.7rem;">' + (m.course_grade||'?') + '°' + (m.course_number||'?') + '</span>'
+            + ' <span style="color:var(--gray);font-size:.7rem;">' + gradeLbl(m.course_grade??'?') + (m.course_number||'?') + '</span>'
             + '<button onclick="smRemoveMember(\'' + m.student_id + '\')" style="background:none;border:none;cursor:pointer;color:var(--rose);font-size:.78rem;padding:0;line-height:1;margin-left:.1rem;">✕</button>'
             + '</span>'
           ).join('') + '</div>';
@@ -4610,7 +4622,7 @@
           .filter(s => String(s.grade) === grade && !_smMemberIds.has(s.id))
           .map(s => s.course)
       )].filter(Boolean).sort((a, b) => Number(a) - Number(b));
-      courses.forEach(c => { sel.innerHTML += '<option value="' + c + '">' + grade + '°' + c + '</option>'; });
+      courses.forEach(c => { sel.innerHTML += '<option value="' + c + '">' + gradeLbl(grade) + c + '</option>'; });
     }
     smFilterChecklist();
   }
@@ -4633,7 +4645,7 @@
     }
     el.innerHTML = list.map(s => {
       const occ   = _smOccupiedIds.has(s.id);
-      const lbl   = s.last_name + ', ' + s.first_name + ' <span style="color:var(--gray);font-size:.72rem;">— ' + s.grade + '°' + s.course + '</span>';
+      const lbl   = s.last_name + ', ' + s.first_name + ' <span style="color:var(--gray);font-size:.72rem;">— ' + gradeLbl(s.grade) + s.course + '</span>';
       const style = 'display:flex;align-items:center;gap:.5rem;padding:.38rem .65rem;border-bottom:1px solid var(--border);';
       if (occ) return '<label style="' + style + 'opacity:.45;cursor:not-allowed;">'
         + '<input type="checkbox" disabled>'
@@ -5640,7 +5652,7 @@
           ${_simatBadge('⚠️', 'Ya existen (se saltarán)', dups.length, '#fef9c3','#ca8a04')}
         </div>
         ${newCourses.length ? `<div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:.7rem 1rem;margin-bottom:1rem;font-size:.83rem;color:#1e40af;">
-          <strong>Cursos nuevos a crear:</strong> ${newCourses.map(c=>`${c.grade===0?'Transición':c.grade+'°'}${c.grade===0&&c.course===1?'':c.course} (${c.students.length} est.)`).join(', ')}
+          <strong>Cursos nuevos a crear:</strong> ${newCourses.map(c=>`${gradeLbl(c.grade)}${c.grade===0&&c.course===1?'':c.course} (${c.students.length} est.)`).join(', ')}
         </div>` : ''}
         <div style="display:flex;gap:.75rem;flex-wrap:wrap;">
           <button class="btn btn-teal" onclick="simatConfirmImport('initial')">✅ Importar ${totalNew} estudiante${totalNew!==1?'s':''}</button>
@@ -5698,7 +5710,7 @@
           </div>
           <div style="display:flex;flex-wrap:wrap;gap:.4rem .75rem;">
             ${newC.map((c,i)=>{
-              const lbl = c.grade===0?'Transición':(c.grade+'°'+c.course);
+              const lbl = gradeLbl(c.grade)+c.course;
               return `<label style="display:flex;align-items:center;gap:.3rem;cursor:pointer;background:#fff;border:1.5px solid #bfdbfe;border-radius:8px;padding:.3rem .6rem;font-weight:600;color:#1e40af;">
                 <input type="checkbox" id="simat-newcourse-${i}" checked style="accent-color:#2563eb;">
                 ${lbl} <span style="font-weight:400;color:var(--gray);font-size:.77rem;">(${c.students.length} est.)</span>
@@ -5775,7 +5787,7 @@
         <div style="flex:1;min-width:180px;background:#fff;border-radius:8px;padding:.65rem .85rem;border:1.5px solid var(--border);">
           <div style="font-size:.72rem;font-weight:700;color:var(--gray);text-transform:uppercase;margin-bottom:.3rem;">SIMAT</div>
           <div style="font-weight:700;">${s.first_name} ${s.last_name}</div>
-          <div style="font-size:.78rem;color:var(--gray);">${s.grade===0?'Transición':s.grade+'°'}${s.course} · ${s.doc_type} ${s.doc_number||'—'}</div>
+          <div style="font-size:.78rem;color:var(--gray);">${gradeLbl(s.grade)}${s.course} · ${s.doc_type} ${s.doc_number||'—'}</div>
           ${s.birth_date ? `<div style="font-size:.78rem;color:var(--gray);">Nac: ${s.birth_date}</div>` : ''}
           ${s.phone      ? `<div style="font-size:.78rem;color:var(--gray);">Tel: ${s.phone}</div>` : ''}
         </div>
@@ -5785,7 +5797,7 @@
             <label style="display:flex;align-items:center;gap:.55rem;padding:.55rem .75rem;background:#fff;border:1.5px solid var(--border);border-radius:8px;margin-bottom:.35rem;cursor:pointer;">
               <input type="radio" name="simat-partial-${idx}" value="${c.id}" style="accent-color:var(--teal);">
               <span style="font-weight:600;font-size:.85rem;">${c.first_name} ${c.last_name}</span>
-              <span style="font-size:.76rem;color:var(--gray);">${c.grade}°${c.course}</span>
+              <span style="font-size:.76rem;color:var(--gray);">${gradeLbl(c.grade)}${c.course}</span>
             </label>`).join('')}
           <label style="display:flex;align-items:center;gap:.55rem;padding:.45rem .75rem;background:#fff;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;">
             <input type="radio" name="simat-partial-${idx}" value="skip" style="accent-color:#dc2626;">
@@ -5968,7 +5980,7 @@
       const g = +grade;
       html += `<div class="card" style="margin-bottom:1.25rem;">
         <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;">
-          <h3 style="margin:0;">Grado ${g}° <span style="font-weight:400;font-size:.82rem;color:var(--gray)">${students.length} estudiantes</span></h3>
+          <h3 style="margin:0;">Grado ${gradeLbl(g)} <span style="font-weight:400;font-size:.82rem;color:var(--gray)">${students.length} estudiantes</span></h3>
           <div style="display:flex;gap:.4rem;flex-wrap:wrap;">
             ${g < 11 ? `<button class="btn btn-sm btn-ghost" onclick="ayeSetGradeAction(${g},'promote')">✅ Promover todos</button>` : ''}
             <button class="btn btn-sm btn-ghost" onclick="ayeSetGradeAction(${g},'retain')">🔄 Repetir todos</button>
@@ -5990,7 +6002,7 @@
         const d = ayeDecisions[s.id];
         html += `<tr>
           <td>${s.last_name}, ${s.first_name}</td>
-          <td style="text-align:center;">${s.grade}°${s.course}</td>
+          <td style="text-align:center;">${gradeLbl(s.grade)}${s.course}</td>
           <td>
             <select id="aye-act-${s.id}" onchange="ayeUpdateAction('${s.id}',this.value)"
               style="padding:.32rem .45rem;border-radius:6px;border:1.5px solid var(--border);font-size:.82rem;width:100%;background:var(--white);">
