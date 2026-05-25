@@ -538,43 +538,61 @@ async function getAlertsEndpoint(req, res, user) {
   } catch (_) {}
 
   // ── 4. Estudiantes con 2+ ausencias en los últimos 7 días ──
-  try {
-    const r = await sb.rpc('get_repeated_absences', { since_date: sevenAgo });
-    let absRows = r.data || [];
-    // Filtrar por sede usando el set de grade_course (el RPC no acepta parámetro de sede)
-    if (sedeGradeCourseKeys) {
-      absRows = absRows.filter(a => sedeGradeCourseKeys.has(`${a.grade}_${a.course}`));
-    }
-    absRows.forEach(a => alerts.push({
-      source: 'computed', type: 'absence', severity: a.count >= 4 ? 'high' : 'medium', ico: '📋',
-      title: `${a.student_name} — ${a.count} ausencias en 7 días`,
-      description: `${a.grade}°${a.course} · Última falta: ${a.last_date}`
-    }));
-  } catch (_) {
-    // RPC fallback: manual query if function doesn't exist
+  // Si hay filtro de sede usamos la query manual (filtra por course_id exacto).
+  // El RPC no acepta course_ids y filtrar por grado/número es ambiguo entre sedes.
+  if (sedeCourseIds) {
+    // Coordinador con sede: query directa filtrada por course_id
     try {
       let abQ = sb.from('raice_attendance')
-        .select('student_id, course_id, raice_students(first_name,last_name,grade,course)')
+        .select('student_id, course_id, raice_students(first_name, last_name, grade, course)')
         .eq('status', 'A')
         .gte('date', sevenAgo)
-        .limit(200);
-      if (sedeCourseIds) abQ = abQ.in('course_id', sedeCourseIds.length ? sedeCourseIds : ['__none__']);
+        .in('course_id', sedeCourseIds.length ? sedeCourseIds : ['__none__'])
+        .limit(300);
       const { data: abRows } = await abQ;
       const countMap = {};
-      (abRows||[]).forEach(a => {
-        const sid = a.student_id;
-        if (!countMap[sid]) countMap[sid] = { count:0, stu: a.raice_students };
-        countMap[sid].count++;
+      (abRows || []).forEach(a => {
+        if (!countMap[a.student_id]) countMap[a.student_id] = { count: 0, stu: a.raice_students };
+        countMap[a.student_id].count++;
       });
       Object.values(countMap).filter(v => v.count >= 2 && v.stu).forEach(v => {
         alerts.push({
           source: 'computed', type: 'absence',
           severity: v.count >= 4 ? 'high' : 'medium', ico: '📋',
           title: `${v.stu.first_name} ${v.stu.last_name} — ${v.count} ausencias en 7 días`,
-          description: `${v.stu.grade}°${v.stu.course||''}`
+          description: `${v.stu.grade}°${v.stu.course || ''}`
         });
       });
     } catch (_) {}
+  } else {
+    // Superadmin / rector: intentar RPC primero, fallback manual
+    try {
+      const r = await sb.rpc('get_repeated_absences', { since_date: sevenAgo });
+      (r.data || []).forEach(a => alerts.push({
+        source: 'computed', type: 'absence', severity: a.count >= 4 ? 'high' : 'medium', ico: '📋',
+        title: `${a.student_name} — ${a.count} ausencias en 7 días`,
+        description: `${a.grade}°${a.course} · Última falta: ${a.last_date}`
+      }));
+    } catch (_) {
+      try {
+        const { data: abRows } = await sb.from('raice_attendance')
+          .select('student_id, raice_students(first_name, last_name, grade, course)')
+          .eq('status', 'A').gte('date', sevenAgo).limit(300);
+        const countMap = {};
+        (abRows || []).forEach(a => {
+          if (!countMap[a.student_id]) countMap[a.student_id] = { count: 0, stu: a.raice_students };
+          countMap[a.student_id].count++;
+        });
+        Object.values(countMap).filter(v => v.count >= 2 && v.stu).forEach(v => {
+          alerts.push({
+            source: 'computed', type: 'absence',
+            severity: v.count >= 4 ? 'high' : 'medium', ico: '📋',
+            title: `${v.stu.first_name} ${v.stu.last_name} — ${v.count} ausencias en 7 días`,
+            description: `${v.stu.grade}°${v.stu.course || ''}`
+          });
+        });
+      } catch (_) {}
+    }
   }
 
   // ── 5. Compromisos por vencer ──
@@ -2445,6 +2463,13 @@ async function handleCases(req, res, user) {
       .range(offset, offset + limit - 1);
 
     if (user.role === 'teacher') query = query.eq('teacher_id', user.id);
+    // Filtrar por sede para coordinadores
+    if (user.role === 'admin' && user.sede_id) {
+      const { data: scs } = await sb.from('raice_courses')
+        .select('id').eq('sede_id', user.sede_id).neq('type','subgroup');
+      const cIds = (scs||[]).map(c=>c.id);
+      query = query.in('course_id', cIds.length ? cIds : ['__none__']);
+    }
 
     const filter = url.searchParams.get('type');
     if (filter) query = query.eq('type', parseInt(filter));
@@ -3381,10 +3406,31 @@ async function getStatsByPeriod(req, res, user) {
     endDate = todayCO();
   }
 
+  // Sede scope para coordinadores
+  let statsCourseIds = null;
+  if (user.role === 'admin' && user.sede_id) {
+    const { data: scs } = await sb.from('raice_courses')
+      .select('id').eq('sede_id', user.sede_id).neq('type', 'subgroup');
+    statsCourseIds = (scs || []).map(c => c.id);
+  }
+  const none = ['__none__'];
+
   const [casesRes, attRes, studentsRes] = await Promise.all([
-    sb.from('raice_cases').select('type, grade, course, status, created_at').gte('created_at', startDate).lte('created_at', endDate + 'T23:59:59'),
-    sb.from('raice_attendance').select('status, student_id, date, class_hour').gte('date', startDate).lte('date', endDate),
-    sb.from('raice_students').select('id, grade, course').eq('status', 'active')
+    (() => {
+      let q = sb.from('raice_cases').select('type, grade, course, status, created_at').gte('created_at', startDate).lte('created_at', endDate + 'T23:59:59');
+      if (statsCourseIds) q = q.in('course_id', statsCourseIds.length ? statsCourseIds : none);
+      return q;
+    })(),
+    (() => {
+      let q = sb.from('raice_attendance').select('status, student_id, date, class_hour, course_id').gte('date', startDate).lte('date', endDate);
+      if (statsCourseIds) q = q.in('course_id', statsCourseIds.length ? statsCourseIds : none);
+      return q;
+    })(),
+    (() => {
+      let q = sb.from('raice_students').select('id, grade, course').eq('status', 'active');
+      if (statsCourseIds) q = q.in('course_id', statsCourseIds.length ? statsCourseIds : none);
+      return q;
+    })(),
   ]);
 
   const cases = casesRes.data || [];
@@ -3564,16 +3610,36 @@ async function globalSearch(req, res, user) {
   const escaped = q.replace(/%/g, '\\%').replace(/_/g, '\\_');
   const term = `%${escaped}%`;
 
+  // Sede scope para búsqueda de coordinadores
+  let searchCourseIds = null;
+  if (user.role === 'admin' && user.sede_id) {
+    const { data: scs } = await sb.from('raice_courses')
+      .select('id').eq('sede_id', user.sede_id).neq('type','subgroup');
+    searchCourseIds = (scs||[]).map(c=>c.id);
+  }
+
   const [studentsRes, casesRes, teachersRes] = await Promise.all([
-    sb.from('raice_students').select('id, first_name, last_name, grade, course, phone')
-      .or(`first_name.ilike.${term},last_name.ilike.${term}`)
-      .eq('status','active').limit(8),
-    sb.from('raice_cases').select('id, student_name, type, status, created_at')
-      .ilike('student_name', term).limit(5),
+    (() => {
+      let q2 = sb.from('raice_students').select('id, first_name, last_name, grade, course, phone')
+        .or(`first_name.ilike.${term},last_name.ilike.${term}`)
+        .eq('status','active').limit(8);
+      if (searchCourseIds) q2 = q2.in('course_id', searchCourseIds.length ? searchCourseIds : ['__none__']);
+      return q2;
+    })(),
+    (() => {
+      let q2 = sb.from('raice_cases').select('id, student_name, type, status, created_at')
+        .ilike('student_name', term).limit(5);
+      if (searchCourseIds) q2 = q2.in('course_id', searchCourseIds.length ? searchCourseIds : ['__none__']);
+      return q2;
+    })(),
     user.role !== 'teacher'
-      ? sb.from('raice_users').select('id, first_name, last_name, username, role')
-          .or(`first_name.ilike.${term},last_name.ilike.${term},username.ilike.${term}`)
-          .eq('active',true).limit(5)
+      ? (() => {
+          let q2 = sb.from('raice_users').select('id, first_name, last_name, username, role')
+            .or(`first_name.ilike.${term},last_name.ilike.${term},username.ilike.${term}`)
+            .eq('active',true).limit(5);
+          if (user.role === 'admin' && user.sede_id) q2 = q2.eq('sede_id', user.sede_id);
+          return q2;
+        })()
       : Promise.resolve({ data: [] })
   ]);
 
