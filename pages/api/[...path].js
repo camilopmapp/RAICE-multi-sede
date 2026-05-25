@@ -3084,19 +3084,47 @@ async function getDashboardV2(req, res, user) {
   // Alerts — each block independent
   const alerts = [];
 
-  try {
-    const r = await sb.rpc('get_repeated_absences', { since_date: threeDaysAgo });
-    (r.data || []).forEach(a => alerts.push({
-      type:'absence', severity:'medium',
-      title:`${a.student_name} — ${a.count} ausencias seguidas`,
-      description:`${a.grade}°${a.course} · Última: ${a.last_date}`
-    }));
-  } catch (_) {}
+  if (sedeCourseIds) {
+    // Coordinador de sede: query directa filtrada por course_id (evita mezclar sedes con mismo grado/número)
+    try {
+      const { data: abRows } = await sb.from('raice_attendance')
+        .select('student_id, course_id, date, raice_students(first_name, last_name, grade, course)')
+        .eq('status', 'A')
+        .gte('date', threeDaysAgo)
+        .in('course_id', sedeCourseIds.length ? sedeCourseIds : ['__none__'])
+        .limit(300);
+      const countMap = {};
+      (abRows || []).forEach(a => {
+        if (!countMap[a.student_id]) countMap[a.student_id] = { count: 0, last_date: a.date, stu: a.raice_students };
+        countMap[a.student_id].count++;
+        if (a.date > countMap[a.student_id].last_date) countMap[a.student_id].last_date = a.date;
+      });
+      Object.values(countMap).filter(v => v.count >= 2 && v.stu).forEach(v => {
+        alerts.push({
+          type: 'absence', severity: 'medium',
+          title: `${v.stu.first_name} ${v.stu.last_name} — ${v.count} ausencias seguidas`,
+          description: `${v.stu.grade}°${v.stu.course || ''} · Última: ${v.last_date}`
+        });
+      });
+    } catch (_) {}
+  } else {
+    // Superadmin / rector: usa el RPC global
+    try {
+      const r = await sb.rpc('get_repeated_absences', { since_date: threeDaysAgo });
+      (r.data || []).forEach(a => alerts.push({
+        type: 'absence', severity: 'medium',
+        title: `${a.student_name} — ${a.count} ausencias seguidas`,
+        description: `${a.grade}°${a.course} · Última: ${a.last_date}`
+      }));
+    } catch (_) {}
+  }
 
   try {
-    const r = await sb.from('raice_cases')
-      .select('id, student_name, type, created_at')
+    let cq = sb.from('raice_cases')
+      .select('id, student_name, type, created_at, course_id')
       .eq('status','open').lt('created_at', threeDaysAgo).limit(5);
+    if (sedeCourseIds) cq = cq.in('course_id', sedeCourseIds.length ? sedeCourseIds : ['__none__']);
+    const r = await cq;
     (r.data || []).forEach(c => alerts.push({
       type:'case', severity: c.type >= 2 ? 'high' : 'medium',
       title:`Caso Tipo ${c.type} sin seguimiento — ${c.student_name}`,
