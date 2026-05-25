@@ -414,6 +414,15 @@ async function getAdminSedeIds(sb, user) {
   }
 }
 
+async function getAllowedCourseIdsForAdmin(sb, user) {
+  if (user.role !== 'admin') return null;
+  const adminSedeIds = await getAdminSedeIds(sb, user);
+  if (!adminSedeIds || adminSedeIds.length === 0) return ['00000000-0000-0000-0000-000000000000'];
+  const { data: courses } = await sb.from('raice_courses').select('id').in('sede_id', adminSedeIds);
+  const ids = (courses || []).map(c => c.id);
+  return ids.length > 0 ? ids : ['00000000-0000-0000-0000-000000000000'];
+}
+
 async function logActivity(sb, userId, type, detail) {
   try {
     await sb.from('raice_logs').insert({ user_id: userId, event_type: type, detail });
@@ -1943,8 +1952,13 @@ async function getMissingAttendance(req, res, user) {
   const tcMap = {};
   (tcRows || []).forEach(tc => { tcMap[tc.id] = tc; });
 
+  const allowedCourseIds = await getAllowedCourseIdsForAdmin(sb, user);
+  const allowedSet = allowedCourseIds ? new Set(allowedCourseIds) : null;
+
   // 3. Detalle de cursos y docentes
-  const courseIds  = [...new Set((tcRows||[]).map(r => r.course_id).filter(Boolean))];
+  let courseIds  = [...new Set((tcRows||[]).map(r => r.course_id).filter(Boolean))];
+  if (allowedSet) courseIds = courseIds.filter(id => allowedSet.has(id));
+
   const teacherIds = [...new Set((tcRows||[]).map(r => r.teacher_id).filter(Boolean))];
 
   const [{ data: courseRows }, { data: teacherRows }] = await Promise.all([
@@ -1971,6 +1985,7 @@ async function getMissingAttendance(req, res, user) {
   schedRows.forEach(s => {
     const tc = tcMap[s.teacher_course_id];
     if (!tc) return;
+    if (allowedSet && !allowedSet.has(tc.course_id)) return;
     const key = `${tc.course_id}::${s.class_hour}`;
     if (savedSet.has(key)) return; // ya registrada
     const course  = courseMap[tc.course_id]  || {};
@@ -2313,10 +2328,14 @@ async function handleAttendance(req, res, user) {
     const date_to   = url.searchParams.get('date_to');
 
     // ── RANGE MODE (semana / mes / período / año) ────────────────────
+    const allowedCourseIds = await getAllowedCourseIdsForAdmin(sb, user);
+
     if (date_from && date_to) {
-      const { data: attData } = await sb.from('raice_attendance')
+      let query = sb.from('raice_attendance')
         .select('status, course_id, class_hour, student_id, teacher_id, date')
         .gte('date', date_from).lte('date', date_to);
+      if (allowedCourseIds) query = query.in('course_id', allowedCourseIds);
+      const { data: attData } = await query;
 
       // Deduplicate: per student + course + date → keep last hour's status
       const scdMap = {};
@@ -2376,9 +2395,11 @@ async function handleAttendance(req, res, user) {
 
     // ── FULL LIST MODE (lista completa estudiante × hora) ────────────
     if (full) {
-      const { data: rawData } = await sb.from('raice_attendance')
+      let queryRaw = sb.from('raice_attendance')
         .select('student_id, class_hour, status, course_id')
         .eq('date', date);
+      if (allowedCourseIds) queryRaw = queryRaw.in('course_id', allowedCourseIds);
+      const { data: rawData } = await queryRaw;
 
       if (!rawData?.length) return res.status(200).json({ hours: [], students: [] });
 
@@ -2421,8 +2442,10 @@ async function handleAttendance(req, res, user) {
     }
 
     // Get attendance without FK joins to avoid name issues
-    const { data: attData } = await sb.from('raice_attendance')
+    let queryAtt = sb.from('raice_attendance')
       .select('status, course_id, class_hour, student_id, teacher_id').eq('date', date);
+    if (allowedCourseIds) queryAtt = queryAtt.in('course_id', allowedCourseIds);
+    const { data: attData } = await queryAtt;
 
     // Deduplicate: if a student has multiple hours, use the most recent status per student per course
     const studentCourseMap = {};
@@ -7356,9 +7379,19 @@ async function handleSedes(req, res, user) {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
   if (req.method === 'GET') {
-    const { data, error } = await sb.from('raice_sedes')
+    let query = sb.from('raice_sedes')
       .select('id, name, type, address, active, created_at')
       .order('name');
+      
+    if (user.role === 'admin') {
+      if (user.sede_ids && user.sede_ids.length > 0) {
+        query = query.in('id', user.sede_ids);
+      } else {
+        query = query.in('id', ['00000000-0000-0000-0000-000000000000']);
+      }
+    }
+      
+    const { data, error } = await query;
     if (error) return res.status(500).json({ error: 'Error al cargar sedes' });
     const sedes = data || [];
 
