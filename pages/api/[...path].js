@@ -30,7 +30,7 @@ function sedeScope(query, user) {
   // Admin (coordinador): puede tener varias sedes vía raice_user_sedes
   if (user.role === 'admin') {
     if (user.sede_ids && user.sede_ids.length > 0) return query.in('sede_id', user.sede_ids);
-    return query; // admin sin sedes asignadas: sin restricción
+    return query.in('sede_id', ['00000000-0000-0000-0000-000000000000']); // admin sin sedes asignadas: restringido
   }
   // Teacher/otros: una sola sede
   if (user.sede_id) return query.eq('sede_id', user.sede_id);
@@ -460,11 +460,16 @@ async function getAlertsEndpoint(req, res, user) {
   // Sede scope: pre-cargar course_ids de las sedes del coordinador
   let sedeCourseIds = null;      // null = sin restricción (superadmin / rector)
   let sedeGradeCourseKeys = null; // Set de "grade_course" para filtrar resultados del RPC
-  if (user.role === 'admin' && user.sede_ids && user.sede_ids.length > 0) {
-    const { data: scs } = await sb.from('raice_courses')
-      .select('id, grade, number').in('sede_id', user.sede_ids).neq('type', 'subgroup');
-    sedeCourseIds = (scs || []).map(c => c.id);
-    sedeGradeCourseKeys = new Set((scs || []).map(c => `${c.grade}_${c.number}`));
+  if (user.role === 'admin') {
+    if (user.sede_ids && user.sede_ids.length > 0) {
+      const { data: scs } = await sb.from('raice_courses')
+        .select('id, grade, number').in('sede_id', user.sede_ids).neq('type', 'subgroup');
+      sedeCourseIds = (scs || []).map(c => c.id);
+      sedeGradeCourseKeys = new Set((scs || []).map(c => `${c.grade}_${c.number}`));
+    } else {
+      sedeCourseIds = ['__none__'];
+      sedeGradeCourseKeys = new Set();
+    }
   }
 
   const alerts = [];
@@ -990,13 +995,17 @@ async function handleStudents(req, res, user) {
       const ids = (teacherCourses || []).map(tc => tc.course_id);
       if (ids.length) query = query.in('course_id', ids);
       else return res.status(200).json({ students: [] });
-    } else if (user.role === 'admin' && user.sede_ids && user.sede_ids.length > 0) {
-      // Coordinador con sedes: solo estudiantes de cursos en sus sedes
-      const { data: sedeCourses } = await sb.from('raice_courses')
-        .select('id').in('sede_id', user.sede_ids).neq('type', 'subgroup');
-      const ids = (sedeCourses || []).map(c => c.id);
-      if (ids.length) query = query.in('course_id', ids);
-      else return res.status(200).json({ students: [] });
+    } else if (user.role === 'admin') {
+      if (user.sede_ids && user.sede_ids.length > 0) {
+        // Coordinador con sedes: solo estudiantes de cursos en sus sedes
+        const { data: sedeCourses } = await sb.from('raice_courses')
+          .select('id').in('sede_id', user.sede_ids).neq('type', 'subgroup');
+        const ids = (sedeCourses || []).map(c => c.id);
+        if (ids.length) query = query.in('course_id', ids);
+        else return res.status(200).json({ students: [] });
+      } else {
+        return res.status(200).json({ students: [] });
+      }
     }
 
     const { data, error } = await query;
@@ -2630,11 +2639,15 @@ async function handleCases(req, res, user) {
 
     if (user.role === 'teacher') query = query.eq('teacher_id', user.id);
     // Filtrar por sedes para coordinadores
-    if (user.role === 'admin' && user.sede_ids && user.sede_ids.length > 0) {
-      const { data: scs } = await sb.from('raice_courses')
-        .select('id').in('sede_id', user.sede_ids).neq('type','subgroup');
-      const cIds = (scs||[]).map(c=>c.id);
-      query = query.in('course_id', cIds.length ? cIds : ['__none__']);
+    if (user.role === 'admin') {
+      if (user.sede_ids && user.sede_ids.length > 0) {
+        const { data: scs } = await sb.from('raice_courses')
+          .select('id').in('sede_id', user.sede_ids).neq('type','subgroup');
+        const cIds = (scs||[]).map(c=>c.id);
+        query = query.in('course_id', cIds.length ? cIds : ['__none__']);
+      } else {
+        query = query.in('course_id', ['__none__']);
+      }
     }
 
     const filter = url.searchParams.get('type');
@@ -3178,10 +3191,14 @@ async function getDashboardV2(req, res, user) {
 
   // Sede scope: coordinadores con sedes solo ven sus sedes
   let sedeCourseIds = null; // null = sin restricción
-  if (user.role === 'admin' && user.sede_ids && user.sede_ids.length > 0) {
-    const { data: scs } = await sb.from('raice_courses')
-      .select('id').in('sede_id', user.sede_ids).neq('type','subgroup');
-    sedeCourseIds = (scs || []).map(c => c.id);
+  if (user.role === 'admin') {
+    if (user.sede_ids && user.sede_ids.length > 0) {
+      const { data: scs } = await sb.from('raice_courses')
+        .select('id').in('sede_id', user.sede_ids).neq('type','subgroup');
+      sedeCourseIds = (scs || []).map(c => c.id);
+    } else {
+      sedeCourseIds = ['__none__'];
+    }
   }
 
   const applySedeToStudents = (q) => {
@@ -3602,10 +3619,14 @@ async function getStatsByPeriod(req, res, user) {
 
   // Sede scope para coordinadores
   let statsCourseIds = null;
-  if (user.role === 'admin' && user.sede_ids && user.sede_ids.length > 0) {
-    const { data: scs } = await sb.from('raice_courses')
-      .select('id').in('sede_id', user.sede_ids).neq('type', 'subgroup');
-    statsCourseIds = (scs || []).map(c => c.id);
+  if (user.role === 'admin') {
+    if (user.sede_ids && user.sede_ids.length > 0) {
+      const { data: scs } = await sb.from('raice_courses')
+        .select('id').in('sede_id', user.sede_ids).neq('type', 'subgroup');
+      statsCourseIds = (scs || []).map(c => c.id);
+    } else {
+      statsCourseIds = ['__none__'];
+    }
   }
   const none = ['__none__'];
 
@@ -3806,10 +3827,14 @@ async function globalSearch(req, res, user) {
 
   // Sede scope para búsqueda de coordinadores
   let searchCourseIds = null;
-  if (user.role === 'admin' && user.sede_ids && user.sede_ids.length > 0) {
-    const { data: scs } = await sb.from('raice_courses')
-      .select('id').in('sede_id', user.sede_ids).neq('type','subgroup');
-    searchCourseIds = (scs||[]).map(c=>c.id);
+  if (user.role === 'admin') {
+    if (user.sede_ids && user.sede_ids.length > 0) {
+      const { data: scs } = await sb.from('raice_courses')
+        .select('id').in('sede_id', user.sede_ids).neq('type','subgroup');
+      searchCourseIds = (scs||[]).map(c=>c.id);
+    } else {
+      searchCourseIds = ['__none__'];
+    }
   }
 
   const [studentsRes, casesRes, teachersRes] = await Promise.all([
@@ -3831,7 +3856,13 @@ async function globalSearch(req, res, user) {
           let q2 = sb.from('raice_users').select('id, first_name, last_name, username, role')
             .or(`first_name.ilike.${term},last_name.ilike.${term},username.ilike.${term}`)
             .eq('active',true).limit(5);
-          if (user.role === 'admin' && user.sede_ids && user.sede_ids.length > 0) q2 = q2.in('sede_id', user.sede_ids);
+          if (user.role === 'admin') {
+            if (user.sede_ids && user.sede_ids.length > 0) {
+              q2 = q2.in('sede_id', user.sede_ids);
+            } else {
+              q2 = q2.in('sede_id', ['00000000-0000-0000-0000-000000000000']);
+            }
+          }
           return q2;
         })()
       : Promise.resolve({ data: [] })
