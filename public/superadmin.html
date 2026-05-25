@@ -1660,17 +1660,14 @@
         </div>
         <div class="form-group">
           <label>Rol</label>
-          <select id="nu-role" onchange="toggleCourseField()">
+          <select id="nu-role" onchange="toggleCourseField(); renderSedeField('nu-sede-wrap','nu-role')">
             <option value="admin">🗂️ Coordinador</option>
             <option value="rector">🏫 Rector</option>
             <option value="teacher">👨‍🏫 Docente</option>
           </select>
         </div>
-        <div class="form-group">
-          <label>Sede <span style="font-weight:400;color:var(--gray);font-size:.78rem;">(rector = sin sede)</span></label>
-          <select id="nu-sede">
-            <option value="">— Sin sede asignada —</option>
-          </select>
+        <div class="form-group" id="nu-sede-wrap">
+          <!-- Se rellena dinámicamente por renderSedeField() según el rol -->
         </div>
         <div class="form-group">
           <label>Contraseña inicial</label>
@@ -1718,18 +1715,15 @@
         </div>
         <div class="form-group">
           <label>Rol</label>
-          <select id="eu-role">
+          <select id="eu-role" onchange="renderSedeField('eu-sede-wrap','eu-role')">
             <option value="admin">🗂️ Coordinador</option>
             <option value="rector">🏫 Rector</option>
             <option value="teacher">👨‍🏫 Docente</option>
             <option value="superadmin">🛡️ Superadministrador</option>
           </select>
         </div>
-        <div class="form-group">
-          <label>Sede</label>
-          <select id="eu-sede">
-            <option value="">— Sin sede asignada —</option>
-          </select>
+        <div class="form-group" id="eu-sede-wrap">
+          <!-- Se rellena dinámicamente por renderSedeField() según el rol -->
         </div>
         <div class="form-group">
           <label>Estado</label>
@@ -3077,16 +3071,89 @@
     `).join('');
   }
 
+  /**
+   * Renderiza el campo de sede dentro de un contenedor <div> según el rol seleccionado.
+   * - rector / superadmin: mensaje "sin sede" (campo oculto)
+   * - admin (coordinador): checkboxes multi-selección
+   * - teacher: select simple
+   * @param {string} wrapId  ID del <div> contenedor
+   * @param {string} roleSelId  ID del <select> de rol
+   * @param {string[]} [selectedIds]  IDs de sedes ya seleccionadas (para edición)
+   */
+  function renderSedeField(wrapId, roleSelId, selectedIds) {
+    const wrap = document.getElementById(wrapId);
+    if (!wrap) return;
+    const role = document.getElementById(roleSelId)?.value || 'teacher';
+    const activeSedes = allSedes.filter(s => s.active !== false);
+
+    if (role === 'rector' || role === 'superadmin') {
+      wrap.innerHTML = `
+        <label>Sede</label>
+        <div style="padding:.45rem .6rem;background:var(--bg-alt,#f7f7f7);border-radius:6px;color:var(--gray);font-size:.82rem;border:1px solid var(--border);">
+          🌐 Sin restricción de sede (ve toda la institución)
+        </div>`;
+      return;
+    }
+
+    if (role === 'admin') {
+      const checks = activeSedes.map(s => {
+        const checked = Array.isArray(selectedIds) && selectedIds.includes(s.id) ? 'checked' : '';
+        return `
+          <label style="display:flex;align-items:center;gap:.45rem;padding:.3rem .1rem;cursor:pointer;font-weight:400;">
+            <input type="checkbox" name="${wrapId}-sede" value="${s.id}" ${checked}
+              style="width:15px;height:15px;accent-color:var(--teal);">
+            ${s.name}
+          </label>`;
+      }).join('');
+      wrap.innerHTML = `
+        <label>Sedes asignadas <span style="font-weight:400;color:var(--gray);font-size:.76rem;">(puede seleccionar varias)</span></label>
+        <div style="border:1px solid var(--border);border-radius:6px;padding:.4rem .7rem;max-height:140px;overflow-y:auto;background:#fff;">
+          ${activeSedes.length ? checks : '<span style="color:var(--gray);font-size:.82rem;">No hay sedes activas</span>'}
+        </div>`;
+      return;
+    }
+
+    // teacher / default: select simple
+    const opts = activeSedes.map(s => {
+      const sel = Array.isArray(selectedIds) && selectedIds[0] === s.id ? 'selected' : '';
+      return `<option value="${s.id}" ${sel}>${s.name}</option>`;
+    }).join('');
+    wrap.innerHTML = `
+      <label>Sede</label>
+      <select id="${wrapId}-sel">
+        <option value="">— Sin sede asignada —</option>
+        ${opts}
+      </select>`;
+  }
+
+  /** Lee el valor del campo de sede del contenedor dado (según rol actual). */
+  function getSedeFieldValue(wrapId, roleSelId) {
+    const role = document.getElementById(roleSelId)?.value || 'teacher';
+    if (role === 'rector' || role === 'superadmin') return { sede_id: null, sede_ids: null };
+    if (role === 'admin') {
+      const checks = document.querySelectorAll(`input[name="${wrapId}-sede"]:checked`);
+      const ids = [...checks].map(c => c.value).filter(Boolean);
+      return { sede_id: null, sede_ids: ids };
+    }
+    // teacher
+    const sel = document.getElementById(`${wrapId}-sel`);
+    return { sede_id: sel?.value || null, sede_ids: null };
+  }
+
   function populateSedeSelects() {
+    // Refrescar los campos de sede en los modales de usuario (si están abiertos)
+    if (document.getElementById('nu-sede-wrap')) renderSedeField('nu-sede-wrap', 'nu-role');
+    if (document.getElementById('eu-sede-wrap')) renderSedeField('eu-sede-wrap', 'eu-role');
+    // Selects simples (cursos, docentes)
     const base = '<option value="">— Sin sede —</option>';
     const opts = allSedes.filter(s => s.active !== false)
       .map(s => `<option value="${s.id}">${s.name}</option>`).join('');
-    ['nu-sede','eu-sede','nc-sede','mt-sede'].forEach(selId => {
+    ['nc-sede','mt-sede'].forEach(selId => {
       const sel = document.getElementById(selId);
       if (!sel) return;
       const prev = sel.value;
       sel.innerHTML = base + opts;
-      if (prev) sel.value = prev; // preserve current selection
+      if (prev) sel.value = prev;
     });
   }
 
@@ -3173,6 +3240,23 @@
     renderUsers(list);
   }
 
+  function renderSedeBadge(u) {
+    if (u.role === 'rector' || u.role === 'superadmin') {
+      return '<span style="color:var(--gray);font-size:.75rem;">🌐 Global</span>';
+    }
+    if (u.role === 'admin') {
+      const names = u.sede_names && u.sede_names.length ? u.sede_names : (u.sede_name ? [u.sede_name] : []);
+      if (!names.length) return '<span style="color:var(--gray);font-size:.75rem;">Sin sede</span>';
+      return names.map(n =>
+        `<span style="display:inline-block;background:rgba(11,122,117,.1);color:var(--teal);padding:.12rem .4rem;border-radius:999px;font-size:.72rem;font-weight:600;margin:.1rem .1rem .1rem 0;">🏢 ${n}</span>`
+      ).join('');
+    }
+    // teacher
+    return u.sede_name
+      ? `<span style="background:rgba(11,122,117,.1);color:var(--teal);padding:.15rem .45rem;border-radius:999px;font-size:.75rem;font-weight:600;">🏢 ${u.sede_name}</span>`
+      : '<span style="color:var(--gray);font-size:.75rem;">Sin sede</span>';
+  }
+
   function renderUsers(list) {
     const tbody = document.getElementById('users-tbody');
     if (!list.length) {
@@ -3191,7 +3275,7 @@
         </td>
         <td><strong>${u.first_name} ${u.last_name}</strong><div class="td-muted">${u.email||''}</div></td>
         <td><span class="pill ${rolePills[u.role]||'pill-blue'}">${roleLabels[u.role]||u.role}</span></td>
-        <td class="td-muted">${u.sede_name ? `<span style="background:rgba(11,122,117,.1);color:var(--teal);padding:.15rem .45rem;border-radius:999px;font-size:.75rem;font-weight:600;">🏢 ${u.sede_name}</span>` : '<span style="color:var(--gray);font-size:.75rem;">Global</span>'}</td>
+        <td class="td-muted">${renderSedeBadge(u)}</td>
         <td class="td-muted">${u.courses_count || 0} cursos</td>
         <td class="td-muted">${formatDate(u.last_login)}</td>
         <td><span class="pill ${u.active ? 'pill-green' : 'pill-red'}">${u.active ? 'Activo' : 'Inactivo'}</span></td>
@@ -3207,14 +3291,17 @@
   }
 
   async function createUser() {
+    const role = document.getElementById('nu-role').value;
+    const sedeVal = getSedeFieldValue('nu-sede-wrap', 'nu-role');
     const payload = {
       first_name: document.getElementById('nu-firstname').value.trim(),
       last_name:  document.getElementById('nu-lastname').value.trim(),
       username:   document.getElementById('nu-username').value.trim(),
       email:      document.getElementById('nu-email').value.trim(),
-      role:       document.getElementById('nu-role').value,
+      role,
       password:   document.getElementById('nu-password').value,
-      sede_id:    document.getElementById('nu-sede').value || null,
+      sede_id:    sedeVal.sede_id,
+      sede_ids:   sedeVal.sede_ids,
     };
     if (!payload.first_name || !payload.username || !payload.password) {
       showToast('Completa los campos requeridos', 'warning');
@@ -3277,21 +3364,28 @@
     document.getElementById('eu-email').value     = u.email       || '';
     document.getElementById('eu-role').value      = u.role        || 'teacher';
     document.getElementById('eu-active').value    = String(u.active !== false);
-    document.getElementById('eu-sede').value      = u.sede_id     || '';
+    // Renderizar campo de sede según rol del usuario
+    const selectedIds = u.role === 'admin'
+      ? (u.sede_ids || (u.sede_id ? [u.sede_id] : []))
+      : (u.sede_id  ? [u.sede_id] : []);
+    renderSedeField('eu-sede-wrap', 'eu-role', selectedIds);
     openModal('modal-edit-user');
   }
 
   async function updateUser() {
     const id = document.getElementById('eu-id').value;
+    const role = document.getElementById('eu-role').value;
+    const sedeVal = getSedeFieldValue('eu-sede-wrap', 'eu-role');
     const payload = {
       id,
       first_name: document.getElementById('eu-firstname').value.trim(),
       last_name:  document.getElementById('eu-lastname').value.trim(),
       username:   document.getElementById('eu-username').value.trim(),
       email:      document.getElementById('eu-email').value.trim(),
-      role:       document.getElementById('eu-role').value,
+      role,
       active:     document.getElementById('eu-active').value === 'true',
-      sede_id:    document.getElementById('eu-sede')?.value || null,
+      sede_id:    sedeVal.sede_id,
+      sede_ids:   sedeVal.sede_ids,
     };
     if (!payload.first_name || !payload.username) {
       showToast('Nombre y usuario son requeridos', 'warning'); return;
@@ -4153,6 +4247,7 @@
     const role = document.getElementById('nu-role')?.value;
     const field = document.getElementById('nu-courses-field');
     if (field) field.style.display = (role === 'teacher') ? '' : 'none';
+    renderSedeField('nu-sede-wrap', 'nu-role');
   }
 
   function loadProfile() {

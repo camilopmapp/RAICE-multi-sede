@@ -71,6 +71,25 @@ CREATE TABLE IF NOT EXISTS raice_users (
 
 
 -- ─────────────────────────────────────────────────────────────────────
+-- 01b. ASIGNACIÓN DE SEDES A COORDINADORES (muchos a muchos)
+--      Un admin puede pertenecer a varias sedes.
+--      Rector y superadmin no usan esta tabla (ven todo).
+-- ─────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS raice_user_sedes (
+  user_id  UUID NOT NULL REFERENCES raice_users(id)  ON DELETE CASCADE,
+  sede_id  UUID NOT NULL REFERENCES raice_sedes(id)  ON DELETE CASCADE,
+  PRIMARY KEY (user_id, sede_id)
+);
+
+-- Migración: copiar sede_id existente de coordinadores a la nueva tabla
+INSERT INTO raice_user_sedes (user_id, sede_id)
+SELECT id, sede_id
+FROM raice_users
+WHERE role = 'admin' AND sede_id IS NOT NULL
+ON CONFLICT DO NOTHING;
+
+
+-- ─────────────────────────────────────────────────────────────────────
 -- 02. CONFIGURACIÓN DEL SISTEMA (fila única id = 1)
 -- ─────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS raice_config (

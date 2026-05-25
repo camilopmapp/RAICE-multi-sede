@@ -27,6 +27,12 @@ if (!_JWT_SECRET) {
 // Filtra queries por sede del usuario. superadmin y rector ven todo.
 function sedeScope(query, user) {
   if (!user || user.role === 'superadmin' || user.role === 'rector') return query;
+  // Admin (coordinador): puede tener varias sedes vía raice_user_sedes
+  if (user.role === 'admin') {
+    if (user.sede_ids && user.sede_ids.length > 0) return query.in('sede_id', user.sede_ids);
+    return query; // admin sin sedes asignadas: sin restricción
+  }
+  // Teacher/otros: una sola sede
   if (user.sede_id) return query.eq('sede_id', user.sede_id);
   return query;
 }
@@ -276,9 +282,28 @@ async function login(req, res) {
   // Log activity
   await logActivity(sb, user.id, 'login', `Inicio de sesión: @${user.username}`);
 
+  // Cargar sedes del coordinador (admin puede tener varias; rector/superadmin ven todo)
+  let sede_ids   = null;
+  let sede_names = null;
+  if (user.role === 'admin') {
+    const { data: userSedes } = await sb
+      .from('raice_user_sedes')
+      .select('sede_id, raice_sedes(id, name)')
+      .eq('user_id', user.id);
+    if (userSedes && userSedes.length > 0) {
+      sede_ids   = userSedes.map(s => s.sede_id);
+      sede_names = userSedes.map(s => s.raice_sedes?.name).filter(Boolean);
+    }
+  }
+
   // Generate token
   const token = jwt.sign(
-    { id: user.id, role: user.role, username: user.username, sede_id: user.sede_id || null },
+    {
+      id: user.id, role: user.role, username: user.username,
+      // Teachers: single sede_id. Admins: sede_ids array. Rector/superadmin: null
+      sede_id:  user.role === 'teacher' ? (user.sede_id || null) : null,
+      sede_ids: user.role === 'admin'   ? (sede_ids || [])       : null,
+    },
     _JWT_SECRET,
     { expiresIn: '8h' }
   );
@@ -295,8 +320,12 @@ async function login(req, res) {
       name: `${user.first_name} ${user.last_name}`,
       role:  user.role,
       subject: user.subject,
-      sede_id:   user.sede_id   || null,
-      sede_name: user.raice_sedes?.name || null,
+      // sede_id solo para docentes; admins usan sede_ids
+      sede_id:    user.role === 'teacher' ? (user.sede_id || null) : null,
+      sede_name:  user.role === 'teacher' ? (user.raice_sedes?.name || null)
+                : (sede_names && sede_names.length === 1 ? sede_names[0] : null),
+      sede_ids:   sede_ids,
+      sede_names: sede_names,
       must_change_password: user.must_change_password || false
     }
   });
@@ -414,12 +443,12 @@ async function getAlertsEndpoint(req, res, user) {
   const threeDaysAgo = todayCO(-3);
   const oneDayAgo    = todayCO(-1);
 
-  // Sede scope: pre-cargar course_ids de la sede del coordinador
+  // Sede scope: pre-cargar course_ids de las sedes del coordinador
   let sedeCourseIds = null;      // null = sin restricción (superadmin / rector)
   let sedeGradeCourseKeys = null; // Set de "grade_course" para filtrar resultados del RPC
-  if (user.role === 'admin' && user.sede_id) {
+  if (user.role === 'admin' && user.sede_ids && user.sede_ids.length > 0) {
     const { data: scs } = await sb.from('raice_courses')
-      .select('id, grade, number').eq('sede_id', user.sede_id).neq('type', 'subgroup');
+      .select('id, grade, number').in('sede_id', user.sede_ids).neq('type', 'subgroup');
     sedeCourseIds = (scs || []).map(c => c.id);
     sedeGradeCourseKeys = new Set((scs || []).map(c => `${c.grade}_${c.number}`));
   }
@@ -694,11 +723,16 @@ async function handleUsers(req, res, user) {
   const sb = getSupabase();
 
   if (req.method === 'GET') {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    // ?directory=true — todos los coordinadores pueden ver todo el personal (para planillas de asistencia)
+    const isDirectory = url.searchParams.get('directory') === 'true';
+
     let q = sb.from('raice_users')
       .select('id, username, first_name, last_name, email, role, active, last_login, subject, sede_id, raice_sedes(id, name)')
-      .order('first_name');
+      .order('last_name').order('first_name');
     if (user.role !== 'superadmin') q = q.neq('role', 'superadmin');
-    q = sedeScope(q, user);
+    // En modo directorio, el admin ve todo el personal sin filtro de sede
+    if (!isDirectory) q = sedeScope(q, user);
     const { data, error } = await q;
     if (error) return res.status(500).json({ error: 'Error al cargar usuarios' });
 
@@ -713,18 +747,38 @@ async function handleUsers(req, res, user) {
       });
     }
 
-    const withCounts = (data || []).map(u => ({
-      ...u,
-      sede_name: u.raice_sedes?.name || null,
-      raice_sedes: undefined,
-      courses_count: courseCountMap[u.id] || 0,
-    }));
+    // Cargar asignaciones de sedes para coordinadores (admin)
+    const adminIds = (data || []).filter(u => u.role === 'admin').map(u => u.id);
+    const userSedesMap = {};
+    if (adminIds.length) {
+      const { data: usRows } = await sb.from('raice_user_sedes')
+        .select('user_id, sede_id, raice_sedes(id, name)')
+        .in('user_id', adminIds);
+      (usRows || []).forEach(s => {
+        if (!userSedesMap[s.user_id]) userSedesMap[s.user_id] = [];
+        userSedesMap[s.user_id].push({ id: s.sede_id, name: s.raice_sedes?.name });
+      });
+    }
+
+    const withCounts = (data || []).map(u => {
+      const sedeEntries = u.role === 'admin' ? (userSedesMap[u.id] || []) : [];
+      return {
+        ...u,
+        sede_name:  u.role === 'admin'
+          ? (sedeEntries.length === 1 ? sedeEntries[0].name : (sedeEntries.length > 1 ? `${sedeEntries.length} sedes` : null))
+          : (u.raice_sedes?.name || null),
+        sede_ids:   u.role === 'admin' ? sedeEntries.map(s => s.id)   : null,
+        sede_names: u.role === 'admin' ? sedeEntries.map(s => s.name) : null,
+        raice_sedes: undefined,
+        courses_count: courseCountMap[u.id] || 0,
+      };
+    });
     return res.status(200).json({ users: withCounts });
   }
 
   if (req.method === 'POST') {
     requireRole(user, 'superadmin', 'admin');
-    const { first_name, last_name, username, email, role, password, sede_id: newUserSede } = req.body || {};
+    const { first_name, last_name, username, email, role, password, sede_id: newUserSede, sede_ids: newUserSedeIds } = req.body || {};
     if (!first_name || !username || !password) return res.status(400).json({ error: 'Faltan campos requeridos' });
 
     // Only superadmin can create admin/superadmin/rector accounts
@@ -733,8 +787,40 @@ async function handleUsers(req, res, user) {
       return res.status(403).json({ error: 'Solo el superadministrador puede crear coordinadores o rectores' });
     }
 
-    const effectiveSede = user.role === 'superadmin' ? (newUserSede || null) : (user.sede_id || null);
     const password_hash = await bcrypt.hash(password, 10);
+
+    if (assignedRole === 'admin') {
+      // Coordinador: sede_id queda null en raice_users; sedes van en raice_user_sedes
+      const { data: newUser, error } = await sb.from('raice_users').insert({
+        first_name, last_name, username: username.toLowerCase(), email, role: assignedRole,
+        password_hash, active: true, sede_id: null
+      }).select().single();
+      if (error) return res.status(500).json({ error: error.code === '23505' ? 'El nombre de usuario ya existe' : 'Error al crear usuario' });
+      // Insertar asignaciones de sedes
+      const sedeArr = Array.isArray(newUserSedeIds) ? newUserSedeIds.filter(Boolean) : [];
+      if (sedeArr.length) {
+        await sb.from('raice_user_sedes').insert(sedeArr.map(sid => ({ user_id: newUser.id, sede_id: sid })));
+      }
+      await logActivity(sb, user.id, 'create_user', `Usuario creado: @${username}`);
+      return res.status(200).json({ success: true, user: newUser });
+    }
+
+    // Rector / superadmin / teacher: sede_id simple (rector siempre null)
+    let effectiveSede;
+    if (assignedRole === 'rector' || assignedRole === 'superadmin') {
+      effectiveSede = null;
+    } else if (user.role === 'superadmin') {
+      effectiveSede = newUserSede || null;
+    } else {
+      // Admin coordinador creando un docente: usa la sede enviada desde el form
+      // si está en sus sedes asignadas; si no, usa la primera de las suyas
+      const adminSedes = user.sede_ids || [];
+      if (newUserSede && (adminSedes.length === 0 || adminSedes.includes(newUserSede))) {
+        effectiveSede = newUserSede;
+      } else {
+        effectiveSede = adminSedes[0] || null;
+      }
+    }
     const { data, error } = await sb.from('raice_users').insert({
       first_name, last_name, username: username.toLowerCase(), email, role: assignedRole,
       password_hash, active: true, sede_id: effectiveSede
@@ -747,7 +833,7 @@ async function handleUsers(req, res, user) {
 
   if (req.method === 'PUT') {
     requireRole(user, 'superadmin', 'admin');
-    const { id, first_name, last_name, username, email, role, subject, active, password, sede_id: newSedeId } = req.body || {};
+    const { id, first_name, last_name, username, email, role, subject, active, password, sede_id: newSedeId, sede_ids: newSedeIds } = req.body || {};
     if (!id) return res.status(400).json({ error: 'ID requerido' });
 
     if (role && ['admin','superadmin','rector'].includes(role) && user.role !== 'superadmin')
@@ -756,14 +842,45 @@ async function handleUsers(req, res, user) {
     const updates = { first_name, last_name, subject, active };
     if (username) updates.username = username.toLowerCase();
     if (email !== undefined) updates.email = email;
-    // Superadmin can change any role; admin can only toggle active state of non-admin users
     if (role && user.role === 'superadmin') updates.role = role;
     if (password) updates.password_hash = await bcrypt.hash(password, 10);
-    // Only superadmin can reassign sede
-    if (newSedeId !== undefined && user.role === 'superadmin') updates.sede_id = newSedeId || null;
+
+    // Determinar el rol efectivo (puede estar cambiando)
+    const effectiveRole = (role && user.role === 'superadmin') ? role : null;
+
+    if (user.role === 'superadmin') {
+      const targetRole = effectiveRole || role;
+      if (targetRole === 'admin') {
+        // Coordinador: mantener sede_id null en raice_users; actualizar raice_user_sedes
+        updates.sede_id = null;
+      } else if (targetRole === 'rector' || targetRole === 'superadmin') {
+        // Rector/superadmin: sin sede nunca
+        updates.sede_id = null;
+      } else if (newSedeId !== undefined) {
+        // Teacher u otros: sede_id simple
+        updates.sede_id = newSedeId || null;
+      }
+    }
 
     const { error } = await sb.from('raice_users').update(updates).eq('id', id);
     if (error) return res.status(500).json({ error: error.code === '23505' ? 'El nombre de usuario ya existe' : 'Error al actualizar' });
+
+    // Actualizar asignaciones de sedes para coordinadores (solo superadmin puede)
+    if (user.role === 'superadmin' && newSedeIds !== undefined) {
+      const targetRole = effectiveRole || role;
+      if (!targetRole || targetRole === 'admin') {
+        // Reemplazar sedes: borrar todas las actuales e insertar las nuevas
+        await sb.from('raice_user_sedes').delete().eq('user_id', id);
+        const sedeArr = Array.isArray(newSedeIds) ? newSedeIds.filter(Boolean) : [];
+        if (sedeArr.length) {
+          await sb.from('raice_user_sedes').insert(sedeArr.map(sid => ({ user_id: id, sede_id: sid })));
+        }
+      } else {
+        // Si cambió a rector/superadmin/teacher, limpiar las sedes del admin
+        await sb.from('raice_user_sedes').delete().eq('user_id', id);
+      }
+    }
+
     await logActivity(sb, user.id, 'update_user', `Usuario ${id} actualizado`);
     return res.status(200).json({ success: true });
   }
@@ -788,8 +905,11 @@ async function handleUsers(req, res, user) {
         canForce: true
       });
     }
-    // Remove teacher-course assignments first
-    await sb.from('raice_teacher_courses').delete().eq('teacher_id', id);
+    // Remove teacher-course and sede assignments first
+    await Promise.all([
+      sb.from('raice_teacher_courses').delete().eq('teacher_id', id),
+      sb.from('raice_user_sedes').delete().eq('user_id', id),
+    ]);
     const { error } = await sb.from('raice_users').delete().eq('id', id);
     if (error) return res.status(500).json({ error: _dbErr(error, '') });
     await logActivity(sb, user.id, 'delete_user', `Usuario ${id} eliminado`);
@@ -845,10 +965,10 @@ async function handleStudents(req, res, user) {
       const ids = (teacherCourses || []).map(tc => tc.course_id);
       if (ids.length) query = query.in('course_id', ids);
       else return res.status(200).json({ students: [] });
-    } else if (user.role === 'admin' && user.sede_id) {
-      // Coordinator with sede: only students from courses in their sede
+    } else if (user.role === 'admin' && user.sede_ids && user.sede_ids.length > 0) {
+      // Coordinador con sedes: solo estudiantes de cursos en sus sedes
       const { data: sedeCourses } = await sb.from('raice_courses')
-        .select('id').eq('sede_id', user.sede_id).neq('type', 'subgroup');
+        .select('id').in('sede_id', user.sede_ids).neq('type', 'subgroup');
       const ids = (sedeCourses || []).map(c => c.id);
       if (ids.length) query = query.in('course_id', ids);
       else return res.status(200).json({ students: [] });
@@ -1072,7 +1192,8 @@ async function importStudents(req, res, user) {
   if (missingCourseKeys.size) {
     const toCreate = [...missingCourseKeys].map(k => {
       const [grade, number] = k.split('_').map(Number);
-      return { grade, number, sede_id: user.sede_id || null };
+      const importSede = user.sede_id || (user.sede_ids && user.sede_ids[0]) || null;
+      return { grade, number, sede_id: importSede };
     });
     const { data: newCourses } = await sb.from('raice_courses').insert(toCreate).select('id, grade, number');
     for (const c of (newCourses || [])) courseMap.set(`${c.grade}_${c.number}`, c.id);
@@ -1116,7 +1237,7 @@ async function importStudents(req, res, user) {
         doc_number: s.doc_number || null,
         birth_date: s.birth_date || null,
         phone:      s.phone      || null,
-        sede_id:    user.sede_id || null,
+        sede_id:    user.sede_id || (user.sede_ids && user.sede_ids[0]) || null,
         code: `${String(grade).padStart(2,'0')}${String(course).padStart(2,'0')}${String(seq).padStart(3,'0')}`,
         status: 'active'
       });
@@ -1451,7 +1572,9 @@ async function handleCourses(req, res, user) {
   if (req.method === 'POST') {
     const { grade, number, director_id, type, name, sede_id: courseSede } = req.body || {};
     const courseType = type === 'subgroup' ? 'subgroup' : 'normal';
-    const effectiveSede = user.role === 'superadmin' ? (courseSede || null) : (user.sede_id || null);
+    const effectiveSede = user.role === 'superadmin'
+      ? (courseSede || null)
+      : (user.sede_id || (user.sede_ids && user.sede_ids[0]) || null);
 
     if (courseType === 'subgroup') {
       requireRole(user, 'superadmin');
@@ -2463,10 +2586,10 @@ async function handleCases(req, res, user) {
       .range(offset, offset + limit - 1);
 
     if (user.role === 'teacher') query = query.eq('teacher_id', user.id);
-    // Filtrar por sede para coordinadores
-    if (user.role === 'admin' && user.sede_id) {
+    // Filtrar por sedes para coordinadores
+    if (user.role === 'admin' && user.sede_ids && user.sede_ids.length > 0) {
       const { data: scs } = await sb.from('raice_courses')
-        .select('id').eq('sede_id', user.sede_id).neq('type','subgroup');
+        .select('id').in('sede_id', user.sede_ids).neq('type','subgroup');
       const cIds = (scs||[]).map(c=>c.id);
       query = query.in('course_id', cIds.length ? cIds : ['__none__']);
     }
@@ -3010,11 +3133,11 @@ async function getDashboardV2(req, res, user) {
     try { return await fn(); } catch (_) { return fallback; }
   };
 
-  // Sede scope: coordinadores con sede sólo ven su sede
+  // Sede scope: coordinadores con sedes solo ven sus sedes
   let sedeCourseIds = null; // null = sin restricción
-  if (user.role === 'admin' && user.sede_id) {
+  if (user.role === 'admin' && user.sede_ids && user.sede_ids.length > 0) {
     const { data: scs } = await sb.from('raice_courses')
-      .select('id').eq('sede_id', user.sede_id).neq('type','subgroup');
+      .select('id').in('sede_id', user.sede_ids).neq('type','subgroup');
     sedeCourseIds = (scs || []).map(c => c.id);
   }
 
@@ -3027,7 +3150,7 @@ async function getDashboardV2(req, res, user) {
     return q;
   };
   const applySedeToUsers = (q) => {
-    if (user.role === 'admin' && user.sede_id) return q.eq('sede_id', user.sede_id);
+    if (user.role === 'admin' && user.sede_ids && user.sede_ids.length > 0) return q.in('sede_id', user.sede_ids);
     return q;
   };
 
@@ -3436,9 +3559,9 @@ async function getStatsByPeriod(req, res, user) {
 
   // Sede scope para coordinadores
   let statsCourseIds = null;
-  if (user.role === 'admin' && user.sede_id) {
+  if (user.role === 'admin' && user.sede_ids && user.sede_ids.length > 0) {
     const { data: scs } = await sb.from('raice_courses')
-      .select('id').eq('sede_id', user.sede_id).neq('type', 'subgroup');
+      .select('id').in('sede_id', user.sede_ids).neq('type', 'subgroup');
     statsCourseIds = (scs || []).map(c => c.id);
   }
   const none = ['__none__'];
@@ -3640,9 +3763,9 @@ async function globalSearch(req, res, user) {
 
   // Sede scope para búsqueda de coordinadores
   let searchCourseIds = null;
-  if (user.role === 'admin' && user.sede_id) {
+  if (user.role === 'admin' && user.sede_ids && user.sede_ids.length > 0) {
     const { data: scs } = await sb.from('raice_courses')
-      .select('id').eq('sede_id', user.sede_id).neq('type','subgroup');
+      .select('id').in('sede_id', user.sede_ids).neq('type','subgroup');
     searchCourseIds = (scs||[]).map(c=>c.id);
   }
 
@@ -3665,7 +3788,7 @@ async function globalSearch(req, res, user) {
           let q2 = sb.from('raice_users').select('id, first_name, last_name, username, role')
             .or(`first_name.ilike.${term},last_name.ilike.${term},username.ilike.${term}`)
             .eq('active',true).limit(5);
-          if (user.role === 'admin' && user.sede_id) q2 = q2.eq('sede_id', user.sede_id);
+          if (user.role === 'admin' && user.sede_ids && user.sede_ids.length > 0) q2 = q2.in('sede_id', user.sede_ids);
           return q2;
         })()
       : Promise.resolve({ data: [] })
@@ -4814,6 +4937,8 @@ async function handleBackupExport(req, res, user) {
       studentGradeHistory,
       logs,
       tipo1Escalones,
+      sedes,
+      userSedes,
     ] = await Promise.all([
       sq(sb.from('raice_students').select('*').order('grade').order('last_name')),
       sq(sb.from('raice_cases').select('*').order('created_at', { ascending: false })),
@@ -4840,6 +4965,8 @@ async function handleBackupExport(req, res, user) {
       sq(sb.from('raice_student_grade_history').select('*').order('changed_at', { ascending: false })),
       sq(sb.from('raice_logs').select('*').order('created_at', { ascending: false })),
       sq(sb.from('raice_tipo1_escalones').select('*').order('created_at', { ascending: false })),
+      sq(sb.from('raice_sedes').select('*').order('created_at')),
+      sq(sb.from('raice_user_sedes').select('*')),
     ]);
 
     // Asistencia paginada (sin límite)
@@ -4905,6 +5032,9 @@ async function handleBackupExport(req, res, user) {
         periods,
         config,
         calendar,
+        // Sedes (multi-sede)
+        sedes,
+        user_sedes:             userSedes,
         // Sistema
         notifications,
         student_grade_history:  studentGradeHistory,
@@ -6836,6 +6966,11 @@ async function handleBackupImport(req, res, user) {
 
   const t = backup.tables;
 
+  // ── 0. Sedes — sin dependencias externas, deben existir antes de cursos/usuarios ──
+  if (t.sedes?.length) {
+    results.sedes = await upsertBatch('raice_sedes', t.sedes);
+  }
+
   // ── 1. Sin dependencias externas ─────────────────────────────────────────
   if (t.config?.length) {
     // Solo importar columnas conocidas para evitar fallos por columnas extra en el backup
@@ -6928,6 +7063,20 @@ async function handleBackupImport(req, res, user) {
   ]);
   results.teacher_courses = teacherCoursesR; results.schedules = schedulesR;
   results.teacher_absences = teacherAbsR; results.absence_replacements = absReplR;
+
+  // ── 6. Asignaciones de sedes a coordinadores ─────────────────────────────
+  if (t.user_sedes?.length) {
+    // raice_user_sedes tiene PK compuesta (user_id, sede_id) — upsert con onConflict específico
+    const validUserIds = new Set((t.teachers || []).map(u => u.id));
+    const validSedeIds = new Set((t.sedes    || []).map(s => s.id));
+    const safeUserSedes = t.user_sedes.filter(r => validUserIds.has(r.user_id) && validSedeIds.has(r.sede_id));
+    if (safeUserSedes.length) {
+      const { error } = await sb.from('raice_user_sedes')
+        .upsert(safeUserSedes, { onConflict: 'user_id,sede_id', ignoreDuplicates: true });
+      if (error) errors.push('user_sedes: ' + error.message);
+      else results.user_sedes = safeUserSedes.length;
+    }
+  }
 
   await logActivity(sb, user.id, 'backup_import',
     `Backup v${backup.version||'?'} paso-1 restaurado. Errores: ${errors.length}`);
