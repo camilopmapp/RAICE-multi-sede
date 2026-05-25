@@ -5342,6 +5342,9 @@
           commitments: t.commitments, suspensions: t.suspensions,
           classroom_removals: t.classroom_removals, tipo1_escalones: t.tipo1_escalones,
           excusas: t.excusas, teachers: t.teachers,
+          subgroup_members: t.subgroup_members,
+          students: (t.students || []).map(s => ({ id: s.id })),
+          courses:  (t.courses  || []).map(c => ({ id: c.id })),
         }}
       })
     });
