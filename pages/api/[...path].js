@@ -467,7 +467,7 @@ async function getAlertsEndpoint(req, res, user) {
       sedeCourseIds = (scs || []).map(c => c.id);
       sedeGradeCourseKeys = new Set((scs || []).map(c => `${c.grade}_${c.number}`));
     } else {
-      sedeCourseIds = ['__none__'];
+      sedeCourseIds = ['00000000-0000-0000-0000-000000000000'];
       sedeGradeCourseKeys = new Set();
     }
   }
@@ -569,7 +569,7 @@ async function getAlertsEndpoint(req, res, user) {
       .eq('status', 'open')
       .order('created_at', { ascending: false })
       .limit(10);
-    if (sedeCourseIds) casesQ = casesQ.in('course_id', sedeCourseIds.length ? sedeCourseIds : ['__none__']);
+    if (sedeCourseIds) casesQ = casesQ.in('course_id', sedeCourseIds.length ? sedeCourseIds : ['00000000-0000-0000-0000-000000000000']);
     const { data: openCases } = await casesQ;
 
     (openCases || []).forEach(c => {
@@ -595,7 +595,7 @@ async function getAlertsEndpoint(req, res, user) {
         .select('student_id, course_id, raice_students(first_name, last_name, grade, course)')
         .eq('status', 'A')
         .gte('date', sevenAgo)
-        .in('course_id', sedeCourseIds.length ? sedeCourseIds : ['__none__'])
+        .in('course_id', sedeCourseIds.length ? sedeCourseIds : ['00000000-0000-0000-0000-000000000000'])
         .limit(300);
       const { data: abRows } = await abQ;
       const countMap = {};
@@ -2644,9 +2644,9 @@ async function handleCases(req, res, user) {
         const { data: scs } = await sb.from('raice_courses')
           .select('id').in('sede_id', user.sede_ids).neq('type','subgroup');
         const cIds = (scs||[]).map(c=>c.id);
-        query = query.in('course_id', cIds.length ? cIds : ['__none__']);
+        query = query.in('course_id', cIds.length ? cIds : ['00000000-0000-0000-0000-000000000000']);
       } else {
-        query = query.in('course_id', ['__none__']);
+        query = query.in('course_id', ['00000000-0000-0000-0000-000000000000']);
       }
     }
 
@@ -3197,16 +3197,16 @@ async function getDashboardV2(req, res, user) {
         .select('id').in('sede_id', user.sede_ids).neq('type','subgroup');
       sedeCourseIds = (scs || []).map(c => c.id);
     } else {
-      sedeCourseIds = ['__none__'];
+      sedeCourseIds = ['00000000-0000-0000-0000-000000000000'];
     }
   }
 
   const applySedeToStudents = (q) => {
-    if (sedeCourseIds) return q.in('course_id', sedeCourseIds.length ? sedeCourseIds : ['__none__']);
+    if (sedeCourseIds) return q.in('course_id', sedeCourseIds.length ? sedeCourseIds : ['00000000-0000-0000-0000-000000000000']);
     return q;
   };
   const applySedeToAtt = (q) => {
-    if (sedeCourseIds) return q.in('course_id', sedeCourseIds.length ? sedeCourseIds : ['__none__']);
+    if (sedeCourseIds) return q.in('course_id', sedeCourseIds.length ? sedeCourseIds : ['00000000-0000-0000-0000-000000000000']);
     return q;
   };
   const applySedeToUsers = (q) => {
@@ -3219,7 +3219,7 @@ async function getDashboardV2(req, res, user) {
     safe(() => applySedeToUsers(sb.from('raice_users').select('id', { count:'exact', head:true }).eq('role','teacher').eq('active',true)), { count:0 }),
     safe(() => {
       let q = sb.from('raice_cases').select('id', { count:'exact', head:true }).eq('status','open');
-      if (sedeCourseIds) q = q.in('course_id', sedeCourseIds.length ? sedeCourseIds : ['__none__']);
+      if (sedeCourseIds) q = q.in('course_id', sedeCourseIds.length ? sedeCourseIds : ['00000000-0000-0000-0000-000000000000']);
       return q;
     }, { count:0 }),
     safe(() => applySedeToAtt(sb.from('raice_attendance').select('status, course_id, class_hour, raice_courses(grade,number)').eq('date', today)), { data:[] }),
@@ -3230,7 +3230,7 @@ async function getDashboardV2(req, res, user) {
       let q = sb.from('raice_cases')
         .select('id, student_name, grade, course, type, description, status, created_at, teacher_id')
         .order('created_at', { ascending:false }).limit(8);
-      if (sedeCourseIds) q = q.in('course_id', sedeCourseIds.length ? sedeCourseIds : ['__none__']);
+      if (sedeCourseIds) q = q.in('course_id', sedeCourseIds.length ? sedeCourseIds : ['00000000-0000-0000-0000-000000000000']);
       return q;
     }, { data:[] })
   ]);
@@ -3274,7 +3274,7 @@ async function getDashboardV2(req, res, user) {
         .select('student_id, course_id, date, raice_students(first_name, last_name, grade, course)')
         .eq('status', 'A')
         .gte('date', threeDaysAgo)
-        .in('course_id', sedeCourseIds.length ? sedeCourseIds : ['__none__'])
+        .in('course_id', sedeCourseIds.length ? sedeCourseIds : ['00000000-0000-0000-0000-000000000000'])
         .limit(300);
       const countMap = {};
       (abRows || []).forEach(a => {
@@ -3306,7 +3306,7 @@ async function getDashboardV2(req, res, user) {
     let cq = sb.from('raice_cases')
       .select('id, student_name, type, created_at, course_id')
       .eq('status','open').lt('created_at', threeDaysAgo).limit(5);
-    if (sedeCourseIds) cq = cq.in('course_id', sedeCourseIds.length ? sedeCourseIds : ['__none__']);
+    if (sedeCourseIds) cq = cq.in('course_id', sedeCourseIds.length ? sedeCourseIds : ['00000000-0000-0000-0000-000000000000']);
     const r = await cq;
     (r.data || []).forEach(c => alerts.push({
       type:'case', severity: c.type >= 2 ? 'high' : 'medium',
@@ -3625,10 +3625,10 @@ async function getStatsByPeriod(req, res, user) {
         .select('id').in('sede_id', user.sede_ids).neq('type', 'subgroup');
       statsCourseIds = (scs || []).map(c => c.id);
     } else {
-      statsCourseIds = ['__none__'];
+      statsCourseIds = ['00000000-0000-0000-0000-000000000000'];
     }
   }
-  const none = ['__none__'];
+  const none = ['00000000-0000-0000-0000-000000000000'];
 
   const [casesRes, attRes, studentsRes] = await Promise.all([
     (() => {
@@ -3833,7 +3833,7 @@ async function globalSearch(req, res, user) {
         .select('id').in('sede_id', user.sede_ids).neq('type','subgroup');
       searchCourseIds = (scs||[]).map(c=>c.id);
     } else {
-      searchCourseIds = ['__none__'];
+      searchCourseIds = ['00000000-0000-0000-0000-000000000000'];
     }
   }
 
@@ -3842,13 +3842,13 @@ async function globalSearch(req, res, user) {
       let q2 = sb.from('raice_students').select('id, first_name, last_name, grade, course, phone')
         .or(`first_name.ilike.${term},last_name.ilike.${term}`)
         .eq('status','active').limit(8);
-      if (searchCourseIds) q2 = q2.in('course_id', searchCourseIds.length ? searchCourseIds : ['__none__']);
+      if (searchCourseIds) q2 = q2.in('course_id', searchCourseIds.length ? searchCourseIds : ['00000000-0000-0000-0000-000000000000']);
       return q2;
     })(),
     (() => {
       let q2 = sb.from('raice_cases').select('id, student_name, type, status, created_at')
         .ilike('student_name', term).limit(5);
-      if (searchCourseIds) q2 = q2.in('course_id', searchCourseIds.length ? searchCourseIds : ['__none__']);
+      if (searchCourseIds) q2 = q2.in('course_id', searchCourseIds.length ? searchCourseIds : ['00000000-0000-0000-0000-000000000000']);
       return q2;
     })(),
     user.role !== 'teacher'
