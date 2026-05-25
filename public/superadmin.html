@@ -721,6 +721,15 @@
                 <div id="sa-import-bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--teal),var(--teal2));border-radius:999px;transition:width .25s ease;"></div>
               </div>
             </div>
+            <!-- Selector de sede (se muestra al cargar el archivo) -->
+            <div id="sa-import-sede-wrap" style="display:none;margin:.85rem 0 .25rem;">
+              <label style="font-size:.78rem;font-weight:700;color:var(--navy);display:block;margin-bottom:.35rem;">🏢 Sede de destino <span style="color:var(--rose);">*</span></label>
+              <select id="sa-import-sede"
+                style="width:100%;max-width:320px;padding:.45rem .7rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.85rem;background:var(--white);">
+                <option value="">— Seleccionar sede —</option>
+              </select>
+              <div style="font-size:.73rem;color:var(--gray);margin-top:.3rem;">Todos los estudiantes de este archivo se asignarán a esta sede.</div>
+            </div>
             <div style="display:flex;gap:.6rem;margin-top:1rem;" id="import-actions">
               <button class="btn btn-teal" id="sa-import-btn" onclick="confirmImport()">✅ Importar estudiantes</button>
               <button class="btn btn-ghost" id="sa-cancel-btn" onclick="cancelImport()">Cancelar</button>
@@ -2954,6 +2963,17 @@
   function showImportPreview() {
     const preview = document.getElementById('import-preview');
     preview.classList.add('show');
+    // Poblar selector de sede con las sedes activas
+    const sWrap = document.getElementById('sa-import-sede-wrap');
+    const sSel  = document.getElementById('sa-import-sede');
+    if (sWrap && sSel) {
+      const activeSedes = (allSedes || []).filter(s => s.active !== false);
+      sSel.innerHTML = '<option value="">— Seleccionar sede —</option>' +
+        activeSedes.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+      // Si solo hay una sede, preseleccionarla automáticamente
+      if (activeSedes.length === 1) sSel.value = activeSedes[0].id;
+      sWrap.style.display = '';
+    }
     const withDoc  = importedData.filter(s => s.doc_number).length;
     const withDob  = importedData.filter(s => s.birth_date).length;
     const withPhone= importedData.filter(s => s.phone).length;
@@ -2994,6 +3014,14 @@
   async function confirmImport() {
     if (!importedData.length) return;
 
+    // Validar sede seleccionada
+    const sedeId = document.getElementById('sa-import-sede')?.value || '';
+    if (!sedeId) {
+      showToast('Selecciona una sede antes de importar', 'warning');
+      document.getElementById('sa-import-sede')?.focus();
+      return;
+    }
+
     const btn       = document.getElementById('sa-import-btn');
     const cancelBtn = document.getElementById('sa-cancel-btn');
     const progWrap  = document.getElementById('sa-import-progress');
@@ -3016,7 +3044,7 @@
     label.textContent = `Procesando ${total} estudiante${total !== 1 ? 's' : ''}…`;
 
     const { ok, data } = await fetchAPI('/raice/students/import', {
-      method: 'POST', body: JSON.stringify({ students: importedData })
+      method: 'POST', body: JSON.stringify({ students: importedData, sede_id: sedeId })
     });
 
     clearInterval(ticker);
@@ -3084,6 +3112,8 @@
   function cancelImport() {
     document.getElementById('import-preview').classList.remove('show');
     document.getElementById('file-excel').value = '';
+    const sWrap = document.getElementById('sa-import-sede-wrap');
+    if (sWrap) sWrap.style.display = 'none';
     importedData = [];
   }
 

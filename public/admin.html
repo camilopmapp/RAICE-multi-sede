@@ -6166,7 +6166,7 @@ async function adminConfirmImport() {
   label.textContent = `Procesando ${total} estudiante${total !== 1 ? 's' : ''}…`;
 
   const { ok, data } = await fetchAPI('/raice/students/import', {
-    method: 'POST', body: JSON.stringify({ students: _adminImportedData })
+    method: 'POST', body: JSON.stringify({ students: _adminImportedData, sede_id: activeSede?.id || null })
   });
 
   clearInterval(ticker);

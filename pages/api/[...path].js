@@ -1264,8 +1264,23 @@ async function importStudents(req, res, user) {
   if (req.method !== 'POST') return res.status(405).end();
 
   const sb = getSupabase();
-  const { students } = req.body || {};
+  const { students, sede_id: bodySedeId } = req.body || {};
   if (!Array.isArray(students) || !students.length) return res.status(400).json({ error: 'No hay estudiantes para importar' });
+
+  // Determinar sede de destino para los estudiantes importados
+  let targetSedeId = null;
+  if (user.role === 'superadmin') {
+    // Superadmin envía sede_id explícitamente desde el selector del panel
+    targetSedeId = bodySedeId || null;
+  } else {
+    // Admin: usar sede_id enviado (activeSede del topbar), validando que le pertenezca
+    const adminSedes = await getAdminSedeIds(sb, user);
+    if (bodySedeId && adminSedes && adminSedes.includes(bodySedeId)) {
+      targetSedeId = bodySedeId;
+    } else {
+      targetSedeId = (adminSedes && adminSedes[0]) || null;
+    }
+  }
 
   let imported = 0, updated = 0, skipped = 0, errors = [];
 
@@ -1298,8 +1313,7 @@ async function importStudents(req, res, user) {
   if (missingCourseKeys.size) {
     const toCreate = [...missingCourseKeys].map(k => {
       const [grade, number] = k.split('_').map(Number);
-      const importSede = user.sede_id || (user.sede_ids && user.sede_ids[0]) || null;
-      return { grade, number, sede_id: importSede };
+      return { grade, number, sede_id: targetSedeId };
     });
     const { data: newCourses } = await sb.from('raice_courses').insert(toCreate).select('id, grade, number');
     for (const c of (newCourses || [])) courseMap.set(`${c.grade}_${c.number}`, c.id);
@@ -1343,7 +1357,7 @@ async function importStudents(req, res, user) {
         doc_number: s.doc_number || null,
         birth_date: s.birth_date || null,
         phone:      s.phone      || null,
-        sede_id:    user.sede_id || (user.sede_ids && user.sede_ids[0]) || null,
+        sede_id:    targetSedeId,
         code: `${String(grade).padStart(2,'0')}${String(course).padStart(2,'0')}${String(seq).padStart(3,'0')}`,
         status: 'active'
       });
