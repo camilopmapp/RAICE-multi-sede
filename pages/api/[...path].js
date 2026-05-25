@@ -256,10 +256,10 @@ async function login(req, res) {
 
   if (!username || !password) return res.status(400).json({ error: 'Usuario y contraseña requeridos' });
 
-  // Find user by username (join sede for display name)
+  // Find user by username (no DB-level join for raice_sedes to avoid schema cache / missing constraint errors)
   const { data: user, error } = await sb
     .from('raice_users')
-    .select('id, username, first_name, last_name, email, role, subject, sede_id, password_hash, active, must_change_password, raice_sedes(id, name)')
+    .select('id, username, first_name, last_name, email, role, subject, sede_id, password_hash, active, must_change_password')
     .eq('username', username.toLowerCase().trim())
     .single();
 
@@ -282,6 +282,15 @@ async function login(req, res) {
   // Log activity
   await logActivity(sb, user.id, 'login', `Inicio de sesión: @${user.username}`);
 
+  // Fetch teacher's sede name separately in memory (avoids DB join)
+  let single_sede_name = null;
+  if (user.role === 'teacher' && user.sede_id) {
+    try {
+      const { data: sd } = await sb.from('raice_sedes').select('name').eq('id', user.sede_id).maybeSingle();
+      if (sd) single_sede_name = sd.name;
+    } catch (_) {}
+  }
+
   // Cargar sedes del coordinador (admin puede tener varias; rector/superadmin ven todo)
   let sede_ids   = null;
   let sede_names = null;
@@ -289,11 +298,14 @@ async function login(req, res) {
     try {
       const { data: userSedes } = await sb
         .from('raice_user_sedes')
-        .select('sede_id, raice_sedes(id, name)')
+        .select('sede_id')
         .eq('user_id', user.id);
       if (userSedes && userSedes.length > 0) {
         sede_ids   = userSedes.map(s => s.sede_id);
-        sede_names = userSedes.map(s => s.raice_sedes?.name).filter(Boolean);
+        const { data: sList } = await sb.from('raice_sedes').select('id, name').in('id', sede_ids);
+        const sMap = {};
+        (sList || []).forEach(s => { sMap[s.id] = s.name; });
+        sede_names = sede_ids.map(sid => sMap[sid]).filter(Boolean);
       }
     } catch (_) { /* tabla aún no migrada — se ignora */ }
   }
@@ -324,7 +336,7 @@ async function login(req, res) {
       subject: user.subject,
       // sede_id solo para docentes; admins usan sede_ids
       sede_id:    user.role === 'teacher' ? (user.sede_id || null) : null,
-      sede_name:  user.role === 'teacher' ? (user.raice_sedes?.name || null)
+      sede_name:  user.role === 'teacher' ? (single_sede_name || null)
                 : (sede_names && sede_names.length === 1 ? sede_names[0] : null),
       sede_ids:   sede_ids,
       sede_names: sede_names,
@@ -730,13 +742,22 @@ async function handleUsers(req, res, user) {
     const isDirectory = url.searchParams.get('directory') === 'true';
 
     let q = sb.from('raice_users')
-      .select('id, username, first_name, last_name, email, role, active, last_login, subject, sede_id, raice_sedes(id, name)')
+      .select('id, username, first_name, last_name, email, role, active, last_login, subject, sede_id')
       .order('first_name');
     if (user.role !== 'superadmin') q = q.neq('role', 'superadmin');
     // En modo directorio, el admin ve todo el personal sin filtro de sede
     if (!isDirectory) q = sedeScope(q, user);
     const { data, error } = await q;
     if (error) return res.status(500).json({ error: 'Error al cargar usuarios' });
+
+    // Fetch all sedes to map names in memory (removes reliance on DB-level join which can fail if FK constraint is missing)
+    let sedesMap = {};
+    try {
+      const { data: sList } = await sb.from('raice_sedes').select('id, name');
+      (sList || []).forEach(s => {
+        sedesMap[s.id] = s.name;
+      });
+    } catch (_) {}
 
     // Batch: get course counts for all users in one query instead of N+1
     const userIds = (data || []).map(u => u.id);
@@ -756,11 +777,11 @@ async function handleUsers(req, res, user) {
     if (adminIds.length) {
       try {
         const { data: usRows } = await sb.from('raice_user_sedes')
-          .select('user_id, sede_id, raice_sedes(id, name)')
+          .select('user_id, sede_id')
           .in('user_id', adminIds);
         (usRows || []).forEach(s => {
           if (!userSedesMap[s.user_id]) userSedesMap[s.user_id] = [];
-          userSedesMap[s.user_id].push({ id: s.sede_id, name: s.raice_sedes?.name });
+          userSedesMap[s.user_id].push({ id: s.sede_id, name: sedesMap[s.sede_id] });
         });
       } catch (_) { /* tabla aún no migrada */ }
     }
@@ -771,10 +792,9 @@ async function handleUsers(req, res, user) {
         ...u,
         sede_name:  u.role === 'admin'
           ? (sedeEntries.length === 1 ? sedeEntries[0].name : (sedeEntries.length > 1 ? `${sedeEntries.length} sedes` : null))
-          : (u.raice_sedes?.name || null),
+          : (sedesMap[u.sede_id] || null),
         sede_ids:   u.role === 'admin' ? sedeEntries.map(s => s.id)   : null,
         sede_names: u.role === 'admin' ? sedeEntries.map(s => s.name) : null,
-        raice_sedes: undefined,
         courses_count: courseCountMap[u.id] || 0,
       };
     });
