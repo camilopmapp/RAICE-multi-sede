@@ -337,7 +337,7 @@ async function login(req, res) {
       // sede_id solo para docentes; admins usan sede_ids
       sede_id:    user.role === 'teacher' ? (user.sede_id || null) : null,
       sede_name:  user.role === 'teacher' ? (single_sede_name || null)
-                : (sede_names && sede_names.length === 1 ? sede_names[0] : null),
+                : (sede_names && sede_names.length > 0 ? sede_names.join(' · ') : null),
       sede_ids:   sede_ids,
       sede_names: sede_names,
       must_change_password: user.must_change_password || false
