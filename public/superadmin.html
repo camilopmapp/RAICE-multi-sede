@@ -795,6 +795,9 @@
               <span>🔍</span>
               <input type="text" placeholder="Buscar estudiante…" oninput="filterStudents(this.value)">
             </div>
+            <select id="filter-sede" onchange="filterStudents()" style="padding:.55rem .8rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.875rem;color:var(--navy);background:var(--white);outline:none;">
+              <option value="">Todas las sedes</option>
+            </select>
             <select id="filter-grade" onchange="onGradeFilterChange()" style="padding:.55rem .8rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.875rem;color:var(--navy);background:var(--white);outline:none;">
               <option value="">Todos los grados</option>
             </select>
@@ -812,13 +815,14 @@
                 <tr>
                   <th>Nombre completo</th>
                   <th>Grado · Curso</th>
+                  <th>Sede</th>
                   <th>Documento</th>
                   <th>Estado</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
               <tbody id="students-tbody">
-                <tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--gray);">Cargando…</td></tr>
+                <tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--gray);">Cargando…</td></tr>
               </tbody>
             </table>
           </div>
@@ -2405,17 +2409,31 @@
 
   // ---- STUDENTS ----
   async function loadStudents() {
+    // Asegurar que las sedes estén cargadas para el filtrado
+    if (!allSedes || !allSedes.length) {
+      const { ok: sOk, data: sData } = await fetchAPI('/raice/sedes');
+      if (sOk) allSedes = sData.sedes || [];
+    }
     const { ok, data } = await fetchAPI('/raice/students');
     if (!ok) { showToast('Error al cargar estudiantes', 'error'); return; }
     allStudents = data.students || [];
+    populateSedeFilter();
     populateGradeFilter();
     filterStudents();
+  }
+
+  function populateSedeFilter() {
+    const sel = document.getElementById('filter-sede');
+    if (!sel) return;
+    const activeSedes = allSedes.filter(s => s.active !== false);
+    sel.innerHTML = '<option value="">Todas las sedes</option>' +
+      activeSedes.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
   }
 
   function renderStudents(list) {
     const tbody = document.getElementById('students-tbody');
     if (!list.length) {
-      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--gray);">No hay estudiantes registrados.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--gray);">No hay estudiantes registrados.</td></tr>';
       return;
     }
     tbody.innerHTML = list.map(s => {
@@ -2437,6 +2455,7 @@
             </div>
           </td>
           <td><strong>${s.grade}°${s.course}</strong></td>
+          <td class="td-muted">🏢 ${s.sede_name || '—'}</td>
           <td class="td-muted">${s.doc_number || '—'}</td>
           <td>${statusPill}</td>
           <td>
@@ -2455,10 +2474,12 @@
     const query  = (q || document.querySelector('#sec-estudiantes .search-bar input')?.value || '').toLowerCase();
     const grade  = document.getElementById('filter-grade').value;
     const course = document.getElementById('filter-course').value;
+    const sede   = document.getElementById('filter-sede').value;
     let list = allStudents;
     if (query)  list = list.filter(s => `${s.first_name} ${s.last_name}`.toLowerCase().includes(query));
     if (grade)  list = list.filter(s => String(s.grade) === grade);
     if (course) list = list.filter(s => String(s.course) === course);
+    if (sede)   list = list.filter(s => String(s.sede_id) === sede);
     const countEl = document.getElementById('students-count');
     if (countEl) {
       countEl.textContent = list.length === allStudents.length

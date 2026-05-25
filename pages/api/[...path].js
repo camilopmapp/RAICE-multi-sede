@@ -1005,16 +1005,18 @@ async function handleStudents(req, res, user) {
 
     if (!students.length) return res.status(200).json({ students: [] });
 
-    // Enrich with cases_count and attendance % (current month in Colombia timezone)
+    // Enrich with cases_count, attendance % and sede info in memory without DB joins
     const studentIds = students.map(s => s.id);
     const monthStart = todayCO().substring(0, 8) + '01'; // YYYY-MM-01 in Colombia time
 
-    const [casesRes, attRes] = await Promise.all([
+    const [casesRes, attRes, coursesRes, sedesRes] = await Promise.all([
       sb.from('raice_cases').select('student_id').in('student_id', studentIds),
       sb.from('raice_attendance')
         .select('student_id, status')
         .in('student_id', studentIds)
-        .gte('date', monthStart)
+        .gte('date', monthStart),
+      sb.from('raice_courses').select('id, name, type, sede_id'),
+      sb.from('raice_sedes').select('id, name')
     ]);
 
     // Build cases map
@@ -1031,13 +1033,29 @@ async function handleStudents(req, res, user) {
       if (a.status === 'P' || a.status === 'PE') attMap[a.student_id].present++;
     });
 
-    const enriched = students.map(s => ({
-      ...s,
-      cases_count: casesMap[s.id] || 0,
-      att_pct: attMap[s.id] && attMap[s.id].total > 0
-        ? Math.round((attMap[s.id].present / attMap[s.id].total) * 100)
-        : null
-    }));
+    // Build courses and sedes maps
+    const coursesMap = {};
+    (coursesRes.data || []).forEach(c => {
+      coursesMap[c.id] = c;
+    });
+    const sedesMap = {};
+    (sedesRes.data || []).forEach(s => {
+      sedesMap[s.id] = s.name;
+    });
+
+    const enriched = students.map(s => {
+      const courseObj = coursesMap[s.course_id] || {};
+      const sedeName = sedesMap[courseObj.sede_id] || null;
+      return {
+        ...s,
+        sede_id: courseObj.sede_id || null,
+        sede_name: sedeName,
+        cases_count: casesMap[s.id] || 0,
+        att_pct: attMap[s.id] && attMap[s.id].total > 0
+          ? Math.round((attMap[s.id].present / attMap[s.id].total) * 100)
+          : null
+      };
+    });
 
     return res.status(200).json({ students: enriched });
   }
