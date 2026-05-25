@@ -1,6 +1,6 @@
 -- =====================================================================
 -- RAICE — Script SQL Maestro para instalación desde cero
--- Versión: v11 (mayo 2026) — incluye subgrupos
+-- Versión: v12 (mayo 2026) — incluye subgrupos, multisede coordinadores
 -- Aplicación: Ruta de Atención Integral para la Convivencia Escolar
 --
 -- INSTRUCCIONES (instalación nueva):

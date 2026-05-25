@@ -3240,8 +3240,9 @@ async function getDashboardV2(req, res, user) {
   // Sede scope: coordinadores con sedes solo ven sus sedes
   // Siempre leemos desde la BD para evitar tokens JWT desactualizados
   let sedeCourseIds = null; // null = sin restricción
+  let adminSedeIds  = null; // expuesto para applySedeToUsers (conteo de docentes)
   if (user.role === 'admin') {
-    const adminSedeIds = await getAdminSedeIds(sb, user);
+    adminSedeIds = await getAdminSedeIds(sb, user);
     if (adminSedeIds && adminSedeIds.length > 0) {
       const { data: scs } = await sb.from('raice_courses')
         .select('id').in('sede_id', adminSedeIds).neq('type','subgroup');
@@ -3259,8 +3260,9 @@ async function getDashboardV2(req, res, user) {
     if (sedeCourseIds) return q.in('course_id', sedeCourseIds.length ? sedeCourseIds : ['00000000-0000-0000-0000-000000000000']);
     return q;
   };
+  // Usa adminSedeIds leído de BD (no el JWT que puede estar desactualizado)
   const applySedeToUsers = (q) => {
-    if (user.role === 'admin' && user.sede_ids && user.sede_ids.length > 0) return q.in('sede_id', user.sede_ids);
+    if (user.role === 'admin' && adminSedeIds && adminSedeIds.length > 0) return q.in('sede_id', adminSedeIds);
     return q;
   };
 
