@@ -7114,6 +7114,22 @@ async function handleBackupImport(req, res, user) {
     results.classroom_removals = classroomR;
     results.tipo1_escalones = await upsertBatch('raice_tipo1_escalones', tc.tipo1_escalones);
     try { results.excusas = await upsertBatch('raice_excusas', tc.excusas); } catch (_) {}
+
+    // ── Miembros de subgrupos (depende de estudiantes y cursos ya importados) ──
+    if (tc.subgroup_members?.length) {
+      const validStudentIds = new Set((tc.students || []).map(s => s.id));
+      const validCourseIds  = new Set((tc.courses  || []).map(c => c.id));
+      const safeMembers = tc.subgroup_members.filter(
+        m => validStudentIds.has(m.student_id) && validCourseIds.has(m.subgroup_course_id)
+      );
+      if (safeMembers.length) {
+        const { error } = await sb.from('raice_subgroup_members')
+          .upsert(safeMembers, { onConflict: 'id', ignoreDuplicates: true });
+        if (error) errors.push('subgroup_members: ' + error.message);
+        else results.subgroup_members = safeMembers.length;
+      }
+    }
+
     return res.status(200).json({ success: errors.length === 0, results, errors });
   }
 
@@ -7256,21 +7272,6 @@ async function handleBackupImport(req, res, user) {
         .upsert(safeUserSedes, { onConflict: 'user_id,sede_id', ignoreDuplicates: true });
       if (error) errors.push('user_sedes: ' + error.message);
       else results.user_sedes = safeUserSedes.length;
-    }
-  }
-
-  // ── 7. Miembros de subgrupos ──────────────────────────────────────────────
-  if (t.subgroup_members?.length) {
-    const validStudentIds = new Set((t.students || []).map(s => s.id));
-    const validCourseIds  = new Set((t.courses  || []).map(c => c.id));
-    const safeMembers = t.subgroup_members.filter(
-      m => validStudentIds.has(m.student_id) && validCourseIds.has(m.subgroup_course_id)
-    );
-    if (safeMembers.length) {
-      const { error } = await sb.from('raice_subgroup_members')
-        .upsert(safeMembers, { onConflict: 'id', ignoreDuplicates: true });
-      if (error) errors.push('subgroup_members: ' + error.message);
-      else results.subgroup_members = safeMembers.length;
     }
   }
 
