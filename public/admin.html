@@ -2035,15 +2035,16 @@ function initSession() {
     const names = user.sede_names || (user.sede_name ? [user.sede_name] : []);
 
     if (ids.length > 0) {
-      // JWT tiene sedes → renderizar directamente
+      // JWT tiene sedes → mostrar de inmediato con datos cacheados
       _applySedeTopbar(ids, names);
     } else {
-      // JWT desactualizado (sin sede_ids) → badge genérico mientras cargamos
+      // JWT sin sede_ids → badge genérico transitorio
       const badge = document.getElementById('topbar-sede-badge');
       if (badge) { badge.textContent = '🗂️ Coordinador'; badge.style.display = ''; }
-      // Refrescar desde la API de forma asíncrona (evita obligar al coordinador a cerrar sesión)
-      _refreshSedesFromAPI();
     }
+    // Siempre refrescar desde la BD en background:
+    // cubre JWT vacío, JWT desactualizado, y cambios del superadmin mientras la sesión está activa.
+    _refreshSedesFromAPI();
   }
 }
 
