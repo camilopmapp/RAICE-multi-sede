@@ -487,7 +487,8 @@ async function getAlerts(sb) {
 async function getAlertsEndpoint(req, res, user) {
   requireRole(user, 'superadmin', 'admin', 'rector');
   if (req.method !== 'GET') return res.status(405).end();
-  const sb = getSupabase();
+  const sb  = getSupabase();
+  const url = new URL(req.url, `http://${req.headers.host}`);
   const today        = todayCO();
   const sevenAgo     = todayCO(-7);
   const threeDaysAgo = todayCO(-3);
@@ -3250,6 +3251,7 @@ async function getStudentGradeHistory(req, res, user) {
 async function getDashboardV2(req, res, user) {
   requireRole(user, 'superadmin', 'admin', 'rector');
   const sb           = getSupabase();
+  const url          = new URL(req.url, `http://${req.headers.host}`);
   const today        = todayCO();
   const threeDaysAgo = todayCO(-3);
 
