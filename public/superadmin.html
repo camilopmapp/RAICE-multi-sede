@@ -1777,6 +1777,10 @@
           <input type="text" id="es-docnum" placeholder="1234567890">
         </div>
         <div class="form-group">
+          <label>Sede *</label>
+          <select id="es-sede" onchange="loadGradesForSede()"><option value="">— Sede —</option></select>
+        </div>
+        <div class="form-group">
           <label>Grado *</label>
           <select id="es-grade" onchange="loadCoursesForGrade()"></select>
         </div>
@@ -2527,7 +2531,7 @@
     document.getElementById('es-acudientes-list').innerHTML = '';
     window._studentAcudientes = [];
     addAcudienteRow(); // pre-load one empty row
-    await loadGradesForStudentModal();
+    await loadSedesForStudentModal();
     openModal('modal-edit-student');
   }
 
@@ -2544,30 +2548,57 @@
     document.getElementById('es-phone').value     = s.phone || '';
     document.getElementById('es-status').value    = s.status || 'active';
     document.getElementById('es-notes').value     = s.notes || '';
-    await loadGradesForStudentModal(s.grade, s.course);
+    // Derive sede_id from course_id (API doesn't return sede_id on students)
+    await loadSedesForStudentModal(null, s.grade, s.course, s.course_id);
     await loadAcudientesForStudent(s.id);
-    // If no acudientes loaded, show one empty row
     if (!document.querySelectorAll('#es-acudientes-list .acud-row').length) addAcudienteRow();
     openModal('modal-edit-student');
   }
 
-  async function loadGradesForStudentModal(selectedGrade, selectedCourse) {
-    const { data } = await fetchAPI('/raice/courses');
-    const courses = data?.courses || [];
+  // Fetch all sedes, populate selector, then load grades for selected sede
+  async function loadSedesForStudentModal(selectedSedeId, selectedGrade, selectedCourse, currentCourseId) {
+    const { data: sData } = await fetchAPI('/raice/sedes');
+    const sedes = sData?.sedes || [];
+    // Load all non-subgroup courses for modal filtering
+    const { data: cData } = await fetchAPI('/raice/courses');
+    window._allCoursesForModal = (cData?.courses || []).filter(c => c.type !== 'subgroup');
+    // Auto-detect sede from the student's current course_id if not provided
+    if (!selectedSedeId && currentCourseId) {
+      const found = window._allCoursesForModal.find(c => c.id === currentCourseId);
+      if (found) selectedSedeId = found.sede_id;
+    }
+    const sSel = document.getElementById('es-sede');
+    sSel.innerHTML = '<option value="">— Sede —</option>' +
+      sedes.map(s => `<option value="${s.id}" ${s.id === selectedSedeId ? 'selected' : ''}>${s.name}</option>`).join('');
+    loadGradesForSede(selectedGrade, selectedCourse);
+  }
+
+  // Called when Sede changes; repopulates Grado
+  function loadGradesForSede(selectedGrade, selectedCourse) {
+    const sedeId  = document.getElementById('es-sede').value;
+    const courses = (window._allCoursesForModal || []).filter(c => !sedeId || c.sede_id === sedeId);
     const grades  = [...new Set(courses.map(c => c.grade))].sort((a,b) => a-b);
     const gSel = document.getElementById('es-grade');
     gSel.innerHTML = '<option value="">— Grado —</option>' +
-      grades.map(g => `<option value="${g}" ${g == selectedGrade ? 'selected' : ''}>${g}°</option>`).join('');
-    window._allCoursesForModal = courses;
+      grades.map(g => `<option value="${g}" ${g == selectedGrade ? 'selected' : ''}>${g === 0 ? 'Transición' : g + '°'}</option>`).join('');
     loadCoursesForGrade(selectedCourse);
   }
 
+  // Legacy shim (still called by openNewStudent path)
+  async function loadGradesForStudentModal(selectedGrade, selectedCourse) {
+    await loadSedesForStudentModal(null, selectedGrade, selectedCourse);
+  }
+
+  // Called when Grado changes; repopulates Curso filtered by sede+grade
   function loadCoursesForGrade(selectedCourse) {
-    const grade   = document.getElementById('es-grade').value;
-    const courses = (window._allCoursesForModal || []).filter(c => String(c.grade) === String(grade));
-    const cSel    = document.getElementById('es-course');
+    const sedeId = document.getElementById('es-sede').value;
+    const grade  = document.getElementById('es-grade').value;
+    const courses = (window._allCoursesForModal || []).filter(c =>
+      (!sedeId || c.sede_id === sedeId) && String(c.grade) === String(grade)
+    );
+    const cSel = document.getElementById('es-course');
     cSel.innerHTML = '<option value="">— Curso —</option>' +
-      courses.map(c => `<option value="${c.id}" ${c.id === selectedCourse || c.number == selectedCourse ? 'selected' : ''}>${c.grade}°${c.number}</option>`).join('');
+      courses.map(c => `<option value="${c.id}" ${c.id === selectedCourse || c.number == selectedCourse ? 'selected' : ''}>${c.grade === 0 ? 'Transición' : c.grade + '°'}${c.number}</option>`).join('');
   }
 
   async function saveStudent() {
@@ -2580,6 +2611,7 @@
     const courseId  = document.getElementById('es-course').value;
 
     if (!firstName || !lastName) { showToast('Nombre y apellido son obligatorios', 'warning'); return; }
+    if (!document.getElementById('es-sede').value) { showToast('Selecciona la sede', 'warning'); return; }
     if (!courseId)                { showToast('Selecciona el grado y curso', 'warning'); return; }
 
     // En modo cambio de grado: verificar que el curso cambió y pedir confirmación
