@@ -3450,10 +3450,16 @@ async function getDashboardV2(req, res, user) {
 
       if (scheds && scheds.length > 0) {
         // Filtrar solo las clases cuya hora de inicio ya es menor a la actual
-        const pastScheds = scheds.filter(s => {
+        let pastScheds = scheds.filter(s => {
            const st = s.start_time || bellMap[s.class_hour];
            return st && st < currentTimeStr;
         });
+
+        // Filtrar por sede si es coordinador
+        if (sedeCourseIds) {
+          const sedeSet = new Set(sedeCourseIds);
+          pastScheds = pastScheds.filter(s => s.raice_teacher_courses?.course_id && sedeSet.has(s.raice_teacher_courses.course_id));
+        }
 
         // Armar Set de las asistencias ya tomadas HOY
         const takenSet = new Set();
