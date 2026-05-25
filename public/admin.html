@@ -1778,6 +1778,10 @@
           <input type="text" id="asa-docnum" placeholder="1234567890">
         </div>
         <div class="form-group">
+          <label>Sede *</label>
+          <select id="asa-sede" onchange="adminLoadGradesForModal()"></select>
+        </div>
+        <div class="form-group">
           <label>Grado *</label>
           <select id="asa-grade" onchange="adminLoadCoursesForGrade()"></select>
         </div>
@@ -2615,7 +2619,7 @@ async function openNewStudent() {
   document.getElementById('asa-acudientes-list').innerHTML = '';
   window._adminStudentAcudientes = [];
   addAdminAcudienteRow(); // pre-load one empty row
-  await adminLoadGradesForModal();
+  await adminLoadSedesForModal();
   openModal('modal-student-admin');
 }
 
@@ -2631,7 +2635,7 @@ async function editStudentAdmin(s) {
   document.getElementById('asa-phone').value     = s.phone || '';
   document.getElementById('asa-status').value    = s.status || 'active';
   document.getElementById('asa-notes').value     = s.notes || '';
-  await adminLoadGradesForModal(s.grade, s.course_id);
+  await adminLoadSedesForModal(null, s.grade, s.course_id);
   await loadAdminAcudientes(s.id);
   // If no acudientes loaded, show one empty row
   if (!document.querySelectorAll('#asa-acudientes-list .acud-row').length) addAdminAcudienteRow();
@@ -2657,23 +2661,46 @@ async function deleteStudentAdmin(id) {
 }
 
 
-async function adminLoadGradesForModal(selectedGrade, selectedCourseId) {
-  const { data } = await fetchAPI('/raice/courses');
-  const courses = data?.courses || [];
+async function adminLoadSedesForModal(selectedSedeId, selectedGrade, selectedCourseId) {
+  // Solo los admin ven los estudiantes de sus sedes asignadas, 
+  // Fetch sedes uses the user token, it might just return what the admin has access to, or all sedes.
+  const { data: sData } = await fetchAPI('/raice/sedes');
+  const sedes = sData?.sedes || [];
+  
+  const { data: cData } = await fetchAPI('/raice/courses');
+  window._adminCoursesForModal = (cData?.courses || []).filter(c => c.type !== 'subgroup');
+  
+  if (!selectedSedeId && selectedCourseId) {
+    const found = window._adminCoursesForModal.find(c => c.id === selectedCourseId);
+    if (found) selectedSedeId = found.sede_id;
+  }
+  
+  const sSel = document.getElementById('asa-sede');
+  sSel.innerHTML = '<option value="">— Sede —</option>' +
+    sedes.map(s => `<option value="${s.id}" ${s.id === selectedSedeId ? 'selected' : ''}>${s.name}</option>`).join('');
+    
+  adminLoadGradesForModal(selectedGrade, selectedCourseId);
+}
+
+function adminLoadGradesForModal(selectedGrade, selectedCourseId) {
+  const sedeId = document.getElementById('asa-sede')?.value;
+  const courses = (window._adminCoursesForModal || []).filter(c => !sedeId || c.sede_id === sedeId);
   const grades  = [...new Set(courses.map(c => c.grade))].sort((a,b) => a-b);
   const gSel = document.getElementById('asa-grade');
   gSel.innerHTML = '<option value="">— Grado —</option>' +
-    grades.map(g => `<option value="${g}" ${g == selectedGrade ? 'selected' : ''}>${g}°</option>`).join('');
-  window._adminCoursesForModal = courses;
+    grades.map(g => `<option value="${g}" ${g == selectedGrade ? 'selected' : ''}>${g === 0 ? 'Transición' : g + '°'}</option>`).join('');
   adminLoadCoursesForGrade(selectedCourseId);
 }
 
 function adminLoadCoursesForGrade(selectedCourseId) {
+  const sedeId  = document.getElementById('asa-sede')?.value;
   const grade   = document.getElementById('asa-grade').value;
-  const courses = (window._adminCoursesForModal || []).filter(c => String(c.grade) === String(grade));
+  const courses = (window._adminCoursesForModal || []).filter(c => 
+    (!sedeId || c.sede_id === sedeId) && String(c.grade) === String(grade)
+  );
   const cSel    = document.getElementById('asa-course');
   cSel.innerHTML = '<option value="">— Curso —</option>' +
-    courses.map(c => `<option value="${c.id}" ${c.id === selectedCourseId ? 'selected' : ''}>${c.grade}°${c.number}</option>`).join('');
+    courses.map(c => `<option value="${c.id}" ${c.id === selectedCourseId || c.number == selectedCourseId ? 'selected' : ''}>${c.grade === 0 ? 'Transición' : c.grade + '°'}${c.number}</option>`).join('');
 }
 
 async function saveStudentAdmin() {
@@ -2682,6 +2709,7 @@ async function saveStudentAdmin() {
   const lastName  = document.getElementById('asa-lastname').value.trim();
   const courseId  = document.getElementById('asa-course').value;
   if (!firstName || !lastName) { showToast('Nombre y apellido son obligatorios', 'warning'); return; }
+  if (!document.getElementById('asa-sede').value) { showToast('Selecciona la sede', 'warning'); return; }
   if (!courseId)                { showToast('Selecciona el grado y curso', 'warning'); return; }
   const payload = {
     first_name:  firstName,
