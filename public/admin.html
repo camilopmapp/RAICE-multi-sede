@@ -1960,6 +1960,64 @@ let caseTypeFilter = '', caseStatusFilter = '', caseSearchQuery = '';
 let activeSede = null;
 
 // ---- AUTH ----
+
+/**
+ * Aplica el topbar de sedes: selector multi o badge estático.
+ * Se llama tanto en initSession (síncrono) como en _refreshSedesFromAPI (asíncrono).
+ */
+function _applySedeTopbar(ids, names) {
+  const sel   = document.getElementById('sede-selector');
+  const badge = document.getElementById('topbar-sede-badge');
+  if (ids.length > 1) {
+    // Multi-sede: selector desplegable
+    if (sel) {
+      sel.innerHTML = ids.map((id, i) =>
+        `<option value="${id}">🏢 ${names[i] || id}</option>`
+      ).join('');
+      sel.style.display = '';
+    }
+    if (badge) badge.style.display = 'none';
+    activeSede = { id: ids[0], name: names[0] || ids[0] };
+  } else if (ids.length === 1) {
+    // Una sede: badge estático
+    if (sel) sel.style.display = 'none';
+    if (badge) { badge.textContent = '🏢 ' + (names[0] || ids[0]); badge.style.display = ''; }
+    activeSede = { id: ids[0], name: names[0] || ids[0] };
+  } else {
+    // Sin sedes: badge genérico
+    if (sel) sel.style.display = 'none';
+    if (badge) { badge.textContent = '🗂️ Coordinador'; badge.style.display = ''; }
+  }
+}
+
+/**
+ * Refresca las sedes del coordinador directamente desde la BD cuando el JWT
+ * está desactualizado (sede_ids vacío). Esto evita tener que cerrar sesión.
+ */
+async function _refreshSedesFromAPI() {
+  try {
+    const { ok, data: sedeData } = await fetchAPI('/raice/sedes', { _skipSedeFilter: true });
+    // El endpoint retorna { sedes: [...] }
+    const sedeList = sedeData?.sedes || (Array.isArray(sedeData) ? sedeData : []);
+    if (!ok || !sedeList.length) return;
+    const freshIds   = sedeList.map(s => s.id);
+    const freshNames = sedeList.map(s => s.name);
+    // Persistir en sessionStorage para que el resto de la sesión lo use
+    const stored = sessionStorage.getItem('raice_user');
+    if (stored) {
+      const u = JSON.parse(stored);
+      u.sede_ids   = freshIds;
+      u.sede_names = freshNames;
+      sessionStorage.setItem('raice_user', JSON.stringify(u));
+      currentUser = u;
+    }
+    // Actualizar topbar con los datos frescos
+    _applySedeTopbar(freshIds, freshNames);
+    // Recargar la sección actual para que use la sede activa recién establecida
+    if (activeSede && typeof showSection === 'function') showSection(currentSection);
+  } catch (_) { /* silencioso — la app funciona sin sedes si la BD aún no tiene datos */ }
+}
+
 function initSession() {
   const token = sessionStorage.getItem('raice_token');
   const role  = sessionStorage.getItem('raice_role');
@@ -1976,30 +2034,15 @@ function initSession() {
     const ids   = user.sede_ids   || [];
     const names = user.sede_names || (user.sede_name ? [user.sede_name] : []);
 
-    if (ids.length > 1) {
-      // ── Multi-sede: mostrar selector desplegable ─────────────────────────
-      const sel = document.getElementById('sede-selector');
-      if (sel) {
-        sel.innerHTML = ids.map((id, i) =>
-          `<option value="${id}">🏢 ${names[i] || id}</option>`
-        ).join('');
-        sel.style.display = '';
-        document.getElementById('topbar-sede-badge').style.display = 'none';
-        // Primera sede activa por defecto
-        activeSede = { id: ids[0], name: names[0] || ids[0] };
-      }
-    } else if (ids.length === 1) {
-      // ── Una sola sede: badge estático ───────────────────────────────────
-      const badge = document.getElementById('topbar-sede-badge');
-      if (badge) {
-        badge.textContent = '🏢 ' + (names[0] || ids[0]);
-        badge.style.display = '';
-      }
-      activeSede = { id: ids[0], name: names[0] || ids[0] };
+    if (ids.length > 0) {
+      // JWT tiene sedes → renderizar directamente
+      _applySedeTopbar(ids, names);
     } else {
-      // ── Sin sedes asignadas: badge genérico ─────────────────────────────
+      // JWT desactualizado (sin sede_ids) → badge genérico mientras cargamos
       const badge = document.getElementById('topbar-sede-badge');
       if (badge) { badge.textContent = '🗂️ Coordinador'; badge.style.display = ''; }
+      // Refrescar desde la API de forma asíncrona (evita obligar al coordinador a cerrar sesión)
+      _refreshSedesFromAPI();
     }
   }
 }
