@@ -286,14 +286,16 @@ async function login(req, res) {
   let sede_ids   = null;
   let sede_names = null;
   if (user.role === 'admin') {
-    const { data: userSedes } = await sb
-      .from('raice_user_sedes')
-      .select('sede_id, raice_sedes(id, name)')
-      .eq('user_id', user.id);
-    if (userSedes && userSedes.length > 0) {
-      sede_ids   = userSedes.map(s => s.sede_id);
-      sede_names = userSedes.map(s => s.raice_sedes?.name).filter(Boolean);
-    }
+    try {
+      const { data: userSedes } = await sb
+        .from('raice_user_sedes')
+        .select('sede_id, raice_sedes(id, name)')
+        .eq('user_id', user.id);
+      if (userSedes && userSedes.length > 0) {
+        sede_ids   = userSedes.map(s => s.sede_id);
+        sede_names = userSedes.map(s => s.raice_sedes?.name).filter(Boolean);
+      }
+    } catch (_) { /* tabla aún no migrada — se ignora */ }
   }
 
   // Generate token
@@ -729,7 +731,7 @@ async function handleUsers(req, res, user) {
 
     let q = sb.from('raice_users')
       .select('id, username, first_name, last_name, email, role, active, last_login, subject, sede_id, raice_sedes(id, name)')
-      .order('last_name').order('first_name');
+      .order('first_name');
     if (user.role !== 'superadmin') q = q.neq('role', 'superadmin');
     // En modo directorio, el admin ve todo el personal sin filtro de sede
     if (!isDirectory) q = sedeScope(q, user);
@@ -748,16 +750,19 @@ async function handleUsers(req, res, user) {
     }
 
     // Cargar asignaciones de sedes para coordinadores (admin)
+    // Protegido con try-catch por si raice_user_sedes aún no se ha migrado
     const adminIds = (data || []).filter(u => u.role === 'admin').map(u => u.id);
     const userSedesMap = {};
     if (adminIds.length) {
-      const { data: usRows } = await sb.from('raice_user_sedes')
-        .select('user_id, sede_id, raice_sedes(id, name)')
-        .in('user_id', adminIds);
-      (usRows || []).forEach(s => {
-        if (!userSedesMap[s.user_id]) userSedesMap[s.user_id] = [];
-        userSedesMap[s.user_id].push({ id: s.sede_id, name: s.raice_sedes?.name });
-      });
+      try {
+        const { data: usRows } = await sb.from('raice_user_sedes')
+          .select('user_id, sede_id, raice_sedes(id, name)')
+          .in('user_id', adminIds);
+        (usRows || []).forEach(s => {
+          if (!userSedesMap[s.user_id]) userSedesMap[s.user_id] = [];
+          userSedesMap[s.user_id].push({ id: s.sede_id, name: s.raice_sedes?.name });
+        });
+      } catch (_) { /* tabla aún no migrada */ }
     }
 
     const withCounts = (data || []).map(u => {
@@ -799,7 +804,7 @@ async function handleUsers(req, res, user) {
       // Insertar asignaciones de sedes
       const sedeArr = Array.isArray(newUserSedeIds) ? newUserSedeIds.filter(Boolean) : [];
       if (sedeArr.length) {
-        await sb.from('raice_user_sedes').insert(sedeArr.map(sid => ({ user_id: newUser.id, sede_id: sid })));
+        try { await sb.from('raice_user_sedes').insert(sedeArr.map(sid => ({ user_id: newUser.id, sede_id: sid }))); } catch (_) {}
       }
       await logActivity(sb, user.id, 'create_user', `Usuario creado: @${username}`);
       return res.status(200).json({ success: true, user: newUser });
@@ -867,18 +872,18 @@ async function handleUsers(req, res, user) {
 
     // Actualizar asignaciones de sedes para coordinadores (solo superadmin puede)
     if (user.role === 'superadmin' && newSedeIds !== undefined) {
-      const targetRole = effectiveRole || role;
-      if (!targetRole || targetRole === 'admin') {
-        // Reemplazar sedes: borrar todas las actuales e insertar las nuevas
-        await sb.from('raice_user_sedes').delete().eq('user_id', id);
-        const sedeArr = Array.isArray(newSedeIds) ? newSedeIds.filter(Boolean) : [];
-        if (sedeArr.length) {
-          await sb.from('raice_user_sedes').insert(sedeArr.map(sid => ({ user_id: id, sede_id: sid })));
+      try {
+        const targetRole = effectiveRole || role;
+        if (!targetRole || targetRole === 'admin') {
+          await sb.from('raice_user_sedes').delete().eq('user_id', id);
+          const sedeArr = Array.isArray(newSedeIds) ? newSedeIds.filter(Boolean) : [];
+          if (sedeArr.length) {
+            await sb.from('raice_user_sedes').insert(sedeArr.map(sid => ({ user_id: id, sede_id: sid })));
+          }
+        } else {
+          await sb.from('raice_user_sedes').delete().eq('user_id', id);
         }
-      } else {
-        // Si cambió a rector/superadmin/teacher, limpiar las sedes del admin
-        await sb.from('raice_user_sedes').delete().eq('user_id', id);
-      }
+      } catch (_) { /* tabla aún no migrada */ }
     }
 
     await logActivity(sb, user.id, 'update_user', `Usuario ${id} actualizado`);
@@ -908,7 +913,7 @@ async function handleUsers(req, res, user) {
     // Remove teacher-course and sede assignments first
     await Promise.all([
       sb.from('raice_teacher_courses').delete().eq('teacher_id', id),
-      sb.from('raice_user_sedes').delete().eq('user_id', id),
+      sb.from('raice_user_sedes').delete().eq('user_id', id).then(() => {}).catch(() => {}),
     ]);
     const { error } = await sb.from('raice_users').delete().eq('id', id);
     if (error) return res.status(500).json({ error: _dbErr(error, '') });

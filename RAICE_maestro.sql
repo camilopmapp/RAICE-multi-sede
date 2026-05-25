@@ -711,11 +711,14 @@ END $$;
 -- =====================================================================
 
 -- Sedes
-CREATE INDEX IF NOT EXISTS idx_sedes_active   ON raice_sedes(active);
+CREATE INDEX IF NOT EXISTS idx_sedes_active        ON raice_sedes(active);
+-- Asignaciones coordinador ↔ sede
+CREATE INDEX IF NOT EXISTS idx_user_sedes_user     ON raice_user_sedes(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_sedes_sede     ON raice_user_sedes(sede_id);
 -- Usuarios por sede
-CREATE INDEX IF NOT EXISTS idx_users_sede     ON raice_users(sede_id);
+CREATE INDEX IF NOT EXISTS idx_users_sede          ON raice_users(sede_id);
 -- Cursos por sede
-CREATE INDEX IF NOT EXISTS idx_courses_sede   ON raice_courses(sede_id);
+CREATE INDEX IF NOT EXISTS idx_courses_sede        ON raice_courses(sede_id);
 
 -- Usuarios
 CREATE INDEX IF NOT EXISTS idx_users_role     ON raice_users(role);
