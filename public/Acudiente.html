@@ -88,21 +88,6 @@
 </head>
 <body>
 
-<div id="sw-update-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#1d4ed8;color:#fff;padding:.6rem 1rem;display:none;align-items:center;justify-content:center;gap:1rem;font-size:.85rem;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.2);">
-  🔄 Hay una versión nueva disponible
-  <button onclick="location.reload()" style="background:#fff;color:#1d4ed8;border:none;border-radius:6px;padding:.3rem .8rem;font-weight:700;cursor:pointer;">Actualizar ahora</button>
-</div>
-<script>
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.addEventListener('message', e => {
-      if (e.data?.type === 'NEW_VERSION') document.getElementById('sw-update-banner').style.display = 'flex';
-    });
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      document.getElementById('sw-update-banner').style.display = 'flex';
-    });
-  }
-</script>
-
 <div id="loading-page">
   <div class="loader-ring"></div>
   <p class="loader-text">Cargando información…</p>

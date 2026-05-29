@@ -136,7 +136,6 @@ export default async function handler(req, res) {
     if (route === 'raice/tardanzas')            return await getTardanzasReport(req, res, user);
     if (route === 'raice/search')               return await globalSearch(req, res, user);
     if (route === 'raice/student-ficha')        return await getStudentFicha(req, res, user);
-    if (route === 'raice/rector-insights')     return await getRectorInsights(req, res, user);
     if (route === 'raice/acudientes')           return await handleAcudientes(req, res, user);
     if (route === 'raice/calendar/today')       return await handleCalendarToday(req, res, user);
     if (route === 'raice/calendar/range')       return await handleCalendarRange(req, res, user);
@@ -171,7 +170,6 @@ export default async function handler(req, res) {
     if (route === 'raice/attendance/missing')    return await getMissingAttendance(req, res, user);
 
     // ---- TEACHER-SPECIFIC routes ----
-    if (route === 'raice/course-day-schedule')  return await getCourseDaySchedule(req, res, user);
     if (route === 'raice/my-courses')           return await getMyCourses(req, res, user);
     if (route === 'raice/attendance/course')    return await getAttendanceByCourse(req, res, user);
     if (route === 'raice/attendance/range')     return await getAttendanceRange(req, res, user);
@@ -432,27 +430,6 @@ async function getAllowedCourseIdsForAdmin(sb, user, sedeFilter = null) {
   return ids.length > 0 ? ids : ['00000000-0000-0000-0000-000000000000'];
 }
 
-/**
- * Sede filter for rector/superadmin — they see everything by default,
- * but can optionally narrow to one sede via ?sede_filter=UUID.
- * Returns null (no restriction) or [sedeId] array.
- */
-async function getRectorSedeFilter(sedeFilter) {
-  if (!sedeFilter) return null; // no filter → see everything
-  return [sedeFilter];
-}
-
-/**
- * Given a sede ID array (or null for no restriction), returns course IDs for those sedes.
- */
-async function getCourseIdsForSedes(sb, sedeIds) {
-  if (!sedeIds) return null; // null = no restriction
-  if (!sedeIds.length) return ['00000000-0000-0000-0000-000000000000'];
-  const { data } = await sb.from('raice_courses').select('id').in('sede_id', sedeIds);
-  const ids = (data || []).map(c => c.id);
-  return ids.length > 0 ? ids : ['00000000-0000-0000-0000-000000000000'];
-}
-
 async function logActivity(sb, userId, type, detail) {
   try {
     await sb.from('raice_logs').insert({ user_id: userId, event_type: type, detail });
@@ -520,8 +497,8 @@ async function getAlertsEndpoint(req, res, user) {
   // Sede scope: pre-cargar course_ids de las sedes del coordinador
   // Siempre leemos sede_ids desde la BD para evitar tokens JWT desactualizados
   const alertSedeFilter = url.searchParams.get('sede_filter');
-  let sedeCourseIds = null;      // null = sin restricción (superadmin / rector sin filtro)
-  let sedeGradeCourseKeys = null;
+  let sedeCourseIds = null;      // null = sin restricción (superadmin / rector)
+  let sedeGradeCourseKeys = null; // Set de "grade_course" para filtrar resultados del RPC
   if (user.role === 'admin') {
     const adminSedeIds = await getAdminSedeIds(sb, user, alertSedeFilter);
     if (adminSedeIds && adminSedeIds.length > 0) {
@@ -530,15 +507,6 @@ async function getAlertsEndpoint(req, res, user) {
       sedeCourseIds = (scs || []).map(c => c.id);
       sedeGradeCourseKeys = new Set((scs || []).map(c => `${c.grade}_${c.number}`));
     } else {
-      sedeCourseIds = ['00000000-0000-0000-0000-000000000000'];
-      sedeGradeCourseKeys = new Set();
-    }
-  } else if (alertSedeFilter && (user.role === 'rector' || user.role === 'superadmin')) {
-    const { data: scs } = await sb.from('raice_courses')
-      .select('id, grade, number').eq('sede_id', alertSedeFilter).neq('type', 'subgroup');
-    sedeCourseIds = (scs || []).map(c => c.id);
-    sedeGradeCourseKeys = new Set((scs || []).map(c => `${c.grade}_${c.number}`));
-    if (!sedeCourseIds.length) {
       sedeCourseIds = ['00000000-0000-0000-0000-000000000000'];
       sedeGradeCourseKeys = new Set();
     }
@@ -582,10 +550,9 @@ async function getAlertsEndpoint(req, res, user) {
     }
 
     const typeLabels = {
-      evasion:           { ico: '🏃', label: 'Posible evasión',         severity: 'high'   },
-      evasion_retracted: { ico: '✅', label: 'Evasión retirada',         severity: 'low'    },
-      new_case:          { ico: '⚠️', label: 'Nuevo caso RAICE',         severity: 'high'   },
-      tardanza:          { ico: '⏰', label: 'Tardanza registrada',       severity: 'low'    },
+      evasion:  { ico: '🏃', label: 'Posible evasión',      severity: 'high'   },
+      new_case: { ico: '⚠️', label: 'Nuevo caso RAICE',     severity: 'high'   },
+      tardanza: { ico: '⏰', label: 'Tardanza registrada',  severity: 'low'    },
     };
 
     (validNotifs || []).forEach(n => {
@@ -630,38 +597,6 @@ async function getAlertsEndpoint(req, res, user) {
         severity: 'high', ico: '🏃',
         title: n.title || '🏃 Posible evasión sin resolver',
         description: `${n.body || ''}${sender}${date ? ' · '+date : ''} · ⏳ Sin confirmar`,
-        notif_id: n.id, link_id: n.link_id,
-      });
-    });
-  } catch (_) {}
-
-  // ── 2.5. Evasiones retractadas (asistencia corregida por el docente) — no leídas ──
-  try {
-    const { data: retractedEva } = await sb.from('raice_notifications')
-      .select('id, title, body, created_at, link_id, from_user_id')
-      .eq('to_user_id', user.id)
-      .eq('type', 'evasion_retracted')
-      .eq('read', false)
-      .gte('created_at', sevenAgo + 'T00:00:00.000Z')
-      .order('created_at', { ascending: false })
-      .limit(10);
-
-    const retFromIds = [...new Set((retractedEva||[]).map(n => n.from_user_id).filter(Boolean))];
-    const retFromMap = {};
-    if (retFromIds.length) {
-      const { data: snd } = await sb.from('raice_users').select('id, first_name, last_name').in('id', retFromIds);
-      (snd||[]).forEach(s => retFromMap[s.id] = `${s.first_name} ${s.last_name}`);
-    }
-
-    (retractedEva || []).forEach(n => {
-      if (alerts.some(a => a.notif_id === n.id)) return;
-      const dateStr = n.created_at ? new Date(n.created_at).toLocaleDateString('es-CO',{day:'numeric',month:'short'}) : '';
-      const sender  = retFromMap[n.from_user_id] ? ` · Docente: ${retFromMap[n.from_user_id]}` : '';
-      alerts.push({
-        id: n.id, source: 'notification', type: 'evasion_retracted',
-        severity: 'low', ico: '✅',
-        title: (n.title || 'Posible evasión').replace(/^🚨\s*|^🏃\s*/,''),
-        description: `${n.body || ''}${sender}${dateStr ? ' · '+dateStr : ''}`,
         notif_id: n.id, link_id: n.link_id,
       });
     });
@@ -779,7 +714,7 @@ async function getAlertsEndpoint(req, res, user) {
             course_id,
             subject,
             raice_users ( first_name, last_name ),
-            raice_courses ( grade, number, type, name )
+            raice_courses ( grade, number )
           )
         `)
         .eq('day_of_week', dayOfWeek);
@@ -789,12 +724,10 @@ async function getAlertsEndpoint(req, res, user) {
       (bells || []).forEach(b => bellMap[b.class_hour] = b.start_time);
 
       if (scheds && scheds.length > 0) {
-        // Get today's attendance records — exclude PE (excusas) and NR
+        // Get today's attendance records
         const { data: todayAtt } = await sb.from('raice_attendance')
-          .select('course_id, class_hour, status').eq('date', today);
-        const takenSet = new Set((todayAtt || [])
-          .filter(a => a.status !== 'PE' && a.status !== 'NR')
-          .map(a => `${a.course_id}_${a.class_hour}`));
+          .select('course_id, class_hour').eq('date', today);
+        const takenSet = new Set((todayAtt || []).map(a => `${a.course_id}_${a.class_hour}`));
 
         let pastScheds = scheds.filter(s => {
           const st = s.start_time || bellMap[s.class_hour];
@@ -811,8 +744,7 @@ async function getAlertsEndpoint(req, res, user) {
           if (!tc || !tc.course_id || !tc.raice_users || !tc.raice_courses) return;
           if (!takenSet.has(`${tc.course_id}_${s.class_hour}`)) {
             const teacherName = `${tc.raice_users.first_name} ${tc.raice_users.last_name}`;
-            const rc2 = tc.raice_courses;
-            const courseName = rc2.type === 'subgroup' ? (rc2.name || 'Subgrupo') : `${rc2.grade}°${rc2.number}`;
+            const courseName = `${tc.raice_courses.grade}°${tc.raice_courses.number}`;
             const subject = tc.subject || '—';
             alerts.push({
               source: 'computed', type: 'attendance_omission', severity: 'high', ico: '🚨',
@@ -1140,28 +1072,25 @@ async function handleStudents(req, res, user) {
     const studentIds = students.map(s => s.id);
     const monthStart = todayCO().substring(0, 8) + '01'; // YYYY-MM-01 in Colombia time
 
-    // Fetch cases and attendance without .in() to avoid PostgREST URL length limit with many UUIDs
-    const studentIdSet = new Set(studentIds);
     const [casesRes, attRes, coursesRes, sedesRes] = await Promise.all([
-      sb.from('raice_cases').select('student_id'),
+      sb.from('raice_cases').select('student_id').in('student_id', studentIds),
       sb.from('raice_attendance')
         .select('student_id, status')
+        .in('student_id', studentIds)
         .gte('date', monthStart),
       sb.from('raice_courses').select('id, name, type, sede_id'),
       sb.from('raice_sedes').select('id, name')
     ]);
 
-    // Build cases map (filter in memory by active students)
+    // Build cases map
     const casesMap = {};
     (casesRes.data || []).forEach(c => {
-      if (!studentIdSet.has(c.student_id)) return;
       casesMap[c.student_id] = (casesMap[c.student_id] || 0) + 1;
     });
 
-    // Build attendance map (filter in memory by active students)
+    // Build attendance map
     const attMap = {};
     (attRes.data || []).forEach(a => {
-      if (!studentIdSet.has(a.student_id)) return;
       if (!attMap[a.student_id]) attMap[a.student_id] = { total: 0, present: 0 };
       attMap[a.student_id].total++;
       if (a.status === 'P' || a.status === 'PE') attMap[a.student_id].present++;
@@ -1648,29 +1577,10 @@ async function handleTeachers(req, res, user) {
     .eq('role', 'teacher').order('first_name');
 
   if (user.role === 'superadmin' && sedeFilter) {
-    // Superadmin filtra por sede específica
+    // Superadmin filtra por sede específica (p.ej. al elegir director de grupo en el modal de curso)
     tq = tq.eq('sede_id', sedeFilter);
-  } else if (user.role === 'admin') {
-    // Coordinador: mostrar docentes que tienen cursos asignados en sus sedes
-    // (robusto — no depende de raice_users.sede_id)
-    const adminSedeIds = await getAdminSedeIds(sb, user, sedeFilter);
-    if (adminSedeIds && adminSedeIds.length > 0) {
-      const { data: sedeCourses } = await sb.from('raice_courses')
-        .select('id').in('sede_id', adminSedeIds);
-      const sedeCourseIds = (sedeCourses || []).map(c => c.id);
-      if (sedeCourseIds.length > 0) {
-        const { data: tcRows } = await sb.from('raice_teacher_courses')
-          .select('teacher_id').in('course_id', sedeCourseIds);
-        const sedeTeacherIds = [...new Set((tcRows || []).map(r => r.teacher_id))];
-        tq = sedeTeacherIds.length
-          ? tq.in('id', sedeTeacherIds)
-          : tq.in('id', ['00000000-0000-0000-0000-000000000000']);
-      } else {
-        tq = tq.in('id', ['00000000-0000-0000-0000-000000000000']);
-      }
-    } else {
-      tq = tq.in('id', ['00000000-0000-0000-0000-000000000000']);
-    }
+  } else {
+    tq = sedeScope(tq, user);
   }
 
   const { data, error } = await tq;
@@ -1684,7 +1594,7 @@ async function handleTeachers(req, res, user) {
   const [tcAll, casesAll] = await Promise.all([
     teacherIds.length
       ? sb.from('raice_teacher_courses')
-          .select('teacher_id, raice_courses(grade,number,type,name)').in('teacher_id', teacherIds)
+          .select('teacher_id, raice_courses(grade,number)').in('teacher_id', teacherIds)
       : { data: [] },
     teacherIds.length
       ? sb.from('raice_cases')
@@ -1697,10 +1607,7 @@ async function handleTeachers(req, res, user) {
   const tcMap = {};
   (tcAll.data || []).forEach(r => {
     if (!tcMap[r.teacher_id]) tcMap[r.teacher_id] = [];
-    if (r.raice_courses) {
-      const rc = r.raice_courses;
-      tcMap[r.teacher_id].push(rc.type === 'subgroup' ? (rc.name || 'Subgrupo') : `${rc.grade}°${rc.number}`);
-    }
+    if (r.raice_courses) tcMap[r.teacher_id].push(`${r.raice_courses.grade}°${r.raice_courses.number}`);
   });
   const casesMap = {};
   (casesAll.data || []).forEach(r => {
@@ -1728,15 +1635,7 @@ async function handleCourses(req, res, user) {
     let coursesQ = sb.from('raice_courses')
       .select('id, grade, number, section, director_id, type, name, sede_id, raice_users(id, first_name, last_name)')
       .order('grade').order('number');
-    // Usar BD directa para admin (evita JWT desactualizado)
-    if (user.role === 'admin') {
-      const adminSedeIds = await getAdminSedeIds(sb, user, null);
-      if (adminSedeIds && adminSedeIds.length > 0) {
-        coursesQ = coursesQ.in('sede_id', adminSedeIds);
-      } else {
-        coursesQ = coursesQ.in('sede_id', ['00000000-0000-0000-0000-000000000000']);
-      }
-    }
+    coursesQ = sedeScope(coursesQ, user);
     const { data, error } = await coursesQ;
     if (error) return res.status(500).json({ error: 'Error al cargar cursos' });
 
@@ -1831,14 +1730,11 @@ async function handleCourses(req, res, user) {
     if (!id) return res.status(400).json({ error: 'ID requerido' });
     const { data: crsRow } = await sb.from('raice_courses').select('type').eq('id', id).maybeSingle();
     if (crsRow?.type === 'subgroup') {
-      const { sede_id: subgroupSede } = req.body || {};
+      // Subgrupos: solo se puede cambiar nombre y director
       const patch = { director_id: director_id || null };
       if (name?.trim()) patch.name = name.trim();
-      if (subgroupSede) patch.sede_id = subgroupSede;
-      if ('grade' in (req.body || {})) patch.grade = (grade != null && grade !== '') ? parseInt(grade) : null;
-      const { data: updatedRow, error } = await sb.from('raice_courses').update(patch).eq('id', id).select('id, name, grade, sede_id').single();
-      if (error) return res.status(500).json({ error: 'Error al actualizar subgrupo', detail: error.message });
-      return res.status(200).json({ success: true, course: updatedRow, patch_sent: patch });
+      const { error } = await sb.from('raice_courses').update(patch).eq('id', id);
+      if (error) return res.status(500).json({ error: 'Error al actualizar subgrupo' });
     } else {
       const { error } = await sb.from('raice_courses').update({
         grade: parseInt(grade), number: parseInt(number), director_id: director_id || null
@@ -1908,7 +1804,7 @@ async function handleSubgroupMembers(req, res, user) {
       const rows = student_ids.map(id => ({ subgroup_course_id: subgroup_id, student_id: id }));
       const { error } = await sb.from('raice_subgroup_members').insert(rows);
       if (error) {
-        if (error.code === '23505') return res.status(409).json({ error: 'Uno o más estudiantes ya son miembros de este subgrupo' });
+        if (error.code === '23505') return res.status(409).json({ error: 'Uno o más estudiantes ya pertenecen a otro subgrupo' });
         return res.status(500).json({ error: 'Error al agregar miembros' });
       }
       return res.status(200).json({ success: true, added: student_ids.length });
@@ -1920,7 +1816,7 @@ async function handleSubgroupMembers(req, res, user) {
     if (crs?.type !== 'subgroup') return res.status(400).json({ error: 'El curso indicado no es un subgrupo' });
     const { error } = await sb.from('raice_subgroup_members').insert({ subgroup_course_id: subgroup_id, student_id });
     if (error) {
-      if (error.code === '23505') return res.status(409).json({ error: 'El estudiante ya es miembro de este subgrupo' });
+      if (error.code === '23505') return res.status(409).json({ error: 'El estudiante ya pertenece a un subgrupo' });
       return res.status(500).json({ error: 'Error al agregar miembro' });
     }
     return res.status(200).json({ success: true });
@@ -1939,85 +1835,6 @@ async function handleSubgroupMembers(req, res, user) {
 }
 
 // =====================================================
-// COURSE DAY SCHEDULE — teacher evasion investigation
-// Returns all schedule slots for a course on a given date,
-// optionally enriched with a specific student's per-hour attendance.
-// =====================================================
-async function getCourseDaySchedule(req, res, user) {
-  const sb = getSupabase();
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  const course_id  = url.searchParams.get('course_id');
-  const date       = url.searchParams.get('date') || todayCO();
-  const student_id = url.searchParams.get('student_id');
-
-  if (!course_id) return res.status(400).json({ error: 'course_id requerido' });
-
-  // Compute day-of-week (1=Mon … 7=Sun) for the requested date
-  const d = new Date(date + 'T12:00:00');
-  const jsDay = d.getDay(); // 0=Sun
-  const dayNum = jsDay === 0 ? 7 : jsDay;
-
-  // Get all teacher_course IDs for this course
-  const { data: tcRows } = await sb.from('raice_teacher_courses')
-    .select('id').eq('course_id', course_id);
-  const tcIds = (tcRows || []).map(r => r.id);
-
-  if (!tcIds.length) return res.status(200).json({ hours: [] });
-
-  // Get schedules for those tc IDs on the given day of week
-  const { data: schedRows } = await sb.from('raice_schedules')
-    .select(`
-      class_hour, start_time, end_time, teacher_course_id,
-      raice_teacher_courses(
-        subject,
-        raice_users(first_name, last_name),
-        raice_courses(name)
-      )
-    `)
-    .in('teacher_course_id', tcIds)
-    .eq('day_of_week', dayNum)
-    .order('class_hour');
-
-  // Bell schedule fallback for start/end times
-  const { data: bellRows } = await sb.from('raice_bell_schedule')
-    .select('class_hour, start_time, end_time').order('class_hour');
-  const bellMap = {};
-  (bellRows || []).forEach(b => { bellMap[b.class_hour] = b; });
-
-  // Student's per-hour attendance for this course+date (if student_id provided)
-  const attMap = {}; // class_hour → status
-  if (student_id) {
-    const { data: attRows } = await sb.from('raice_attendance')
-      .select('class_hour, status')
-      .eq('course_id', course_id)
-      .eq('date', date)
-      .eq('student_id', student_id);
-    (attRows || []).forEach(a => { attMap[a.class_hour] = a.status; });
-  }
-
-  // Deduplicate by class_hour (take first in case of overlapping schedules)
-  const seen = new Set();
-  const hours = [];
-  for (const s of (schedRows || [])) {
-    if (seen.has(s.class_hour)) continue;
-    seen.add(s.class_hour);
-    const tc   = s.raice_teacher_courses;
-    const bell = bellMap[s.class_hour] || {};
-    hours.push({
-      class_hour:     s.class_hour,
-      start_time:     s.start_time || bell.start_time || null,
-      end_time:       s.end_time   || bell.end_time   || null,
-      teacher_name:   tc?.raice_users
-        ? `${tc.raice_users.first_name} ${tc.raice_users.last_name}` : '—',
-      subject:        tc?.subject || tc?.raice_courses?.name || null,
-      student_status: student_id ? (attMap[s.class_hour] ?? null) : undefined,
-    });
-  }
-
-  return res.status(200).json({ hours, date });
-}
-
-// =====================================================
 // MY COURSES (Teacher)
 // =====================================================
 
@@ -2027,7 +1844,7 @@ async function getMyCourses(req, res, user) {
   const dayNum = dayOfWeekCO(today); // 1=Mon ... 7=Sun, matches raice_schedules.day_of_week
 
   const { data: tc } = await sb.from('raice_teacher_courses')
-    .select('id, course_id, subject, teacher_id, raice_courses(id, grade, number, section, type, name)')
+    .select('id, course_id, subject, raice_courses(id, grade, number, section, type, name)')
     .eq('teacher_id', user.id);
 
   // Load all schedules for this teacher in one query
@@ -2066,7 +1883,7 @@ async function getMyCourses(req, res, user) {
       ? sb.from('raice_students').select('course_id').eq('status', 'active').in('course_id', normalCourseIds)
       : { data: [] },
     courseIds.length
-      ? sb.from('raice_attendance').select('student_id, status, class_hour, course_id, teacher_id').in('course_id', courseIds).eq('date', today)
+      ? sb.from('raice_attendance').select('student_id, status, class_hour, course_id').in('course_id', courseIds).eq('date', today)
       : { data: [] },
     subgroupCourseIds.length
       ? sb.from('raice_subgroup_members').select('subgroup_course_id').in('subgroup_course_id', subgroupCourseIds)
@@ -2081,19 +1898,14 @@ async function getMyCourses(req, res, user) {
     studentCountMap[m.subgroup_course_id] = (studentCountMap[m.subgroup_course_id] || 0) + 1;
   });
 
-  // Attendance map: course_id → class_hour → { present, total, hasRealList, teacher_id }
-  // hasRealList = at least one P, A, T or S (not just PE from excusas)
+  // Attendance map: course_id → class_hour → { present, total }
   const attByCourse = {};
   (attAll.data || []).forEach(a => {
     if (!attByCourse[a.course_id]) attByCourse[a.course_id] = {};
-    if (!attByCourse[a.course_id][a.class_hour]) attByCourse[a.course_id][a.class_hour] = { present: 0, total: 0, hasRealList: false, teacher_id: null };
+    if (!attByCourse[a.course_id][a.class_hour]) attByCourse[a.course_id][a.class_hour] = { present: 0, total: 0 };
 
     attByCourse[a.course_id][a.class_hour].total++;
     if (a.status === 'P' || a.status === 'PE') attByCourse[a.course_id][a.class_hour].present++;
-    if (a.status === 'P' || a.status === 'A' || a.status === 'T' || a.status === 'S') {
-      attByCourse[a.course_id][a.class_hour].hasRealList = true;
-      if (a.teacher_id) attByCourse[a.course_id][a.class_hour].teacher_id = a.teacher_id;
-    }
   });
 
   const courses = (tc || []).map(row => {
@@ -2103,15 +1915,15 @@ async function getMyCourses(req, res, user) {
     const courseAttMap = attByCourse[c.id] || {};
     const studentsInCourse = studentCountMap[c.id] || 0;
 
-    // An hour is "saved" only if a teacher actually took attendance (not just PE from excusas)
+    // An hour is "saved" only if the number of attendance records matches or exceeds students count
     const savedHours = Object.keys(courseAttMap)
-      .filter(h => courseAttMap[h].hasRealList && courseAttMap[h].total >= studentsInCourse)
-      .map(h => ({ hour: Number(h), by: courseAttMap[h].teacher_id || null }));
+      .filter(h => courseAttMap[h].total >= studentsInCourse)
+      .map(Number);
 
-    // Per-hour attendance percentage — only when teacher actually took attendance (not just PE from excusas)
+    // Per-hour attendance percentage
     const pctByHour = {};
     Object.entries(courseAttMap).forEach(([hour, v]) => {
-      pctByHour[Number(hour)] = v.hasRealList && v.total > 0 ? Math.round((v.present / v.total) * 100) : null;
+      pctByHour[Number(hour)] = v.total > 0 ? Math.round((v.present / v.total) * 100) : null;
     });
 
     // Today's schedule for this assignment
@@ -2132,7 +1944,7 @@ async function getMyCourses(req, res, user) {
     const weekSlots = [...allSlots].sort((a,b) => a.day_of_week - b.day_of_week || a.class_hour - b.class_hour);
     const hasClassToday = todaySlots.length > 0;
     const pendingHours = todaySlots
-      .filter(s => !savedHours.some(h => h.hour === s.class_hour))
+      .filter(s => !savedHours.includes(s.class_hour))
       .map(s => s.class_hour);
 
     return {
@@ -2140,7 +1952,6 @@ async function getMyCourses(req, res, user) {
       type: c.type || 'normal', name: c.name || null,
       section: c.section || (c.type === 'subgroup' ? (c.name || 'Subgrupo') : String(c.number)),
       subject: row.subject || '',
-      teacher_id: row.teacher_id || null,
       teacher_course_id: row.id,
       students_count: studentCountMap[c.id] || 0,
       saved_hours: savedHours,
@@ -2205,16 +2016,13 @@ async function getMissingAttendance(req, res, user) {
   (teacherRows || []).forEach(t => { teacherMap[t.id] = `${t.first_name} ${t.last_name}`; });
 
   // 4. Registros de asistencia que SÍ existen para esa fecha
-  // Excluir PE (excusas) y NR — solo lista real cuenta como "registrada"
   const { data: attRows } = await sb
     .from('raice_attendance')
-    .select('course_id, class_hour, status')
+    .select('course_id, class_hour')
     .eq('date', date);
 
-  // Set de claves "course_id::class_hour" que ya tienen registro real
-  const savedSet = new Set((attRows || [])
-    .filter(r => r.status !== 'PE' && r.status !== 'NR')
-    .map(r => `${r.course_id}::${r.class_hour}`));
+  // Set de claves "course_id::class_hour" que ya tienen registro
+  const savedSet = new Set((attRows || []).map(r => `${r.course_id}::${r.class_hour}`));
 
   // 5. Cruzar: sesiones programadas sin registro
   const missing = [];
@@ -2358,16 +2166,7 @@ async function handleAttendance(req, res, user) {
     // Try to delete with class_hour; if column doesn't exist, delete without it
     // For coordinator corrections: preserve the original teacher_id so trazabilidad is maintained
     let originalTeacherId = user.id;
-    let prevTardyIds  = new Set();
-    let prevAbsentIds = new Set();
-
-    // Capture previous A-status students for ALL roles — needed to retract evasion notifications
-    {
-      const { data: prevA } = await sb.from('raice_attendance')
-        .select('student_id').eq('course_id', course_id).eq('date', date).eq('class_hour', hour).eq('status', 'A');
-      (prevA || []).forEach(r => prevAbsentIds.add(r.student_id));
-    }
-
+    let prevTardyIds = new Set();
     if (['superadmin', 'admin'].includes(user.role)) {
       // Look up who originally recorded this hour so we preserve their teacher_id
       const { data: origRow } = await sb.from('raice_attendance')
@@ -2421,35 +2220,6 @@ async function handleAttendance(req, res, user) {
     }
     if (error) return res.status(500).json({ error: _dbErr(error, '') });
 
-    // Auto-ausencia para estudiantes desertores de este curso
-    try {
-      // Curso regular: desertores con course_id directo
-      const { data: desertoresReg } = await sb.from('raice_students')
-        .select('id').eq('course_id', course_id).eq('status', 'desertor');
-      let desertorIds = (desertoresReg || []).map(s => s.id);
-
-      // Subgrupo: miembros desertores
-      const { data: subMembers } = await sb.from('raice_subgroup_members')
-        .select('student_id').eq('subgroup_course_id', course_id);
-      if (subMembers?.length) {
-        const memberIds = subMembers.map(m => m.student_id);
-        const { data: desertoresMiembros } = await sb.from('raice_students')
-          .select('id').in('id', memberIds).eq('status', 'desertor');
-        desertorIds = [...new Set([...desertorIds, ...(desertoresMiembros || []).map(s => s.id)])];
-      }
-
-      // Excluir IDs ya presentes en los records enviados por el docente
-      const submittedIds = new Set(records.map(r => r.student_id));
-      desertorIds = desertorIds.filter(id => !submittedIds.has(id));
-
-      if (desertorIds.length > 0) {
-        const desertorRows = desertorIds.map(sid => ({
-          student_id: sid, course_id, teacher_id: null, date, class_hour: hour, status: 'A'
-        }));
-        await sb.from('raice_attendance').insert(desertorRows);
-      }
-    } catch (_) { /* no crítico */ }
-
     // Coordinator correction — audit log only, skip tardanza/evasion notifications
     if (['superadmin', 'admin'].includes(user.role)) {
       const { data: courseInfo } = await sb.from('raice_courses')
@@ -2466,22 +2236,6 @@ async function handleAttendance(req, res, user) {
           .eq('type', 'tardanza')
           .in('link_id', removedTardy)
           .like('body', `%${date}%`);
-      }
-
-      // Retract evasion notifications for students corrected away from A
-      if (prevAbsentIds.size > 0) {
-        const retractedEvasion = records
-          .filter(r => prevAbsentIds.has(r.student_id) && r.status !== 'A')
-          .map(r => r.student_id);
-        if (retractedEvasion.length > 0) {
-          const nextDay = (() => { const d = new Date(date + 'T12:00:00'); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); })();
-          await sb.from('raice_notifications')
-            .update({ type: 'evasion_retracted', read: false })
-            .eq('type', 'evasion')
-            .in('link_id', retractedEvasion)
-            .gte('created_at', date + 'T00:00:00.000Z')
-            .lt('created_at', nextDay + 'T00:00:00.000Z');
-        }
       }
 
       await logActivity(sb, user.id, 'attendance_correction',
@@ -2522,7 +2276,6 @@ async function handleAttendance(req, res, user) {
     // Si esta es hora >= 2, buscar estudiantes que en una hora anterior
     // estuvieron PRESENTES (P) pero ahora están AUSENTES (A)
     let evasiones = 0;
-    let evadidosInfo = []; // populated below, returned to frontend for teacher panel
     if (hour >= 2) {
       const absentesAhora = records.filter(r => r.status === 'A').map(r => r.student_id);
       if (absentesAhora.length > 0) {
@@ -2585,7 +2338,6 @@ async function handleAttendance(req, res, user) {
             const prevTId   = prevTeacherMap[sid]?.teacherId;
             const prevTName = prevTId ? (prevTNameMap[prevTId] || '') : '';
             const cuerpo  = `${grade2}°${number2} · Estaba en ${prevHourLabel} hora${prevTName ? ' con '+prevTName : ''}, ausente en ${hourLabel2} hora · ${date}`;
-            evadidosInfo.push({ student_id: sid, student_name: studentName, body: cuerpo });
 
             // 1. Notificar a todos los coordinadores
             for (const admin of (admins2 || [])) {
@@ -2608,25 +2360,9 @@ async function handleAttendance(req, res, user) {
       }
     }
 
-    // Retract evasion notifications for students whose absence was corrected (teacher re-submission)
-    if (prevAbsentIds.size > 0) {
-      const retractedEvasion = records
-        .filter(r => prevAbsentIds.has(r.student_id) && r.status !== 'A')
-        .map(r => r.student_id);
-      if (retractedEvasion.length > 0) {
-        const nextDay = (() => { const d = new Date(date + 'T12:00:00'); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); })();
-        await sb.from('raice_notifications')
-          .update({ type: 'evasion_retracted', read: false })
-          .eq('type', 'evasion')
-          .in('link_id', retractedEvasion)
-          .gte('created_at', date + 'T00:00:00.000Z')
-          .lt('created_at', nextDay + 'T00:00:00.000Z');
-      }
-    }
-
     await logActivity(sb, user.id, 'attendance',
       `Asistencia ${hour}ª hora — Curso ${course_id} — ${date}`);
-    return res.status(200).json({ success: true, saved: rows.length, tardes: tardes.length, evasiones, evadidos: evadidosInfo });
+    return res.status(200).json({ success: true, saved: rows.length, tardes: tardes.length, evasiones });
   }
 
   if (req.method === 'GET') {
@@ -2658,19 +2394,17 @@ async function handleAttendance(req, res, user) {
       const permit  = deduped.filter(r => r.status === 'PE').length;
       const late    = deduped.filter(r => r.status === 'T').length;
 
-      // Course + director de grupo lookups
+      // Course + teacher lookups
       const cIds = [...new Set(deduped.map(r => r.course_id).filter(Boolean))];
-      const courseMap2 = {};
+      const tIds = [...new Set(deduped.map(r => r.teacher_id).filter(Boolean))];
+      const courseMap2 = {}, teacherMap2 = {};
       if (cIds.length) {
-        const { data: cr } = await sb.from('raice_courses').select('id,grade,number,name,type,director_id').in('id', cIds);
+        const { data: cr } = await sb.from('raice_courses').select('id,grade,number').in('id', cIds);
         (cr||[]).forEach(c => courseMap2[c.id] = c);
       }
-      // Fetch director names
-      const dirIds = [...new Set(Object.values(courseMap2).map(c => c.director_id).filter(Boolean))];
-      const dirMap = {};
-      if (dirIds.length) {
-        const { data: dr } = await sb.from('raice_users').select('id,first_name,last_name').in('id', dirIds);
-        (dr||[]).forEach(d => dirMap[d.id] = `${d.first_name} ${d.last_name}`);
+      if (tIds.length) {
+        const { data: tr } = await sb.from('raice_users').select('id,first_name,last_name').in('id', tIds);
+        (tr||[]).forEach(t => teacherMap2[t.id] = `${t.first_name} ${t.last_name}`);
       }
 
       const byCourse = {};
@@ -2680,8 +2414,8 @@ async function handleAttendance(req, res, user) {
           const c = courseMap2[r.course_id] || {};
           byCourse[r.course_id] = {
             course_id: r.course_id,
-            grade: c.grade ?? '?', course: c.number ?? c.name ?? '?',
-            teacher: dirMap[(courseMap2[r.course_id] || {}).director_id] || '—',
+            grade: c.grade ?? '?', course: c.number ?? '?',
+            teacher: teacherMap2[r.teacher_id] || '—',
             present:0, absent:0, late:0, permit:0, total:0
           };
         }
@@ -2706,7 +2440,7 @@ async function handleAttendance(req, res, user) {
     // ── FULL LIST MODE (lista completa estudiante × hora) ────────────
     if (full) {
       let queryRaw = sb.from('raice_attendance')
-        .select('student_id, class_hour, status, course_id, teacher_id')
+        .select('student_id, class_hour, status, course_id')
         .eq('date', date);
       if (allowedCourseIds) queryRaw = queryRaw.in('course_id', allowedCourseIds);
       const { data: rawData } = await queryRaw;
@@ -2715,26 +2449,16 @@ async function handleAttendance(req, res, user) {
 
       const stuIds = [...new Set(rawData.map(r => r.student_id).filter(Boolean))];
       const cIds   = [...new Set(rawData.map(r => r.course_id).filter(Boolean))];
-      const tIds   = [...new Set(rawData.map(r => r.teacher_id).filter(Boolean))];
 
-      const [stuRes, crsRes, tchRes, tcRes] = await Promise.all([
+      const [stuRes, crsRes] = await Promise.all([
         stuIds.length ? sb.from('raice_students').select('id,first_name,last_name').in('id', stuIds) : Promise.resolve({ data: [] }),
         cIds.length   ? sb.from('raice_courses').select('id,grade,number').in('id', cIds)           : Promise.resolve({ data: [] }),
-        tIds.length   ? sb.from('raice_users').select('id,first_name,last_name').in('id', tIds)     : Promise.resolve({ data: [] }),
-        tIds.length && cIds.length
-          ? sb.from('raice_teacher_courses').select('teacher_id,course_id,subject').in('teacher_id', tIds).in('course_id', cIds)
-          : Promise.resolve({ data: [] }),
       ]);
 
       const stuMap = {};
       (stuRes.data||[]).forEach(s => stuMap[s.id] = `${s.last_name}, ${s.first_name}`);
       const cMap = {};
       (crsRes.data||[]).forEach(c => cMap[c.id] = c);
-      const tchMap = {};
-      (tchRes.data||[]).forEach(t => tchMap[t.id] = `${t.first_name} ${t.last_name}`);
-      // teacher+course → subject
-      const tcSubjectMap = {};
-      (tcRes.data||[]).forEach(tc => { tcSubjectMap[`${tc.teacher_id}_${tc.course_id}`] = tc.subject || ''; });
 
       const hours = [...new Set(rawData.map(r => r.class_hour).filter(h => h != null))].sort((a,b) => a - b);
 
@@ -2749,17 +2473,10 @@ async function handleAttendance(req, res, user) {
             grade: c.grade ?? '?',
             course: c.number ?? '?',
             course_id: r.course_id,
-            by_hour: {},
-            by_hour_info: {}
+            by_hour: {}
           };
         }
         byStudent[r.student_id].by_hour[r.class_hour] = r.status;
-        if (r.teacher_id) {
-          byStudent[r.student_id].by_hour_info[r.class_hour] = {
-            teacher: tchMap[r.teacher_id] || '',
-            subject: tcSubjectMap[`${r.teacher_id}_${r.course_id}`] || ''
-          };
-        }
       });
 
       const students = Object.values(byStudent)
@@ -2772,23 +2489,11 @@ async function handleAttendance(req, res, user) {
     let queryAtt = sb.from('raice_attendance')
       .select('status, course_id, class_hour, student_id, teacher_id').eq('date', date);
     if (allowedCourseIds) queryAtt = queryAtt.in('course_id', allowedCourseIds);
-    const { data: attDataRaw } = await queryAtt;
-
-    // Filter out PE records from course+hour where no teacher took real attendance
-    const realListSet2 = new Set();
-    (attDataRaw||[]).forEach(r => {
-      if (r.status !== 'PE' && r.status !== 'NR') {
-        realListSet2.add(`${r.course_id}_${r.class_hour}`);
-      }
-    });
-    const attData = (attDataRaw||[]).filter(r => {
-      if (r.status === 'PE') return realListSet2.has(`${r.course_id}_${r.class_hour}`);
-      return true;
-    });
+    const { data: attData } = await queryAtt;
 
     // Deduplicate: if a student has multiple hours, use the most recent status per student per course
     const studentCourseMap = {};
-    attData.forEach(r => {
+    (attData||[]).forEach(r => {
       const key = r.student_id + '_' + r.course_id;
       if (!studentCourseMap[key] || r.class_hour > studentCourseMap[key].class_hour) {
         studentCourseMap[key] = r;
@@ -2801,23 +2506,21 @@ async function handleAttendance(req, res, user) {
     const permit  = deduped.filter(r => r.status === 'PE').length;
     const late    = deduped.filter(r => r.status === 'T').length;
 
-    // Get course details + director de grupo
+    // Get course details
     const courseIds = [...new Set((attData||[]).map(r => r.course_id).filter(Boolean))];
     const courseMap = {};
     if (courseIds.length) {
       const { data: courseRows } = await sb.from('raice_courses')
-        .select('id, grade, number, name, type, director_id').in('id', courseIds);
+        .select('id, grade, number').in('id', courseIds);
       (courseRows||[]).forEach(c => courseMap[c.id] = c);
     }
 
-    // Get teacher names (for hour→teacher tooltips) + director names
+    // Get teacher names per course
     const teacherIds = [...new Set((attData||[]).map(r => r.teacher_id).filter(Boolean))];
-    const directorIds = [...new Set(Object.values(courseMap).map(c => c.director_id).filter(Boolean))];
-    const allUserIds = [...new Set([...teacherIds, ...directorIds])];
     const teacherMap = {};
-    if (allUserIds.length) {
+    if (teacherIds.length) {
       const { data: teacherRows } = await sb.from('raice_users')
-        .select('id, first_name, last_name').in('id', allUserIds);
+        .select('id, first_name, last_name').in('id', teacherIds);
       (teacherRows||[]).forEach(t => teacherMap[t.id] = `${t.first_name} ${t.last_name}`);
     }
 
@@ -2838,8 +2541,8 @@ async function handleAttendance(req, res, user) {
       if (!byCoursemap[key]) byCoursemap[key] = {
         course_id: key,              // always present — guarantees Editar button renders
         grade:   c.grade  ?? '?',
-        course:  c.number ?? c.name ?? key,   // subgroups use name instead of number
-        teacher: teacherMap[(courseMap[key] || {}).director_id] || '—',
+        course:  c.number ?? key,   // fallback to ID if number not configured
+        teacher: teacherMap[r.teacher_id] || '—',
         present: 0, absent: 0, permit: 0, late: 0, total: 0
       };
       byCoursemap[key].total++;
@@ -2891,11 +2594,11 @@ async function getAttendanceByCourse(req, res, user) {
   let students;
   if (courseTypeRow?.type === 'subgroup') {
     const { data: memberRows } = await sb.from('raice_subgroup_members')
-      .select('raice_students(id, first_name, last_name, status)')
+      .select('raice_students(id, first_name, last_name)')
       .eq('subgroup_course_id', course_id);
     students = (memberRows || [])
       .map(m => m.raice_students)
-      .filter(s => s && s.status === 'active')
+      .filter(Boolean)
       .sort((a, b) => `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`));
   } else {
     const { data: studentsData } = await sb.from('raice_students')
@@ -2906,11 +2609,10 @@ async function getAttendanceByCourse(req, res, user) {
 
   // Get existing attendance for this date and hour
   const { data: attendance } = await sb.from('raice_attendance')
-    .select('student_id, status, activity_note, teacher_id').eq('course_id', course_id).eq('date', date).eq('class_hour', hour);
+    .select('student_id, status, activity_note').eq('course_id', course_id).eq('date', date).eq('class_hour', hour);
 
   const attMap = {};
   (attendance || []).forEach(a => attMap[a.student_id] = a.status);
-  const savedBy = (attendance && attendance.length > 0) ? (attendance[0].teacher_id || null) : null;
 
   // Check active suspensions for students in this course
   const studentIds = (students || []).map(s => s.id);
@@ -2960,7 +2662,6 @@ async function getAttendanceByCourse(req, res, user) {
   return res.status(200).json({
     students: studentsWithAtt,
     saved: isSaved,
-    saved_by: savedBy,
     hour,
     activity_note: activityNote
   });
@@ -2974,7 +2675,6 @@ async function getAttendanceRange(req, res, user) {
   const from      = url.searchParams.get('from');
   const to        = url.searchParams.get('to');
   const hour      = url.searchParams.get('hour'); // optional
-  const tc_id     = url.searchParams.get('tc_id'); // teacher_course_id for schedule-based filtering
 
   if (!course_id || !from || !to)
     return res.status(400).json({ error: 'course_id, from y to son requeridos' });
@@ -2998,31 +2698,16 @@ async function getAttendanceRange(req, res, user) {
     .gte('date', from).lte('date', to)
     .order('date').order('class_hour');
   if (hour) q = q.eq('class_hour', parseInt(hour));
-  const { data: allRecords } = await q;
-
-  // If teacher provides tc_id, filter records to only their scheduled hours
-  let records = allRecords || [];
-  if (tc_id && user.role === 'teacher') {
-    const { data: schedRows } = await sb.from('raice_schedules')
-      .select('day_of_week, class_hour')
-      .eq('teacher_course_id', tc_id);
-    if (schedRows && schedRows.length) {
-      const schedSet = new Set(schedRows.map(s => `${s.day_of_week}-${s.class_hour}`));
-      records = records.filter(r => {
-        const dow = dayOfWeekCO(r.date);
-        return schedSet.has(`${dow}-${r.class_hour}`);
-      });
-    }
-  }
+  const { data: records } = await q;
 
   // Unique sorted dates that have at least one record
-  const datesSet = new Set(records.map(r => r.date));
+  const datesSet = new Set((records||[]).map(r => r.date));
   const dates = [...datesSet].sort();
 
   return res.status(200).json({
     students: students || [],
     dates,
-    records
+    records: records || []
   });
 }
 
@@ -3602,22 +3287,16 @@ async function getDashboardV2(req, res, user) {
   // Siempre leemos desde la BD para evitar tokens JWT desactualizados
   const dashSedeFilter = url.searchParams.get('sede_filter');
   let sedeCourseIds = null; // null = sin restricción
-  let adminSedeIds  = null; // para applySedeToUsers (admin)
-  let rectorSedeIds = null; // para applySedeToUsers (rector/superadmin)
-
+  let adminSedeIds  = null; // expuesto para applySedeToUsers (conteo de docentes)
   if (user.role === 'admin') {
     adminSedeIds = await getAdminSedeIds(sb, user, dashSedeFilter);
     if (adminSedeIds && adminSedeIds.length > 0) {
       const { data: scs } = await sb.from('raice_courses')
-        .select('id').in('sede_id', adminSedeIds);
+        .select('id').in('sede_id', adminSedeIds).neq('type','subgroup');
       sedeCourseIds = (scs || []).map(c => c.id);
     } else {
       sedeCourseIds = ['00000000-0000-0000-0000-000000000000'];
     }
-  } else if (dashSedeFilter && (user.role === 'rector' || user.role === 'superadmin')) {
-    // Rector/superadmin filtra opcionalmente por sede
-    rectorSedeIds = [dashSedeFilter];
-    sedeCourseIds = await getCourseIdsForSedes(sb, rectorSedeIds);
   }
 
   const applySedeToStudents = (q) => {
@@ -3628,9 +3307,9 @@ async function getDashboardV2(req, res, user) {
     if (sedeCourseIds) return q.in('course_id', sedeCourseIds.length ? sedeCourseIds : ['00000000-0000-0000-0000-000000000000']);
     return q;
   };
+  // Usa adminSedeIds leído de BD (no el JWT que puede estar desactualizado)
   const applySedeToUsers = (q) => {
     if (user.role === 'admin' && adminSedeIds && adminSedeIds.length > 0) return q.in('sede_id', adminSedeIds);
-    if (rectorSedeIds) return q.in('sede_id', rectorSedeIds);
     return q;
   };
 
@@ -3642,34 +3321,21 @@ async function getDashboardV2(req, res, user) {
       if (sedeCourseIds) q = q.in('course_id', sedeCourseIds.length ? sedeCourseIds : ['00000000-0000-0000-0000-000000000000']);
       return q;
     }, { count:0 }),
-    safe(() => applySedeToAtt(sb.from('raice_attendance').select('status, course_id, class_hour, student_id, raice_courses(grade,number,name,type)').eq('date', today)), { data:[] }),
+    safe(() => applySedeToAtt(sb.from('raice_attendance').select('status, course_id, class_hour, raice_courses(grade,number)').eq('date', today)), { data:[] }),
     // compromisos: no tienen course_id, se muestran globales (métrica secundaria)
     safe(() => sb.from('raice_commitments').select('id', { count:'exact', head:true })
       .eq('fulfilled', false).lt('due_date', todayCO(3)), { count:0 }),
     safe(() => {
       let q = sb.from('raice_cases')
-        .select('id, student_id, student_name, grade, course, type, description, status, created_at, teacher_id')
+        .select('id, student_name, grade, course, type, description, status, created_at, teacher_id')
         .order('created_at', { ascending:false }).limit(8);
       if (sedeCourseIds) q = q.in('course_id', sedeCourseIds.length ? sedeCourseIds : ['00000000-0000-0000-0000-000000000000']);
       return q;
     }, { data:[] })
   ]);
 
-  // Attendance today — filter out PE records from course+hour where no real list was taken
-  const attDataRaw = attRes.data || [];
-  // Identify course+hour combos where a teacher actually took attendance (P, A, T, S)
-  const realListSet = new Set();
-  attDataRaw.forEach(a => {
-    if (a.status !== 'PE' && a.status !== 'NR') {
-      realListSet.add(`${a.course_id}_${a.class_hour}`);
-    }
-  });
-  // Keep PE only if real attendance exists for that course+hour
-  const attData = attDataRaw.filter(a => {
-    if (a.status === 'PE') return realListSet.has(`${a.course_id}_${a.class_hour}`);
-    return true;
-  });
-
+  // Attendance today — only show % if real list was taken (not just PE from excusas)
+  const attData = attRes.data || [];
   const cntP  = attData.filter(a => a.status === 'P').length;
   const cntT  = attData.filter(a => a.status === 'T').length;
   const cntPE = attData.filter(a => a.status === 'PE').length;
@@ -3678,41 +3344,20 @@ async function getDashboardV2(req, res, user) {
   const countable = total - cntS - cntPE;
   const attPct = countable > 0 ? Math.round(((cntP + cntT) / countable) * 100) : (total - cntS > 0 ? 100 : null);
 
-  // Deduplicated counts for donut chart (per student, keep last hour status)
-  const studentDedupMap = {};
-  attData.forEach(a => {
-    if (!a.student_id) return;
-    const key = `${a.student_id}_${a.course_id}`;
-    if (!studentDedupMap[key] || (a.class_hour||0) > (studentDedupMap[key].class_hour||0)) studentDedupMap[key] = a;
-  });
-  const dedupedAtt = Object.values(studentDedupMap);
-  const donutPresent = dedupedAtt.filter(a => a.status === 'P' || a.status === 'S').length;
-  const donutAbsent  = dedupedAtt.filter(a => a.status === 'A').length;
-  const donutLate    = dedupedAtt.filter(a => a.status === 'T').length;
-  const donutPermit  = dedupedAtt.filter(a => a.status === 'PE').length;
-
-  // Attendance by grade and course (including subgroups)
+  // Attendance by grade and course
   const gradeMap = {};
   attData.forEach(a => {
-    const c = a.raice_courses || {};
-    let key, grade, isSubgroup = false;
-    if (c.type === 'subgroup') {
-      key = c.name || 'Subgrupo';
-      grade = 9999; // sort subgroups at the end
-      isSubgroup = true;
-    } else {
-      const g = c.grade;
-      const n = c.number || '';
-      if (!g) return;
-      key = n ? `${g}°${n}` : `${g}°`;
-      grade = g;
-    }
-    if (!gradeMap[key]) gradeMap[key] = { grade, present:0, total:0, isSubgroup };
+    const g = a.raice_courses?.grade;
+    const n = a.raice_courses?.number || '';
+    if (!g) return;
+    const key = n ? `${g}°${n}` : `${g}°`;
+    if (!gradeMap[key]) gradeMap[key] = { grade: g, number: n, present:0, total:0, hasReal:false };
+    if (a.status !== 'PE') gradeMap[key].hasReal = true;
     gradeMap[key].total++;
     if (a.status === 'P' || a.status === 'PE') gradeMap[key].present++;
   });
   const att_by_grade = Object.entries(gradeMap)
-    .map(([key, v]) => ({ name: key, grade: v.grade, pct: Math.round((v.present/v.total)*100), isSubgroup: v.isSubgroup }))
+    .map(([key, v]) => ({ name: key, grade: v.grade, pct: Math.round((v.present/v.total)*100) }))
     .sort((a,b) => {
       if (a.grade !== b.grade) return a.grade - b.grade;
       return String(a.name).localeCompare(String(b.name));
@@ -3793,7 +3438,7 @@ async function getDashboardV2(req, res, user) {
             course_id,
             subject,
             raice_users ( first_name, last_name ),
-            raice_courses ( grade, number, type, name )
+            raice_courses ( grade, number )
           )
         `)
         .eq('day_of_week', dayOfWeek);
@@ -3817,10 +3462,9 @@ async function getDashboardV2(req, res, user) {
         }
 
         // Armar Set de las asistencias ya tomadas HOY
-        // Excluir PE (excusas) y NR — solo P, A, T, S significan que el docente tomó lista
         const takenSet = new Set();
         attData.forEach(a => {
-          if (a.course_id && a.class_hour && a.status !== 'PE' && a.status !== 'NR') {
+          if (a.course_id && a.class_hour) {
              takenSet.add(`${a.course_id}_${a.class_hour}`);
           }
         });
@@ -3846,8 +3490,7 @@ async function getDashboardV2(req, res, user) {
           const details = sessions.map(s => `H${s.hour} ${s.course}${s.subject ? ' · '+s.subject : ''}`).join(' — ');
           alerts.unshift({
             type: 'attendance_omission', severity: 'high',
-            ico: '🚨',
-            title: `${teacher} — sin llamar lista`,
+            title: `🚨 ${teacher} — sin llamar lista`,
             description: details
           });
         });
@@ -3883,10 +3526,6 @@ async function getDashboardV2(req, res, user) {
     teachers:         teachersRes.count  || 0,
     open_cases:       casesRes.count     || 0,
     attendance_today: attPct,
-    present: donutPresent,
-    absent: donutAbsent,
-    late: donutLate,
-    permit: donutPermit,
     commitments_due:  commitmentsRes.count || 0,
     att_by_grade,
     alerts,
@@ -3894,206 +3533,6 @@ async function getDashboardV2(req, res, user) {
   });
 }
 
-
-// =====================================================
-// RECTOR INSIGHTS — Tendencias, cumplimiento, riesgo
-// =====================================================
-async function getRectorInsights(req, res, user) {
-  requireRole(user, 'superadmin', 'admin', 'rector');
-  const sb = getSupabase();
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  const today = todayCO();
-  const safe = async (fn, fb) => { try { return await fn(); } catch (_) { return fb; } };
-
-  // Sede filter — works for rector/superadmin (optional) and admin (required)
-  const sedeFilter = url.searchParams.get('sede_filter');
-  let sedeCourseIds = null;
-  if (user.role === 'admin') {
-    const adminSedeIds = await getAdminSedeIds(sb, user, sedeFilter);
-    sedeCourseIds = await getCourseIdsForSedes(sb, adminSedeIds);
-  } else if (sedeFilter) {
-    sedeCourseIds = await getCourseIdsForSedes(sb, [sedeFilter]);
-  }
-  // Helper to apply sede filter to attendance queries
-  const applySedeAtt = (q) => sedeCourseIds ? q.in('course_id', sedeCourseIds) : q;
-  const applySedeStudents = (q) => sedeCourseIds ? q.in('course_id', sedeCourseIds) : q;
-
-  // ── 1. Tendencia asistencia últimos 30 días ──
-  const thirtyAgo = (() => { const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().slice(0, 10); })();
-  const attTrendRaw = await safe(() =>
-    applySedeAtt(sb.from('raice_attendance').select('date, status, course_id').gte('date', thirtyAgo).lte('date', today)), { data: [] });
-  const trendMap = {};
-  (attTrendRaw.data || []).forEach(a => {
-    if (a.status === 'NR') return;
-    if (!trendMap[a.date]) trendMap[a.date] = { P: 0, A: 0, T: 0, PE: 0, S: 0 };
-    if (trendMap[a.date][a.status] !== undefined) trendMap[a.date][a.status]++;
-  });
-  const attendance_trend = Object.entries(trendMap)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, c]) => {
-      const countable = c.P + c.A + c.T;
-      const pct = countable > 0 ? Math.round(((c.P + c.T) / countable) * 100) : null;
-      return { date, pct, P: c.P, A: c.A, T: c.T, PE: c.PE };
-    });
-
-  // ── 2. Ranking grados mes actual ──
-  const monthStart = today.substring(0, 8) + '01';
-  const attMonthRaw = await safe(() =>
-    applySedeAtt(sb.from('raice_attendance').select('status, course_id, raice_courses(grade, number)').gte('date', monthStart).lte('date', today)), { data: [] });
-  const gradeMonthMap = {};
-  (attMonthRaw.data || []).forEach(a => {
-    if (a.status === 'NR' || a.status === 'S') return;
-    const g = a.raice_courses?.grade;
-    const n = a.raice_courses?.number || '';
-    if (!g) return;
-    const key = n ? `${g}°${n}` : `${g}°`;
-    if (!gradeMonthMap[key]) gradeMonthMap[key] = { grade: g, P: 0, A: 0, T: 0, PE: 0 };
-    if (gradeMonthMap[key][a.status] !== undefined) gradeMonthMap[key][a.status]++;
-  });
-  const grade_ranking = Object.entries(gradeMonthMap)
-    .map(([name, c]) => {
-      const countable = c.P + c.A + c.T;
-      const pct = countable > 0 ? Math.round(((c.P + c.T) / countable) * 100) : null;
-      return { name, grade: c.grade, pct, total: countable };
-    })
-    .filter(g => g.pct !== null)
-    .sort((a, b) => b.pct - a.pct);
-
-  // ── 3. Cumplimiento docente hoy ──
-  const dayOfWeek = dayOfWeekCO(today);
-  const schedsRes = await safe(() =>
-    sb.from('raice_schedules').select('class_hour, start_time, raice_teacher_courses(teacher_id, course_id, subject, raice_users(first_name, last_name), raice_courses(grade, number))').eq('day_of_week', dayOfWeek), { data: [] });
-  const bellsRes = await safe(() => sb.from('raice_bell_schedule').select('class_hour, start_time'), { data: [] });
-  const bellMap = {};
-  (bellsRes.data || []).forEach(b => bellMap[b.class_hour] = b.start_time);
-
-  const coDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
-  const currentTime = `${coDate.getHours().toString().padStart(2, '0')}:${coDate.getMinutes().toString().padStart(2, '0')}:00`;
-
-  // Attendance taken today
-  const todayAttRes = await safe(() =>
-    applySedeAtt(sb.from('raice_attendance').select('course_id, class_hour, status').eq('date', today)), { data: [] });
-  const takenSet = new Set();
-  (todayAttRes.data || []).forEach(a => {
-    if (a.status !== 'PE' && a.status !== 'NR') takenSet.add(`${a.course_id}_${a.class_hour}`);
-  });
-
-  // Build teacher compliance
-  const sedeSet = sedeCourseIds ? new Set(sedeCourseIds) : null;
-  const teacherStats = {};
-  (schedsRes.data || []).forEach(s => {
-    const tc = s.raice_teacher_courses;
-    if (!tc || !tc.raice_users || !tc.course_id) return;
-    if (sedeSet && !sedeSet.has(tc.course_id)) return; // filter by sede
-    const st = s.start_time || bellMap[s.class_hour];
-    if (!st || st >= currentTime) return; // only past hours
-    const tid = tc.teacher_id;
-    const name = `${tc.raice_users.first_name} ${tc.raice_users.last_name}`;
-    if (!teacherStats[tid]) teacherStats[tid] = { name, scheduled: 0, taken: 0 };
-    teacherStats[tid].scheduled++;
-    if (takenSet.has(`${tc.course_id}_${s.class_hour}`)) teacherStats[tid].taken++;
-  });
-  const teacher_compliance = Object.values(teacherStats)
-    .map(t => ({ ...t, pct: t.scheduled > 0 ? Math.round((t.taken / t.scheduled) * 100) : null }))
-    .sort((a, b) => (a.pct ?? 999) - (b.pct ?? 999));
-
-  // ── 4. Resumen de casos por tipo ──
-  const casesAllRes = await safe(() => {
-    let q = sb.from('raice_cases').select('type, status, created_at, course_id');
-    if (sedeCourseIds) q = q.in('course_id', sedeCourseIds);
-    return q;
-  }, { data: [] });
-  const casesAll = casesAllRes.data || [];
-  const cases_summary = { total: casesAll.length, open: 0, closed: 0, by_type: { 1: 0, 2: 0, 3: 0 }, this_month: 0 };
-  casesAll.forEach(c => {
-    if (c.status === 'open' || c.status === 'tracking') cases_summary.open++;
-    else cases_summary.closed++;
-    if (cases_summary.by_type[c.type] !== undefined) cases_summary.by_type[c.type]++;
-    if (c.created_at && c.created_at.slice(0, 10) >= monthStart) cases_summary.this_month++;
-  });
-
-  // ── 5. Estudiantes en riesgo ──
-  // Low attendance + open cases + unfulfilled commitments
-  const [riskAttRes, riskCasesRes, riskCommRes, riskStudentsRes] = await Promise.all([
-    safe(() => applySedeAtt(sb.from('raice_attendance').select('student_id, status, course_id').gte('date', monthStart)), { data: [] }),
-    safe(() => { let q = sb.from('raice_cases').select('student_id, course_id').in('status', ['open', 'tracking']); if (sedeCourseIds) q = q.in('course_id', sedeCourseIds); return q; }, { data: [] }),
-    safe(() => sb.from('raice_commitments').select('student_id').eq('fulfilled', false), { data: [] }),
-    safe(() => applySedeStudents(sb.from('raice_students').select('id, first_name, last_name, grade, course_id, raice_courses(grade, number)').eq('status', 'active')), { data: [] })
-  ]);
-
-  // Build attendance % per student
-  const stuAttMap = {};
-  (riskAttRes.data || []).forEach(a => {
-    if (a.status === 'NR' || a.status === 'S') return;
-    if (!stuAttMap[a.student_id]) stuAttMap[a.student_id] = { countable: 0, present: 0 };
-    if (a.status !== 'PE') stuAttMap[a.student_id].countable++;
-    if (a.status === 'P' || a.status === 'T') stuAttMap[a.student_id].present++;
-  });
-
-  // Build open cases count per student
-  const stuCasesMap = {};
-  (riskCasesRes.data || []).forEach(c => { stuCasesMap[c.student_id] = (stuCasesMap[c.student_id] || 0) + 1; });
-
-  // Build unfulfilled commitments count per student
-  const stuCommMap = {};
-  (riskCommRes.data || []).forEach(c => { stuCommMap[c.student_id] = (stuCommMap[c.student_id] || 0) + 1; });
-
-  // Score students
-  const studentMap = {};
-  (riskStudentsRes.data || []).forEach(s => { studentMap[s.id] = s; });
-
-  const riskScores = Object.keys(studentMap).map(sid => {
-    const att = stuAttMap[sid];
-    const attPct = att && att.countable > 0 ? Math.round((att.present / att.countable) * 100) : null;
-    const openCases = stuCasesMap[sid] || 0;
-    const pendingComm = stuCommMap[sid] || 0;
-    // Risk score: lower attendance = higher risk, more cases = higher risk
-    let score = 0;
-    if (attPct !== null && attPct < 80) score += (80 - attPct) * 2;
-    if (attPct !== null && attPct < 60) score += 30;
-    score += openCases * 20;
-    score += pendingComm * 10;
-    if (score === 0) return null;
-    const s = studentMap[sid];
-    const courseLabel = s.raice_courses ? `${s.raice_courses.grade}°${s.raice_courses.number || ''}` : '';
-    return { id: sid, name: `${s.first_name} ${s.last_name}`, course: courseLabel, att_pct: attPct, open_cases: openCases, pending_commitments: pendingComm, risk_score: score };
-  }).filter(Boolean).sort((a, b) => b.risk_score - a.risk_score).slice(0, 15);
-
-  // ── 6. Resumen de excusas recientes ──
-  const weekAgo = (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().slice(0, 10); })();
-  const excusasRes = await safe(() => {
-    let q = sb.from('raice_excusas').select('id, student_id, course_id, date, motivo, horas, registered_by, created_at, raice_students(first_name, last_name), raice_users(first_name, last_name)').gte('created_at', weekAgo + 'T00:00:00').order('created_at', { ascending: false }).limit(30);
-    if (sedeCourseIds) q = q.in('course_id', sedeCourseIds);
-    return q;
-  }, { data: [] });
-  const excusasData = excusasRes.data || [];
-  // Classify: if horas array has items → "por horas", else "dia completo"
-  // (rango = same student appears on multiple consecutive dates, but simplified here)
-  const excusas_summary = {
-    total_week: excusasData.length,
-    by_type: { dia_completo: 0, horas: 0 },
-    recent: excusasData.slice(0, 10).map(e => ({
-      date: e.date,
-      motivo: e.motivo,
-      student_name: e.raice_students ? `${e.raice_students.first_name} ${e.raice_students.last_name}` : '—',
-      registered_by_name: e.raice_users ? `${e.raice_users.first_name} ${e.raice_users.last_name}` : '—',
-      horas: e.horas
-    }))
-  };
-  excusasData.forEach(e => {
-    if (e.horas && e.horas.length > 0) excusas_summary.by_type.horas++;
-    else excusas_summary.by_type.dia_completo++;
-  });
-
-  return res.status(200).json({
-    attendance_trend,
-    grade_ranking,
-    teacher_compliance,
-    cases_summary,
-    students_at_risk: riskScores,
-    excusas_summary
-  });
-}
 
 
 // =====================================================
@@ -4104,16 +3543,7 @@ async function getRectorInsights(req, res, user) {
 async function handlePeriods(req, res, user) {
   const sb = getSupabase();
   if (req.method === 'GET') {
-    const url = new URL(req.url, `http://${req.headers.host}`);
-    const yearParam = url.searchParams.get('year');
-    const currentYear = yearParam ? parseInt(yearParam) : new Date().getFullYear();
-    // Read num_periods from config to never return more periods than configured
-    const { data: cfg } = await sb.from('raice_config').select('num_periods').eq('id', 1).maybeSingle();
-    const maxPeriods = cfg?.num_periods || 4;
-    const { data } = await sb.from('raice_periods').select('*')
-      .eq('year', currentYear)
-      .lte('period_num', maxPeriods)
-      .order('period_num');
+    const { data } = await sb.from('raice_periods').select('*').order('year').order('period_num');
     return res.status(200).json({ periods: data || [] });
   }
   if (req.method === 'POST') {
@@ -4579,7 +4009,6 @@ async function getStudentFicha(req, res, user) {
   const sb  = getSupabase();
   const url = new URL(req.url, `http://${req.headers.host}`);
   const studentId = url.searchParams.get('id');
-  const allObs = url.searchParams.get('all_obs') === '1';
   if (!studentId) return res.status(400).json({ error: 'ID requerido' });
 
   // Teachers can only view fichas of students in their courses
@@ -4596,11 +4025,11 @@ async function getStudentFicha(req, res, user) {
 
   const [studentRes, casesRes, obsRes, attRes, tardanzasRes, commitmentsRes] = await Promise.all([
     safe(() => sb.from('raice_students').select('*').eq('id', studentId).single()),
-    safe(() => sb.from('raice_cases').select('id, type, description, status, created_at, teacher_id, course_id, actions_taken, notes, falta_descripcion, falta_categoria, falta_numeral, otros_involucrados, closed_at, closed_by').eq('student_id', studentId).order('created_at', { ascending: false })),
-    safe(() => { let q = sb.from('raice_observations').select('id, type, text, created_at, teacher_id').eq('student_id', studentId).order('created_at', { ascending: false }); if (!allObs) q = q.limit(20); return q; }),
+    safe(() => sb.from('raice_cases').select('id, type, description, status, created_at').eq('student_id', studentId).order('created_at', { ascending: false })),
+    safe(() => sb.from('raice_observations').select('id, type, text, created_at, teacher_id').eq('student_id', studentId).order('created_at', { ascending: false }).limit(20)),
     safe(() => sb.from('raice_attendance').select('status, date, class_hour').eq('student_id', studentId).order('date', { ascending: false }).limit(90)),
     safe(() => sb.from('raice_attendance').select('date, class_hour').eq('student_id', studentId).eq('status','T').order('date', { ascending: false }).limit(20)),
-    safe(() => sb.from('raice_commitments').select('id, description, due_date, fulfilled, case_id').eq('student_id', studentId).order('created_at', { ascending: false }))
+    safe(() => sb.from('raice_commitments').select('description, due_date, fulfilled').eq('student_id', studentId).order('created_at', { ascending: false }))
   ]);
 
   if (!studentRes.data) return res.status(404).json({ error: 'Estudiante no encontrado' });
@@ -4612,64 +4041,15 @@ async function getStudentFicha(req, res, user) {
     acudientes = acudData || [];
   } catch (_) {}
 
-  // Resolve teacher names for observations AND cases
+  // Resolve observation teacher names separately (avoids FK name issues)
   const obsData = obsRes.data || [];
-  const casesData = casesRes.data || [];
-  const allTeacherIds = [...new Set([
-    ...obsData.map(o => o.teacher_id),
-    ...casesData.map(c => c.teacher_id),
-    ...casesData.map(c => c.closed_by)
-  ].filter(Boolean))];
+  const teacherIds = [...new Set(obsData.map(o => o.teacher_id).filter(Boolean))];
   const tMap = {};
-  if (allTeacherIds.length) {
-    const { data: teachers } = await sb.from('raice_users').select('id, first_name, last_name').in('id', allTeacherIds);
+  if (teacherIds.length) {
+    const { data: teachers } = await sb.from('raice_users').select('id, first_name, last_name').in('id', teacherIds);
     (teachers || []).forEach(t => tMap[t.id] = `${t.first_name} ${t.last_name}`);
   }
   const obs = obsData.map(o => ({ ...o, teacher_name: tMap[o.teacher_id] || '—' }));
-
-  // Resolve course names for cases
-  const casesCourseIds = [...new Set(casesData.map(c => c.course_id).filter(Boolean))];
-  const courseMap = {};
-  if (casesCourseIds.length) {
-    const { data: courses } = await sb.from('raice_courses').select('id, grade, number').in('id', casesCourseIds);
-    (courses || []).forEach(c => courseMap[c.id] = `${c.grade}°${c.number || ''}`);
-  }
-
-  // Fetch followups, escalones, citaciones for all cases
-  const caseIds = casesData.map(c => c.id).filter(Boolean);
-  let followupsMap = {}, escalonesMap = {}, citacionesMap = {};
-  const commitmentsData = commitmentsRes.data || [];
-  if (caseIds.length) {
-    const [fRes, eRes, ciRes] = await Promise.all([
-      safe(() => sb.from('raice_followups').select('id, case_id, actions, descargos, status, created_at, coordinator_name').in('case_id', caseIds).order('created_at', { ascending: true })),
-      safe(() => sb.from('raice_tipo1_escalones').select('id, case_id, numero_escalon, tipo_llamado, created_at').in('case_id', caseIds).order('numero_escalon', { ascending: true })),
-      safe(() => sb.from('raice_citaciones').select('id, case_id, reason, date_time, attended, created_at').in('case_id', caseIds).order('created_at', { ascending: true }))
-    ]);
-    (fRes.data || []).forEach(f => { if (!followupsMap[f.case_id]) followupsMap[f.case_id] = []; followupsMap[f.case_id].push(f); });
-    (eRes.data || []).forEach(e => { if (!escalonesMap[e.case_id]) escalonesMap[e.case_id] = []; escalonesMap[e.case_id].push(e); });
-    (ciRes.data || []).forEach(ci => { if (!citacionesMap[ci.case_id]) citacionesMap[ci.case_id] = []; citacionesMap[ci.case_id].push(ci); });
-  }
-
-  // Build commitments map by case_id
-  const commitmentsMap = {};
-  commitmentsData.forEach(cm => {
-    if (cm.case_id) {
-      if (!commitmentsMap[cm.case_id]) commitmentsMap[cm.case_id] = [];
-      commitmentsMap[cm.case_id].push(cm);
-    }
-  });
-
-  // Enrich cases
-  const enrichedCases = casesData.map(c => ({
-    ...c,
-    teacher_name: tMap[c.teacher_id] || '—',
-    closed_by_name: c.closed_by ? (tMap[c.closed_by] || '—') : null,
-    course_label: courseMap[c.course_id] || null,
-    followups: followupsMap[c.id] || [],
-    escalones: escalonesMap[c.id] || [],
-    citaciones: citacionesMap[c.id] || [],
-    commitments: commitmentsMap[c.id] || []
-  }));
 
   // Attendance: deduplicate by date (last class_hour wins)
   // Attendance: use total records (hours) to match dashboard precision
@@ -4698,11 +4078,11 @@ async function getStudentFicha(req, res, user) {
 
   return res.status(200).json({
     student:      studentRes.data,
-    cases:        enrichedCases,
+    cases:        casesRes.data  || [],
     observations: obs,
     attendance:   { pct: attPct, present: cntP, permit: cntPE, absent: cntA, late: cntT, special: cntS, total: total, recent: recentAtt },
     tardanzas:    tardanzasRes.data || [],
-    commitments:  commitmentsData,
+    commitments:  commitmentsRes.data || [],
     acudientes
   });
 }
@@ -5304,26 +4684,11 @@ async function handleSchedules(req, res, user) {
 // SCHEDULES OVERVIEW — All courses, all teachers, real-time
 // =====================================================
 async function getSchedulesOverview(req, res, user) {
-  requireRole(user, 'superadmin', 'admin', 'rector');
+  requireRole(user, 'superadmin', 'admin');
   if (req.method !== 'GET') return res.status(405).end();
   const sb    = getSupabase();
-  const url   = new URL(req.url, `http://${req.headers.host}`);
   const today = todayCO();
   const todayDow = dayOfWeekCO(today);
-  const weekMonday = todayCO(-(todayDow - 1));
-  const weekFriday = todayCO(5 - todayDow);
-  // Never include future dates — PE records from excusas can exist for future days
-  const attThrough = weekFriday > today ? today : weekFriday;
-
-  // Sede filter — rector/superadmin can narrow to one sede; admin always scoped to their sedes
-  const sedeFilterParam = url.searchParams.get('sede_filter');
-  let sedeCourseIds = null;
-  if (user.role === 'admin') {
-    const adminSedeIds = await getAdminSedeIds(sb, user, sedeFilterParam);
-    sedeCourseIds = await getCourseIdsForSedes(sb, adminSedeIds);
-  } else if (sedeFilterParam) {
-    sedeCourseIds = await getCourseIdsForSedes(sb, [sedeFilterParam]);
-  }
 
   const [schedsRes, bellRes, attRes] = await Promise.all([
     sb.from('raice_schedules')
@@ -5339,26 +4704,17 @@ async function getSchedulesOverview(req, res, user) {
       .order('day_of_week').order('class_hour'),
     sb.from('raice_bell_schedule').select('*').order('class_hour'),
     sb.from('raice_attendance')
-      .select('course_id, class_hour, teacher_id, date')
-      .gte('date', weekMonday)
-      .lte('date', attThrough)
-      .not('status', 'in', '("NR","PE")')
+      .select('course_id, class_hour')
+      .eq('date', today)
+      .neq('status', 'NR')
   ]);
 
   if (schedsRes.error) return res.status(500).json({ error: 'Error al cargar horarios' });
 
-  // Set of "course_hour_dow" keys where attendance was taken this week
-  const attSet = new Set((attRes.data || []).map(a =>
-    `${a.course_id}_${a.class_hour}_${dayOfWeekCO(a.date)}`
-  ));
+  // Set of "course_hour" keys where attendance was taken today
+  const attSet = new Set((attRes.data || []).map(a => `${a.course_id}_${a.class_hour}`));
 
-  // Apply sede filter on course_id if required
-  const courseSet = sedeCourseIds ? new Set(sedeCourseIds) : null;
-  const filteredScheds = courseSet
-    ? (schedsRes.data || []).filter(s => courseSet.has(s.raice_teacher_courses?.course_id))
-    : (schedsRes.data || []);
-
-  const schedules = filteredScheds.map(s => {
+  const schedules = (schedsRes.data || []).map(s => {
     const tc     = s.raice_teacher_courses;
     const course = tc?.raice_courses;
     const teacher = tc?.raice_users;
@@ -5376,7 +4732,7 @@ async function getSchedulesOverview(req, res, user) {
       section:          course?.section || String(course?.number || ''),
       type:             course?.type    || 'normal',
       course_name:      course?.name    || null,
-      attendance_taken: attSet.has(`${tc?.course_id}_${s.class_hour}_${s.day_of_week}`)
+      attendance_taken: attSet.has(`${tc?.course_id}_${s.class_hour}`)
     };
   });
 
@@ -5435,16 +4791,16 @@ async function handleBellSchedule(req, res, user) {
 async function getTeacherSchedule(req, res, user) {
   const sb  = getSupabase();
   const url = new URL(req.url, `http://${req.headers.host}`);
-  // Teachers can only see their own schedule; admins/superadmins/rector can query any teacher_id
+  // Teachers can only see their own schedule; admins/superadmins can query any teacher_id
   let teacherId;
-  if (['superadmin', 'admin', 'rector'].includes(user.role)) {
+  if (['superadmin', 'admin'].includes(user.role)) {
     teacherId = url.searchParams.get('teacher_id') || user.id;
   } else {
     teacherId = user.id; // teachers always see only their own schedule
   }
 
   const { data: tc } = await sb.from('raice_teacher_courses')
-    .select('id, subject, course_id, raice_courses(grade, number, section, type, name)')
+    .select('id, subject, course_id, raice_courses(grade, number, section)')
     .eq('teacher_id', teacherId);
 
   const tcIds = (tc || []).map(r => r.id);
@@ -5458,16 +4814,13 @@ async function getTeacherSchedule(req, res, user) {
     schedules = (data || []).map(s => {
       const row = tcMap[s.teacher_course_id] || {};
       const c   = row.raice_courses || {};
-      const isSubgroup = c.type === 'subgroup';
       return {
         ...s,
-        subject:      row.subject || null,
-        grade:        c.grade,
-        course_num:   c.number,
-        section:      isSubgroup ? null : (c.section || (c.number != null ? String(c.number) : null)),
-        course_id:    row.course_id,
-        course_type:  c.type || 'normal',
-        course_name:  c.name || null
+        subject:    row.subject || '—',
+        grade:      c.grade,
+        course_num: c.number,
+        section:    c.section || String(c.number || 1),
+        course_id:  row.course_id
       };
     });
   }
@@ -5718,25 +5071,30 @@ async function handleBackupExport(req, res, user) {
   const sb = getSupabase();
 
   try {
-    // Pagina una tabla completa sin límite de filas (Supabase max = 1000 por query)
-    async function fetchAll(table, orderCol = 'id', ascending = true) {
+    // Cada consulta retorna [] si falla — un error en una tabla no rompe todo el backup
+    const sq = (promise) => promise.then(r => r.data || []).catch(() => []);
+
+    // ── Tablas con paginación (pueden tener muchos registros) ──────────────────
+    // Asistencia: se pagina de 10.000 en 10.000 hasta traer todo
+    async function fetchAllAttendance() {
       let all = [];
       let from = 0;
-      const PAGE = 1000;
+      const PAGE = 1000; // Supabase default max_rows es 1000 — paginar en bloques de 1000
       while (true) {
-        try {
-          const { data, error } = await sb.from(table).select('*')
-            .order(orderCol, { ascending }).range(from, from + PAGE - 1);
-          if (error || !data || data.length === 0) break;
-          all = all.concat(data);
-          if (data.length < PAGE) break;
-          from += PAGE;
-        } catch (_) { break; }
+        const { data, error } = await sb
+          .from('raice_attendance')
+          .select('*')
+          .order('date', { ascending: false })
+          .range(from, from + PAGE - 1);
+        if (error || !data || data.length === 0) break;
+        all = all.concat(data);
+        if (data.length < PAGE) break;
+        from += PAGE;
       }
       return all;
     }
 
-    // Todas las tablas se pagina para garantizar completitud total
+    // ── Tablas estáticas (una sola consulta cada una) ──────────────────────────
     const [
       students,
       cases,
@@ -5766,38 +5124,39 @@ async function handleBackupExport(req, res, user) {
       sedes,
       userSedes,
       subgroupMembers,
-      attendance,
     ] = await Promise.all([
-      fetchAll('raice_students',              'last_name'),
-      fetchAll('raice_cases',                 'created_at', false),
-      fetchAll('raice_followups',             'created_at', false),
-      fetchAll('raice_citations',             'created_at', false),
-      fetchAll('raice_commitments',           'due_date',   false),
-      fetchAll('raice_observations',          'created_at', false),
-      fetchAll('raice_acudientes',            'id'),
-      fetchAll('raice_users',                 'first_name'),   // incluye superadmin para recuperación total
-      fetchAll('raice_courses',               'grade'),
-      fetchAll('raice_schedules',             'id'),
-      fetchAll('raice_bell_schedule',         'class_hour'),
-      fetchAll('raice_teacher_courses',       'id'),
-      fetchAll('raice_teacher_absences',      'date',       false),
-      fetchAll('raice_absence_replacements',  'id'),
-      fetchAll('raice_suspensions',           'created_at', false),
-      fetchAll('raice_classroom_removals',    'created_at', false),
-      fetchAll('raice_excusas',               'date',       false),
-      fetchAll('raice_faltas_catalogo',       'id'),
-      fetchAll('raice_periods',               'created_at', false),
-      fetchAll('raice_config',                'id'),
-      fetchAll('raice_calendar',              'date',       false),
-      fetchAll('raice_notifications',         'created_at', false),
-      fetchAll('raice_student_grade_history', 'changed_at', false),
-      fetchAll('raice_logs',                  'created_at', false),
-      fetchAll('raice_tipo1_escalones',       'created_at', false),
-      fetchAll('raice_sedes',                 'created_at'),
-      fetchAll('raice_user_sedes',            'user_id'),
-      fetchAll('raice_subgroup_members',      'id'),
-      fetchAll('raice_attendance',            'date',       false),
+      sq(sb.from('raice_students').select('*').order('grade').order('last_name')),
+      sq(sb.from('raice_cases').select('*').order('created_at', { ascending: false })),
+      sq(sb.from('raice_followups').select('*').order('created_at', { ascending: false })),
+      sq(sb.from('raice_citations').select('*').order('created_at', { ascending: false })),
+      sq(sb.from('raice_commitments').select('*').order('due_date', { ascending: false })),
+      sq(sb.from('raice_observations').select('*').order('created_at', { ascending: false })),
+      sq(sb.from('raice_acudientes').select('*')),
+      sq(sb.from('raice_users').select('id,username,first_name,last_name,email,role,active,last_login').neq('role','superadmin')),
+      sq(sb.from('raice_courses').select('*').order('grade').order('number')),
+      sq(sb.from('raice_schedules').select('*')),
+      sq(sb.from('raice_bell_schedule').select('*').order('class_hour')),
+      sq(sb.from('raice_teacher_courses').select('*')),
+      sq(sb.from('raice_teacher_absences').select('*').order('date', { ascending: false })),
+      sq(sb.from('raice_absence_replacements').select('*')),
+      sq(sb.from('raice_suspensions').select('*').order('created_at', { ascending: false })),
+      sq(sb.from('raice_classroom_removals').select('*').order('created_at', { ascending: false })),
+      sq(sb.from('raice_excusas').select('*').order('date', { ascending: false })),
+      sq(sb.from('raice_faltas_catalogo').select('*')),
+      sq(sb.from('raice_periods').select('*').order('created_at', { ascending: false })),
+      sq(sb.from('raice_config').select('*')),
+      sq(sb.from('raice_calendar').select('*').order('date', { ascending: false })),
+      sq(sb.from('raice_notifications').select('*').order('created_at', { ascending: false })),
+      sq(sb.from('raice_student_grade_history').select('*').order('changed_at', { ascending: false })),
+      sq(sb.from('raice_logs').select('*').order('created_at', { ascending: false })),
+      sq(sb.from('raice_tipo1_escalones').select('*').order('created_at', { ascending: false })),
+      sq(sb.from('raice_sedes').select('*').order('created_at')),
+      sq(sb.from('raice_user_sedes').select('*')),
+      sq(sb.from('raice_subgroup_members').select('*')),
     ]);
+
+    // Asistencia paginada (sin límite)
+    const attendance = await fetchAllAttendance();
 
     const backup = {
       exported_at: new Date().toISOString(),
@@ -5811,8 +5170,7 @@ async function handleBackupExport(req, res, user) {
         commitments:           commitments.length,
         observations:          observations.length,
         acudientes:            acudientes.length,
-        users:                 teachers.length,
-        role_superadmin:       teachers.filter(u => u.role === 'superadmin').length,
+        teachers:              teachers.length,
         role_teachers:         teachers.filter(u => u.role === 'teacher').length,
         role_coordinators:     teachers.filter(u => u.role === 'admin').length,
         role_rectores:         teachers.filter(u => u.role === 'rector').length,
@@ -6510,7 +5868,7 @@ async function getEvasions(req, res, user) {
   let query = sb.from('raice_notifications')
     .select('id, title, body, read, created_at, link_id, from_user_id, type')
     .eq('to_user_id', user.id)
-    .in('type', ['evasion', 'evasion_confirmed', 'evasion_dismissed', 'evasion_retracted'])
+    .in('type', ['evasion', 'evasion_confirmed', 'evasion_dismissed'])
     .gte('created_at', rangeStart)
     .lt('created_at', rangeEnd)
     .order('created_at', { ascending: false });
@@ -7961,7 +7319,7 @@ async function handlePortalAcudiente(req, res) {
 
   // Find student by doc_number (any active/graduated status)
   const { data: student } = await sb.from('raice_students')
-    .select('id, first_name, last_name, grade, course, course_id, doc_type, doc_number, status')
+    .select('id, first_name, last_name, grade, course, doc_type, doc_number, status')
     .eq('doc_number', doc)
     .in('status', ['active', 'graduated', 'transferred'])
     .maybeSingle();
@@ -7973,14 +7331,13 @@ async function handlePortalAcudiente(req, res) {
   const sid = student.id;
 
   // Fetch all relevant data in parallel
-  const courseId = student.course_id;
-  const [casesRes, attRes, obsRes, suspRes, remRes, configRes, commitmentsRes, excusasRes, acudientesRes] = await Promise.all([
+  const [casesRes, attRes, obsRes, suspRes, remRes, configRes] = await Promise.all([
     sb.from('raice_cases')
       .select('id, type, description, actions_taken, falta_numeral, falta_descripcion, status, created_at, teacher_id, raice_users!teacher_id(first_name, last_name)')
       .eq('student_id', sid)
       .order('created_at', { ascending: false }),
     sb.from('raice_attendance')
-      .select('date, status, class_hour, teacher_id')
+      .select('date, status, class_hour')
       .eq('student_id', sid)
       .order('date', { ascending: false })
       .limit(120),
@@ -7998,71 +7355,8 @@ async function handlePortalAcudiente(req, res) {
       .eq('student_id', sid)
       .order('date', { ascending: false })
       .limit(30),
-    sb.from('raice_config').select('school_name, year, logo_url').eq('id', 1).maybeSingle(),
-    // NEW: Compromisos del estudiante
-    sb.from('raice_commitments')
-      .select('description, due_date, fulfilled, signed_by, created_at')
-      .eq('student_id', sid)
-      .order('created_at', { ascending: false }),
-    // NEW: Excusas del estudiante (motivo + fecha)
-    sb.from('raice_excusas')
-      .select('date, motivo, horas, created_at')
-      .eq('student_id', sid)
-      .order('date', { ascending: false })
-      .limit(30),
-    // NEW: Acudientes registrados
-    sb.from('raice_acudientes')
-      .select('name, phone, email, relationship')
-      .eq('student_id', sid)
+    sb.from('raice_config').select('school_name, year, logo_url').eq('id', 1).maybeSingle()
   ]);
-
-  // NEW: Director de grado + asistencia por asignatura
-  let director = null;
-  let attBySubject = [];
-  if (courseId) {
-    // Director de grado
-    const { data: courseData } = await sb.from('raice_courses')
-      .select('director_id, raice_users(first_name, last_name)')
-      .eq('id', courseId).maybeSingle();
-    if (courseData?.raice_users) {
-      director = {
-        name: `${courseData.raice_users.first_name} ${courseData.raice_users.last_name}`
-      };
-    }
-
-    // Asistencia por asignatura: teacher_courses → subjects para este curso
-    const { data: tcRows } = await sb.from('raice_teacher_courses')
-      .select('id, subject, teacher_id, raice_users(first_name, last_name)')
-      .eq('course_id', courseId);
-
-    if (tcRows && tcRows.length > 0) {
-      const attData = attRes.data || [];
-      // Map teacher_id → subject name
-      const teacherSubjectMap = {};
-      (tcRows || []).forEach(tc => {
-        if (tc.teacher_id) teacherSubjectMap[tc.teacher_id] = tc.subject || 'Sin asignatura';
-      });
-
-      // Group attendance by subject
-      const subjectStats = {};
-      attData.forEach(a => {
-        const subject = teacherSubjectMap[a.teacher_id] || null;
-        if (!subject) return;
-        if (!subjectStats[subject]) subjectStats[subject] = { P:0, A:0, T:0, PE:0, S:0, total:0 };
-        subjectStats[subject].total++;
-        if (subjectStats[subject][a.status] !== undefined) subjectStats[subject][a.status]++;
-      });
-
-      attBySubject = Object.entries(subjectStats).map(([subject, s]) => {
-        const countable = s.total - s.S - s.PE;
-        return {
-          subject,
-          present: s.P, absent: s.A, late: s.T, permit: s.PE, total: s.total,
-          pct: countable > 0 ? Math.round(((s.P + s.T) / countable) * 100) : null
-        };
-      }).sort((a,b) => (a.pct ?? 999) - (b.pct ?? 999)); // peor % primero
-    }
-  }
 
   return res.status(200).json({
     student: {
@@ -8079,16 +7373,11 @@ async function handlePortalAcudiente(req, res) {
       teacher_name: c.raice_users ? `${c.raice_users.first_name} ${c.raice_users.last_name}` : null,
       raice_users: undefined
     })),
-    attendance:    attRes.data         || [],
-    observations:  obsRes.data         || [],
-    suspensions:   suspRes.data        || [],
-    removals:      remRes.data         || [],
-    commitments:   commitmentsRes.data || [],
-    excusas:       excusasRes.data     || [],
-    acudientes:    acudientesRes.data  || [],
-    att_by_subject: attBySubject,
-    director,
-    school:        configRes.data      || {}
+    attendance:  attRes.data     || [],
+    observations: obsRes.data    || [],
+    suspensions:  suspRes.data   || [],
+    removals:     remRes.data    || [],
+    school:       configRes.data || {}
   });
 }
 

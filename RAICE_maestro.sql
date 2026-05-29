@@ -82,20 +82,11 @@ CREATE TABLE IF NOT EXISTS raice_user_sedes (
 );
 
 -- Migración: copiar sede_id existente de coordinadores a la nueva tabla
--- (solo si raice_users tiene columna sede_id — omite si no existe)
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_name = 'raice_users' AND column_name = 'sede_id'
-  ) THEN
-    INSERT INTO raice_user_sedes (user_id, sede_id)
-    SELECT id, sede_id
-    FROM raice_users
-    WHERE role = 'admin' AND sede_id IS NOT NULL
-    ON CONFLICT DO NOTHING;
-  END IF;
-END $$;
+INSERT INTO raice_user_sedes (user_id, sede_id)
+SELECT id, sede_id
+FROM raice_users
+WHERE role = 'admin' AND sede_id IS NOT NULL
+ON CONFLICT DO NOTHING;
 
 
 -- ─────────────────────────────────────────────────────────────────────
@@ -220,9 +211,7 @@ CREATE TABLE IF NOT EXISTS raice_students (
 
 -- ─────────────────────────────────────────────────────────────────────
 -- 08. MIEMBROS DE SUBGRUPOS
---     Un estudiante puede pertenecer a MÚLTIPLES subgrupos.
---     El constraint garantiza que no se duplique la membresía dentro
---     del mismo subgrupo, pero permite estar en varios subgrupos distintos.
+--     Un estudiante puede pertenecer a UN SOLO subgrupo (UNIQUE student_id).
 --     Al eliminar el subgrupo o el estudiante, el registro se elimina solo.
 -- ─────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS raice_subgroup_members (
@@ -230,7 +219,7 @@ CREATE TABLE IF NOT EXISTS raice_subgroup_members (
   subgroup_course_id UUID        NOT NULL REFERENCES raice_courses(id)  ON DELETE CASCADE,
   student_id         UUID        NOT NULL REFERENCES raice_students(id) ON DELETE CASCADE,
   created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (subgroup_course_id, student_id)
+  UNIQUE (student_id)
 );
 
 
@@ -609,26 +598,8 @@ ALTER TABLE raice_attendance ADD COLUMN IF NOT EXISTS correction_reason TEXT;
 ALTER TABLE raice_attendance ADD COLUMN IF NOT EXISTS activity_note     TEXT;
 
 -- Config: columnas de notificaciones por email
-ALTER TABLE raice_config ADD COLUMN IF NOT EXISTS correction_window         TEXT DEFAULT 'class_duration';
-ALTER TABLE raice_config ADD COLUMN IF NOT EXISTS correction_window_minutes INTEGER DEFAULT 55;
-ALTER TABLE raice_config ADD COLUMN IF NOT EXISTS correction_window_hour    TEXT DEFAULT '23:59';
-ALTER TABLE raice_config ADD COLUMN IF NOT EXISTS session_timeout           INTEGER DEFAULT 60;
-
--- Fix: si correction_window_hour existe como INTEGER, convertir a TEXT
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_name = 'raice_config'
-      AND column_name = 'correction_window_hour'
-      AND data_type = 'integer'
-  ) THEN
-    ALTER TABLE raice_config ALTER COLUMN correction_window_hour TYPE TEXT USING correction_window_hour::TEXT;
-    ALTER TABLE raice_config ALTER COLUMN correction_window_hour SET DEFAULT '23:59';
-  END IF;
-END $$;
-ALTER TABLE raice_config ADD COLUMN IF NOT EXISTS backup_email              TEXT;
-ALTER TABLE raice_config ADD COLUMN IF NOT EXISTS resend_api_key            TEXT;
+ALTER TABLE raice_config ADD COLUMN IF NOT EXISTS backup_email   TEXT;
+ALTER TABLE raice_config ADD COLUMN IF NOT EXISTS resend_api_key TEXT;
 
 -- Estudiantes: teléfono para importación SIMAT
 ALTER TABLE raice_students ADD COLUMN IF NOT EXISTS phone TEXT;

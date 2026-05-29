@@ -6,7 +6,7 @@
 //   - Offline: página de aviso simple
 // ============================================================
 
-const VERSION      = 'raice-v5';
+const VERSION      = 'raice-v3';
 const CACHE_SHELL  = VERSION + '-shell';
 const CACHE_API    = VERSION + '-api';
 
@@ -16,8 +16,6 @@ const SHELL_URLS = [
   '/admin',
   '/docente',
   '/superadmin',
-  '/rector',
-  '/portal-acudiente',
   '/manifest.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
@@ -44,8 +42,6 @@ self.addEventListener('activate', event => {
           .map(k => caches.delete(k))
       ))
       .then(() => self.clients.claim())
-      .then(() => self.clients.matchAll({ type: 'window' }))
-      .then(clients => clients.forEach(c => c.postMessage({ type: 'NEW_VERSION' })))
   );
 });
 
@@ -68,13 +64,7 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // HTML → Network-first (siempre intenta traer versión nueva)
-  if (req.headers.get('Accept')?.includes('text/html')) {
-    event.respondWith(networkFirstHtml(req));
-    return;
-  }
-
-  // Todo lo demás (JS, CSS, imágenes) → Cache-first
+  // Todo lo demás → Cache-first
   event.respondWith(cacheFirst(req));
 });
 
@@ -94,22 +84,6 @@ async function networkFirst(req) {
       JSON.stringify({ error: 'Sin conexión', offline: true }),
       { status: 503, headers: { 'Content-Type': 'application/json' } }
     );
-  }
-}
-
-// Network-first para HTML: siempre intenta red, fallback a caché si offline
-async function networkFirstHtml(req) {
-  const cache = await caches.open(CACHE_SHELL);
-  try {
-    const res = await fetch(req.clone());
-    if (res.ok) cache.put(req, res.clone());
-    return res;
-  } catch {
-    const cached = await cache.match(req);
-    if (cached) return cached;
-    const offline = await cache.match('/offline');
-    if (offline) return offline;
-    return new Response('Sin conexión', { status: 503 });
   }
 }
 

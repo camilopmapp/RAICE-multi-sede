@@ -120,7 +120,6 @@
   .pill-teal{background:#ccfbf1;color:#0f766e}
   .pill-purple{background:#f5f3ff;color:#6d28d9}
   .pill-gold{background:#fef3c7;color:#92400e}
-  .pill-orange{background:#fed7aa;color:#9a3412}
 
   /* FORM */
   .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
@@ -351,44 +350,11 @@
   .badge-yellow { background:#fef9c3;color:#a16207;font-size:.72rem;font-weight:700;padding:.15rem .5rem;border-radius:6px; }
   .badge-red    { background:#fee2e2;color:#b91c1c;font-size:.72rem;font-weight:700;padding:.15rem .5rem;border-radius:6px; }
 
-  /* Tooltip asistencia – lista completa */
-  .att-tip-wrap { position:relative; cursor:pointer; }
-  .att-tip {
-    display:none; position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%);
-    background:#1e293b; color:#f1f5f9; font-size:.72rem; line-height:1.45; padding:.4rem .65rem;
-    border-radius:8px; white-space:nowrap; z-index:50; pointer-events:none;
-    box-shadow:0 4px 12px rgba(0,0,0,.18);
-  }
-  .att-tip::after {
-    content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%);
-    border:5px solid transparent; border-top-color:#1e293b;
-  }
-  .att-tip-wrap:hover .att-tip,
-  .att-tip-wrap:focus .att-tip { display:block; }
-  @media (max-width:768px) {
-    .att-tip-wrap:active .att-tip { display:block; }
-  }
-
   </style>
 </head>
 <script src="/js/chart.umd.min.js"></script>
 <script src="/js/xlsx.full.min.js"></script>
 <body>
-
-<div id="sw-update-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#1d4ed8;color:#fff;padding:.6rem 1rem;display:none;align-items:center;justify-content:center;gap:1rem;font-size:.85rem;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.2);">
-  🔄 Hay una versión nueva disponible
-  <button onclick="location.reload()" style="background:#fff;color:#1d4ed8;border:none;border-radius:6px;padding:.3rem .8rem;font-weight:700;cursor:pointer;">Actualizar ahora</button>
-</div>
-<script>
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.addEventListener('message', e => {
-      if (e.data?.type === 'NEW_VERSION') document.getElementById('sw-update-banner').style.display = 'flex';
-    });
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      document.getElementById('sw-update-banner').style.display = 'flex';
-    });
-  }
-</script>
 
 <!-- SIDEBAR OVERLAY (mobile) -->
 <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
@@ -581,7 +547,7 @@
       </div>
 
       <!-- Row 2: Cases by type bar + Attendance by grade bars -->
-      <div style="display:grid;grid-template-columns:35fr 65fr;gap:1.5rem;margin-bottom:1.5rem;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem;">
         <div class="card" style="margin-bottom:0;">
           <div class="card-header"><h3>⚠️ Casos por tipo</h3></div>
           <div class="card-body" style="position:relative;height:200px;">
@@ -706,7 +672,7 @@
           <select id="filter-status" class="status-select" onchange="filterStudents()">
             <option value="">Cualquier estado</option>
             <option value="active">✅ Activos</option>
-            <option value="desertor">🏃 Desertores</option>
+            <option value="transferred">🔄 Trasladados</option>
             <option value="retired">❌ Retirados</option>
           </select>
 
@@ -1257,7 +1223,6 @@
         <button id="mapa-tab-ahora"   class="btn btn-primary btn-sm" onclick="mapaSetTab('ahora')">🔴 Ahora mismo</button>
         <button id="mapa-tab-grupo"   class="btn btn-ghost btn-sm"   onclick="mapaSetTab('grupo')">🏫 Por grupo</button>
         <button id="mapa-tab-docente" class="btn btn-ghost btn-sm"   onclick="mapaSetTab('docente')">👩‍🏫 Por docente</button>
-        <button id="mapa-tab-semana"  class="btn btn-ghost btn-sm"   onclick="mapaSetTab('semana')">📅 Vista global</button>
         <button class="btn btn-ghost btn-sm" onclick="loadMapaEscolar()" style="margin-left:auto;">↻ Actualizar</button>
         <span id="mapa-last-update" style="font-size:.75rem;color:var(--gray);"></span>
       </div>
@@ -1295,26 +1260,6 @@
             </select>
           </div>
           <div class="card-body" id="mapa-docente-grid"></div>
-        </div>
-      </div>
-
-      <!-- Panel: Vista global semana completa -->
-      <div id="mapa-panel-semana" style="display:none;">
-        <div class="card">
-          <div class="card-body" style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;padding-bottom:.75rem;border-bottom:1px solid var(--border);">
-            <select id="mapa-sel-semana-grado" onchange="mapaRenderSemana()"
-              style="padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.83rem;background:var(--white);">
-              <option value="">— Todos los grados —</option>
-            </select>
-            <span style="font-size:.75rem;color:var(--gray);margin-left:.5rem;">
-              <span style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:4px;padding:.1rem .35rem;">✅ tomada</span>
-              &nbsp;
-              <span style="background:#fffbeb;border:1px solid #fde68a;border-radius:4px;padding:.1rem .35rem;">⏳ pendiente</span>
-              &nbsp;
-              <span style="background:#fef2f2;border:1px solid #fecaca;border-radius:4px;padding:.1rem .35rem;">✗ sin registro</span>
-            </span>
-          </div>
-          <div class="card-body" id="mapa-semana-grid"></div>
         </div>
       </div>
     </section>
@@ -1803,7 +1748,6 @@
   <div class="modal modal-lg">
     <div class="modal-header">
       <h3 id="obs-modal-title">📖 Observador</h3>
-      <button id="obs-print-btn" class="btn btn-ghost btn-sm" onclick="printObservador()" style="margin-left:auto;margin-right:.5rem;font-size:.8rem;">🖨️ Imprimir</button>
       <button class="modal-close" onclick="closeModal('modal-student-obs')">✕</button>
     </div>
     <div class="modal-body" id="obs-modal-body">Cargando…</div>
@@ -1868,7 +1812,7 @@
           <label>Estado</label>
           <select id="asa-status">
             <option value="active">✅ Activo</option>
-            <option value="desertor">🏃 Desertor</option>
+            <option value="transferred">📦 Trasladado</option>
             <option value="retired">🚪 Retirado</option>
           </select>
         </div>
@@ -2392,7 +2336,7 @@ async function loadDashboard() {
         responsive: true, maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
-          x: { grid: { display: false }, ticks: { font: { size: 10, weight: '600' }, autoSkip: false, maxRotation: 45, minRotation: 45 } },
+          x: { grid: { display: false }, ticks: { font: { size: 12 } } },
           y: { min: 0, max: 100, ticks: { callback: v => v+'%' }, grid: { color: 'rgba(0,0,0,.05)' } }
         }
       }
@@ -2463,12 +2407,6 @@ function alertActions(a) {
         'background:#f1f5f9;color:#64748b;')}`;
   }
 
-  if (a.type === 'evasion_retracted') {
-    return nid ? btn('✓ Marcar leída',
-      `markAlertRead('${nid}')`,
-      'background:#f1f5f9;color:#64748b;') : '';
-  }
-
   if (a.type === 'new_case' && a.link_id) {
     return btn('📂 Ver caso',
       `gotoCase('${sid}')`,
@@ -2529,27 +2467,7 @@ function renderAlerts(list) {
   const sevBorder = { high: '#fca5a5', medium: '#fed7aa', low: '#86efac' };
   const sevPill   = { high: 'pill-red', medium: 'pill-yellow', low: 'pill-green' };
   const sevLabel  = { high: 'Alta', medium: 'Media', low: 'Baja' };
-  el.innerHTML = list.map(a => {
-    // Special render for retracted evasions
-    if (a.type === 'evasion_retracted') {
-      const cleanTitle = (a.title || '').replace(/^🏃\s*/,'').replace(/^🚨\s*/,'');
-      return `
-        <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:.9rem 1rem;margin-bottom:.65rem;display:flex;align-items:flex-start;gap:.75rem;opacity:.8;">
-          <div style="font-size:1.5rem;flex-shrink:0;line-height:1;padding-top:.05rem;">✅</div>
-          <div style="flex:1;min-width:0;">
-            <div style="font-weight:700;font-size:.9rem;color:var(--gray);margin-bottom:.15rem;text-decoration:line-through;">${cleanTitle}</div>
-            <div style="font-size:.78rem;color:var(--gray);">${a.description||''}</div>
-            <div style="margin-top:.35rem;">
-              <span style="background:#dcfce7;color:#15803d;border-radius:6px;padding:.12rem .5rem;font-size:.72rem;font-weight:700;">✅ Asistencia corregida por el docente</span>
-            </div>
-            <div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.5rem;">
-              ${alertActions(a)}
-            </div>
-          </div>
-          <span class="pill pill-green" style="font-size:.7rem;flex-shrink:0;">Retirada</span>
-        </div>`;
-    }
-    return `
+  el.innerHTML = list.map(a => `
     <div style="background:${sevColor[a.severity]||sevColor.medium};border:1.5px solid ${sevBorder[a.severity]||sevBorder.medium};border-radius:12px;padding:.9rem 1rem;margin-bottom:.65rem;display:flex;align-items:flex-start;gap:.75rem;">
       <div style="font-size:1.5rem;flex-shrink:0;line-height:1;padding-top:.05rem;">${a.ico||'🔔'}</div>
       <div style="flex:1;min-width:0;">
@@ -2560,8 +2478,7 @@ function renderAlerts(list) {
         </div>
       </div>
       <span class="pill ${sevPill[a.severity]||'pill-yellow'}" style="font-size:.7rem;flex-shrink:0;">${sevLabel[a.severity]||'Media'}</span>
-    </div>`;
-  }).join('');
+    </div>`).join('');
 }
 
 async function markAlertRead(notifId) {
@@ -2709,7 +2626,7 @@ function renderStudents(list) {
     const ini = (s.first_name[0]+s.last_name[0]).toUpperCase();
     const attPct = s.att_pct ?? '—';
     const attColor = s.att_pct >= 90 ? 'var(--teal2)' : s.att_pct >= 75 ? 'var(--gold)' : 'var(--rose)';
-    const statusPillHtml = s.status==='active'?'<span class="pill pill-green">Activo</span>':s.status==='desertor'?'<span class="pill pill-orange">🏃 Desertor</span>':s.status==='transferred'?'<span class="pill pill-yellow">Trasladado</span>':'<span class="pill pill-red">Retirado</span>';
+    const statusPillHtml = s.status==='active'?'<span class="pill pill-green">Activo</span>':s.status==='transferred'?'<span class="pill pill-yellow">Trasladado</span>':'<span class="pill pill-red">Retirado</span>';
     return `<tr>
       <td>
         <div style="display:flex;align-items:center;gap:.65rem;">
@@ -2960,7 +2877,7 @@ async function saveStudentAdmin() {
       html += '<div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;padding:.9rem 1rem;min-width:185px;">';
       html += '<div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.3rem;"><span style="background:#dcfce7;color:#166534;font-size:.72rem;font-weight:700;padding:.1rem .45rem;border-radius:999px;border:1px solid #86efac;">SUBGRUPO</span></div>';
       html += '<div style="font-weight:700;color:var(--navy);margin-bottom:.25rem;">' + (c.name || 'Sin nombre') + '</div>';
-      html += '<div style="font-size:.78rem;color:var(--gray);margin-bottom:.25rem;" data-subgroup-count="' + c.id + '">' + gradeRef + (c.students_count||0) + ' miembros</div>';
+      html += '<div style="font-size:.78rem;color:var(--gray);margin-bottom:.25rem;">' + gradeRef + (c.students_count||0) + ' miembros</div>';
       html += '<div style="font-size:.78rem;color:var(--gray);margin-bottom:.6rem;">' + teacherList + '</div>';
       html += '<button class="btn btn-teal btn-sm" style="width:100%;font-size:.78rem;" onclick="admOpenSubgroupMembers(\'' + c.id + '\',\'' + (c.name||'Subgrupo').replace(/\'/g,"\\\'") + '\')">👥 Gestionar miembros</button>';
       html += '</div>';
@@ -3008,16 +2925,6 @@ async function saveStudentAdmin() {
     }
     if (studentsRes.ok) _admSmAllStudents = (studentsRes.data.students || []).filter(s => s.status === 'active');
     if (occupiedRes.ok) _admSmOccupiedIds = new Set(occupiedRes.data.occupied_ids || []);
-
-    // Poblar grados dinámicamente desde los estudiantes activos
-    const gradeEl = document.getElementById('adm-sm-grade-filter');
-    if (gradeEl) {
-      const grades = [...new Set(_admSmAllStudents.map(s => s.grade).filter(g => g != null))]
-        .sort((a, b) => Number(a) - Number(b));
-      gradeEl.innerHTML = '<option value="">Todos</option>'
-        + grades.map(g => `<option value="${g}">${gradeLbl(g)}</option>`).join('');
-    }
-
     admSmFilterChecklist();
   }
 
@@ -3053,13 +2960,15 @@ async function saveStudentAdmin() {
       admSmUpdateCount(); return;
     }
     el.innerHTML = list.map(s => {
-      const inOther = _admSmOccupiedIds.has(s.id);
-      const lbl     = s.last_name + ', ' + s.first_name + ' <span style="color:var(--gray);font-size:.72rem;">— ' + gradeLbl(s.grade) + s.course + '</span>';
-      const style   = 'display:flex;align-items:center;gap:.5rem;padding:.38rem .65rem;border-bottom:1px solid var(--border);cursor:pointer;';
-      const tag     = inOther ? ' <span style="background:#e0f2fe;color:#0369a1;font-size:.63rem;font-weight:700;padding:.1rem .3rem;border-radius:999px;">🔀 En otro subgrupo</span>' : '';
-      return '<label style="' + style + '" onmouseover="this.style.background=\'var(--light)\'" onmouseout="this.style.background=\'\'">'
+      const occ   = _admSmOccupiedIds.has(s.id);
+      const lbl   = s.last_name + ', ' + s.first_name + ' <span style="color:var(--gray);font-size:.72rem;">— ' + gradeLbl(s.grade) + s.course + '</span>';
+      const style = 'display:flex;align-items:center;gap:.5rem;padding:.38rem .65rem;border-bottom:1px solid var(--border);';
+      if (occ) return '<label style="' + style + 'opacity:.45;cursor:not-allowed;">'
+        + '<input type="checkbox" disabled>'
+        + '<span style="font-size:.81rem;">' + lbl + ' <span style="background:#fef9c3;color:#92400e;font-size:.63rem;font-weight:700;padding:.1rem .3rem;border-radius:999px;">ya en subgrupo</span></span></label>';
+      return '<label style="' + style + 'cursor:pointer;" onmouseover="this.style.background=\'var(--light)\'" onmouseout="this.style.background=\'\'">'
         + '<input type="checkbox" value="' + s.id + '" onchange="admSmUpdateCount()">'
-        + '<span style="font-size:.81rem;">' + lbl + tag + '</span></label>';
+        + '<span style="font-size:.81rem;">' + lbl + '</span></label>';
     }).join('');
     if (selAll) selAll.checked = false;
     admSmUpdateCount();
@@ -3092,9 +3001,7 @@ async function saveStudentAdmin() {
       document.getElementById('adm-sm-grade-filter').value = '';
       document.getElementById('adm-sm-course-filter').value = '';
       document.getElementById('adm-sm-course-filter').innerHTML = '<option value="">Todos</option>';
-      await admSmLoadAll();
-      const countEl = document.querySelector(`[data-subgroup-count="${_admCurrentSubgroupId}"]`);
-      if (countEl) countEl.textContent = countEl.textContent.replace(/\d+ miembros?/, _admSmMemberIds.size + ' miembro' + (_admSmMemberIds.size !== 1 ? 's' : ''));
+      admSmLoadAll();
     } else showToast(data?.error || 'Error al agregar', 'error');
   }
 
@@ -3103,12 +3010,8 @@ async function saveStudentAdmin() {
       method: 'DELETE',
       body: JSON.stringify({ subgroup_id: _admCurrentSubgroupId, student_id: studentId })
     });
-    if (ok) {
-      showToast('Miembro eliminado', 'success');
-      await admSmLoadAll();
-      const countEl = document.querySelector(`[data-subgroup-count="${_admCurrentSubgroupId}"]`);
-      if (countEl) countEl.textContent = countEl.textContent.replace(/\d+ miembros?/, _admSmMemberIds.size + ' miembro' + (_admSmMemberIds.size !== 1 ? 's' : ''));
-    } else showToast(data?.error || 'Error', 'error');
+    if (ok) { showToast('Miembro eliminado', 'success'); admSmLoadAll(); }
+    else showToast(data?.error || 'Error', 'error');
   }
 
 // ---- ATTENDANCE ----
@@ -3407,17 +3310,11 @@ async function loadAttFull() {
 
   window._attFullStudents = students;
 
-  const statusBadge = (st, info) => {
+  const statusBadge = st => {
     if (!st) return '<span style="color:#94a3b8;">—</span>';
     const bg = { P:'background:#dcfce7;color:#166534', A:'background:#fee2e2;color:#991b1b',
                  T:'background:#fff7ed;color:#b45309', PE:'background:#fefce8;color:#854d0e',
                  S:'background:#dcfce7;color:#166534' };
-    if (info && (info.teacher || info.subject)) {
-      const tip = [info.teacher ? `👨‍🏫 ${info.teacher}` : '', info.subject ? `📚 ${info.subject}` : ''].filter(Boolean).join('\n');
-      return `<span class="att-tip-wrap" style="position:relative;cursor:pointer;">
-        <span style="${bg[st]||'background:#f1f5f9;color:#475569'};border-radius:6px;padding:.1rem .45rem;font-size:.75rem;font-weight:700;">${st}</span>
-        <span class="att-tip">${tip.replace(/\n/g,'<br>')}</span></span>`;
-    }
     return `<span style="${bg[st]||'background:#f1f5f9;color:#475569'};border-radius:6px;padding:.1rem .45rem;font-size:.75rem;font-weight:700;">${st}</span>`;
   };
 
@@ -3425,7 +3322,7 @@ async function loadAttFull() {
   const gradeOpts = grades.map(g => `<option value="${g}">${gradeLbl(g)}</option>`).join('');
   const hourTh = hours.map(h => `<th style="text-align:center;white-space:nowrap;">Hora ${h}</th>`).join('');
   const rows = students.map(s => {
-    const hCells = hours.map(h => `<td style="text-align:center;">${statusBadge(s.by_hour[h], s.by_hour_info?.[h])}</td>`).join('');
+    const hCells = hours.map(h => `<td style="text-align:center;">${statusBadge(s.by_hour[h])}</td>`).join('');
     return `<tr data-grade="${s.grade}" data-course="${s.course_id}">
       <td>${s.name}</td>
       <td><strong>${gradeLbl(s.grade)}${s.course}</strong></td>
@@ -3890,8 +3787,8 @@ async function viewCase(id) {
           </div>
         </div>
 
-        <!-- Cambiar tipo/estado — para todos los casos no cerrados -->
-        ${c.status !== 'closed' ? `
+        <!-- Cambiar tipo/estado — solo para Tipo II y III; Tipo I es gestionado por el docente -->
+        ${c.status !== 'closed' && c.type !== 1 ? `
         <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;background:#fffbeb;border:1.5px solid #fde68a;border-radius:10px;padding:.65rem .85rem;">
           <span style="font-size:.8rem;font-weight:600;color:#92400e;flex-shrink:0;">⚙️ Acciones rápidas:</span>
           <select onchange="updateCaseStatus('${c.id}', this.value)" style="font-size:.8rem;padding:.3rem .6rem;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;">
@@ -3901,12 +3798,14 @@ async function viewCase(id) {
           </select>
           <select onchange="updateCaseType('${c.id}', parseInt(this.value))" style="font-size:.8rem;padding:.3rem .6rem;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;">
             <option value="">Reclasificar tipo…</option>
-            <option value="1" ${c.type===1?'disabled':''}>→ Tipo I</option>
             <option value="2" ${c.type===2?'disabled':''}>→ Tipo II</option>
             <option value="3" ${c.type===3?'disabled':''}>→ Tipo III</option>
           </select>
-          ${c.type === 1 ? `<span style="font-size:.77rem;color:#15803d;flex-basis:100%;margin-top:.1rem;">📋 Tipo I — seguimiento a cargo del docente.${c.status==='escalado'?' <strong>Escalado a Tipo II por el docente.</strong>':''}</span>` : ''}
-        </div>` : ''}
+        </div>` : (c.type === 1 && c.status !== 'closed' ? `
+        <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:.65rem .85rem;font-size:.82rem;color:#15803d;">
+          📋 <strong>Caso Tipo I</strong> — Seguimiento a cargo del docente. El coordinador recibe este caso como informativo.
+          ${c.status === 'escalado' ? ' <strong>· Escalado a Tipo II por el docente.</strong>' : ''}
+        </div>` : '')}
 
         <!-- Descripción -->
         <div>
@@ -4560,9 +4459,7 @@ function renderObserverList(students) {
     }).join('')}</tbody></table></div>`;
 }
 
-let _obsStudentId = null;
 async function viewStudentObs(studentId, name) {
-  _obsStudentId = studentId;
   document.getElementById('obs-modal-title').textContent = `📖 Observador — ${name}`;
   document.getElementById('obs-modal-body').innerHTML = '<div style="text-align:center;padding:2rem;color:var(--gray);">Cargando…</div>';
   openModal('modal-student-obs');
@@ -4635,113 +4532,6 @@ async function viewStudentObs(studentId, name) {
       </div>`).join('')}` : ''}
   `;
 }
-
-async function printObservador() {
-  if (!_obsStudentId) { showToast('No hay estudiante seleccionado', 'warning'); return; }
-  showToast('Generando observador…', 'info');
-  const { ok, data } = await fetchAPI('/raice/student-ficha?id=' + _obsStudentId + '&all_obs=1');
-  if (!ok || !data?.student) { showToast('Error al cargar datos', 'error'); return; }
-  _printObservadorWindow(data, _schoolConfig || {});
-}
-
-function _printObservadorWindow(d, cfg) {
-  const s = d.student, at = d.attendance || {}, obs = d.observations || [], cases = d.cases || [];
-  const schoolName = cfg.school_name || 'Institución Educativa';
-  const schoolLoc  = cfg.location || '';
-  const schoolLogo = cfg.logo_url
-    ? `<img src="${cfg.logo_url}" style="height:55px;object-fit:contain;" alt="logo">`
-    : `<div style="font-size:2.2rem;">🏫</div>`;
-  const raiceLogo = `<img src="${window.location.origin}/favicon.png" style="height:40px;object-fit:contain;" alt="RAICE" onerror="this.style.display='none'">`;
-  const now = new Date().toLocaleDateString('es-CO', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
-  const curso = s.grade ? `${s.grade}°${s.number || ''}` : (s.course || '—');
-
-  const typeLabel = { positive: 'Positiva', neutral: 'Neutra', negative: 'Negativa' };
-  const typeColor = { positive: '#16a34a', neutral: '#64748b', negative: '#dc2626' };
-  const statusLbl = { open: 'Abierto', tracking: 'En seguimiento', closed: 'Cerrado' };
-
-  const obsRows = obs.map(o => {
-    const fecha = new Date(o.created_at).toLocaleDateString('es-CO', { day:'numeric', month:'short', year:'numeric' });
-    return `<tr>
-      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${fecha}</td>
-      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;font-weight:600;color:${typeColor[o.type]||'#333'};">${typeLabel[o.type]||o.type}</td>
-      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${o.text || ''}</td>
-      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${o.teacher_name || '—'}</td>
-    </tr>`;
-  }).join('');
-
-  const casesRows = cases.map(c => {
-    const fecha = new Date(c.created_at).toLocaleDateString('es-CO', { day:'numeric', month:'short', year:'numeric' });
-    return `<tr>
-      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${fecha}</td>
-      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;text-align:center;">Tipo ${c.type}</td>
-      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${(c.description || '').substring(0, 120)}</td>
-      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;text-align:center;">${statusLbl[c.status]||c.status}</td>
-      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${c.teacher_name || '—'}</td>
-    </tr>`;
-  }).join('');
-
-  const w = window.open('', '_blank');
-  w.document.write(`<!DOCTYPE html><html><head><title>Observador — ${s.first_name} ${s.last_name}</title>
-  <style>
-    @page{size:A4;margin:15mm}
-    body{font-family:Arial,sans-serif;font-size:10pt;color:#1e293b;line-height:1.5;}
-    table{width:100%;border-collapse:collapse;}
-    th{background:#f1f5f9;border:1px solid #ccc;padding:5px 8px;font-size:8.5pt;text-transform:uppercase;letter-spacing:.03em;text-align:left;}
-    tr:nth-child(even){background:#fafbfc;}
-    .header{display:flex;align-items:center;justify-content:space-between;border-bottom:2.5px solid #1e293b;padding-bottom:.8rem;margin-bottom:1.2rem;}
-    .header-center{text-align:center;flex:1;}
-    .header-center h1{margin:0;font-size:13pt;font-weight:800;}
-    .header-center .loc{font-size:8.5pt;color:#555;margin-top:2px;}
-    .section-title{font-size:11pt;font-weight:800;color:#1e293b;margin:1.2rem 0 .5rem;padding-bottom:.3rem;border-bottom:1.5px solid #e2e8f0;}
-    .student-info{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem .8rem;margin-bottom:1rem;background:#f8fafc;padding:.7rem 1rem;border-radius:6px;border:1px solid #e2e8f0;}
-    .si-label{font-size:8pt;color:#64748b;text-transform:uppercase;letter-spacing:.04em;}
-    .si-value{font-size:10pt;font-weight:700;color:#1e293b;}
-    .att-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:.5rem;margin-bottom:1rem;}
-    .att-box{text-align:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:.5rem .3rem;}
-    .att-val{font-size:14pt;font-weight:800;}
-    .att-lbl{font-size:7.5pt;color:#64748b;text-transform:uppercase;}
-    .footer{text-align:center;margin-top:2rem;font-size:8pt;color:#999;border-top:1px solid #e2e8f0;padding-top:.5rem;}
-  </style></head><body>
-  <div class="header">
-    ${schoolLogo}
-    <div class="header-center">
-      <h1>${schoolName}</h1>
-      ${schoolLoc ? `<div class="loc">${schoolLoc}</div>` : ''}
-      <div style="font-size:10pt;font-weight:600;margin-top:6px;color:#0b7a75;">OBSERVADOR DEL ESTUDIANTE</div>
-    </div>
-    ${raiceLogo}
-  </div>
-
-  <div class="student-info">
-    <div><div class="si-label">Nombre completo</div><div class="si-value">${s.first_name} ${s.last_name}</div></div>
-    <div><div class="si-label">Curso</div><div class="si-value">${curso}</div></div>
-    <div><div class="si-label">Estado</div><div class="si-value">${s.status === 'inactive' ? 'Retirado' : 'Activo'}</div></div>
-  </div>
-
-  <div class="section-title">Resumen de asistencia</div>
-  <div class="att-grid">
-    <div class="att-box"><div class="att-val" style="color:${at.pct !== null && at.pct < 80 ? '#dc2626' : '#16a34a'};">${at.pct ?? '—'}%</div><div class="att-lbl">Asistencia</div></div>
-    <div class="att-box"><div class="att-val" style="color:#16a34a;">${at.present || 0}</div><div class="att-lbl">Presencias</div></div>
-    <div class="att-box"><div class="att-val" style="color:#dc2626;">${at.absent || 0}</div><div class="att-lbl">Ausencias</div></div>
-    <div class="att-box"><div class="att-val" style="color:#f59e0b;">${at.late || 0}</div><div class="att-lbl">Tardanzas</div></div>
-    <div class="att-box"><div class="att-val" style="color:#7c3aed;">${at.permit || 0}</div><div class="att-lbl">Permisos</div></div>
-  </div>
-  <div style="font-size:7.5pt;color:#94a3b8;text-align:center;margin-top:-.5rem;margin-bottom:.8rem;">* Estadísticas en horas de clase</div>
-
-  <div class="section-title">Observaciones (${obs.length})</div>
-  ${obs.length ? `<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Observación</th><th>Docente</th></tr></thead><tbody>${obsRows}</tbody></table>`
-    : '<div style="text-align:center;padding:1rem;color:#94a3b8;font-size:9pt;">Sin observaciones registradas</div>'}
-
-  <div class="section-title">Casos RAICE (${cases.length})</div>
-  ${cases.length ? `<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Descripción</th><th>Estado</th><th>Reportado por</th></tr></thead><tbody>${casesRows}</tbody></table>`
-    : '<div style="text-align:center;padding:1rem;color:#94a3b8;font-size:9pt;">Sin casos RAICE registrados</div>'}
-
-  <div class="footer">Generado el ${now} — Sistema RAICE</div>
-  </body></html>`);
-  w.document.close();
-  setTimeout(() => w.print(), 500);
-}
-
 // ---- TEACHERS ----
 async function loadTeachers() {
   const { ok, data } = await fetchAPI('/raice/teachers');
@@ -6017,8 +5807,7 @@ async function loadMapaEscolar() {
     const r = await fetchAPI('/raice/schedules/overview');
     if (r.ok) {
       _mapaData = r.data;
-      if (_mapaTab === 'ahora')  mapaRenderAhora();
-      if (_mapaTab === 'semana') mapaRenderSemana();
+      if (_mapaTab === 'ahora') mapaRenderAhora();
       document.getElementById('mapa-last-update').textContent =
         '↻ ' + new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' });
     }
@@ -6027,7 +5816,7 @@ async function loadMapaEscolar() {
 
 function mapaSetTab(tab) {
   _mapaTab = tab;
-  ['ahora','grupo','docente','semana'].forEach(t => {
+  ['ahora','grupo','docente'].forEach(t => {
     document.getElementById('mapa-panel-' + t).style.display = t === tab ? '' : 'none';
     const btn = document.getElementById('mapa-tab-' + t);
     if (btn) btn.className = t === tab ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm';
@@ -6035,7 +5824,6 @@ function mapaSetTab(tab) {
   if (tab === 'ahora')   mapaRenderAhora();
   if (tab === 'grupo')   mapaRenderGrupo();
   if (tab === 'docente') mapaRenderDocente();
-  if (tab === 'semana')  mapaRenderSemana();
 }
 
 // Devuelve el objeto del horario de timbres que corresponde a la hora actual (Colombia)
@@ -6112,13 +5900,11 @@ function mapaRenderAhora() {
     const slot  = activeMap[c.course_id];
     const label = c.type === 'subgroup' ? (c.course_name||'Subgrupo') : `${gradeLbl(c.grade)}${c.section||c.number}`;
     if (slot) {
-      const attOk    = slot.attendance_taken;
-      const cardBg   = attOk ? '#f0fdf4' : '#fefce8';
-      const borderClr = attOk ? '#16a34a' : '#d97706';
+      const attOk   = slot.attendance_taken;
       const attBg   = attOk ? '#dcfce7' : '#fef9c3';
       const attClr  = attOk ? '#166534' : '#92400e';
       const attTxt  = attOk ? '✅ Asistencia tomada' : '⏳ Pendiente';
-      return `<div style="background:${cardBg};border-radius:14px;padding:1rem;box-shadow:var(--shadow);border-left:4px solid ${borderClr};">
+      return `<div style="background:var(--white);border-radius:14px;padding:1rem;box-shadow:var(--shadow);border-left:4px solid var(--teal2);">
         <div style="font-family:'Fraunces',serif;font-size:1.15rem;font-weight:900;margin-bottom:.3rem;">${label}</div>
         <div style="font-size:.82rem;font-weight:600;margin-bottom:.1rem;">📖 ${slot.subject}</div>
         <div style="font-size:.78rem;color:var(--gray);margin-bottom:.45rem;">👩‍🏫 ${slot.teacher_name}</div>
@@ -6140,9 +5926,8 @@ function mapaPopulateSelectors() {
   const { schedules } = _mapaData;
 
   const grades = [...new Set(schedules.map(s => s.grade).filter(Boolean))].sort((a,b) => a-b);
-  const gradeOpts = grades.map(g => `<option value="${g}">${gradeLbl(g)}</option>`).join('');
-  document.getElementById('mapa-sel-grado').innerHTML = '<option value="">— Grado —</option>' + gradeOpts;
-  document.getElementById('mapa-sel-semana-grado').innerHTML = '<option value="">— Todos los grados —</option>' + gradeOpts;
+  document.getElementById('mapa-sel-grado').innerHTML =
+    '<option value="">— Grado —</option>' + grades.map(g => `<option value="${g}">${gradeLbl(g)}</option>`).join('');
 
   const teacherMap = {};
   schedules.forEach(s => { if (s.teacher_id) teacherMap[s.teacher_id] = s.teacher_name; });
@@ -6197,33 +5982,24 @@ function _mapaWeekGrid(slots, cellFn, bell_schedule, today_dow) {
     const timeStr = bell?.start_time ? `<div style="font-size:.65rem;color:var(--gray);margin-top:.1rem;">${bell.start_time.substring(0,5)}</div>` : '';
     const rowBg   = i%2 !== 0 ? 'background:var(--light);' : '';
     const cells   = [1,2,3,4,5].map(d => {
-      const slot   = slotMap[d]?.[h];
-      const isNow  = d === today_dow;
-      const isPast = d < today_dow;
-      let cellBg = isNow ? 'background:rgba(20,184,176,.06);' : '';
-      let badge  = '';
-      if (slot && (isNow || isPast)) {
-        if (slot.attendance_taken) {
-          cellBg = 'background:#dcfce7;';
-          badge  = '<div style="font-size:.6rem;color:#166534;margin-top:.2rem;">✅</div>';
-        } else if (isNow) {
-          cellBg = 'background:#fef9c3;';
-          badge  = '<div style="font-size:.6rem;color:#92400e;margin-top:.2rem;">⏳</div>';
-        } else {
-          cellBg = 'background:#fee2e2;';
-          badge  = '<div style="font-size:.6rem;color:#b91c1c;margin-top:.2rem;">✗</div>';
-        }
-      }
-      if (!slot) return `<td style="padding:.55rem .65rem;${cellBg}text-align:center;border:1px solid var(--border);"><span style="color:var(--border);font-size:.78rem;">—</span></td>`;
-      return `<td style="padding:.55rem .65rem;${cellBg}text-align:center;border:1px solid var(--border);">${cellFn(slot)}${badge}</td>`;
+      const slot  = slotMap[d]?.[h];
+      const isNow = d === today_dow;
+      const nowBg = isNow ? 'background:rgba(20,184,176,.06);' : '';
+      if (!slot) return `<td style="padding:.55rem .65rem;${nowBg}text-align:center;"><span style="color:var(--border);font-size:.78rem;">—</span></td>`;
+      const attBadge = isNow
+        ? (slot.attendance_taken
+          ? '<div style="font-size:.62rem;color:#166534;font-weight:700;margin-top:.2rem;">✅</div>'
+          : '<div style="font-size:.62rem;color:#b45309;font-weight:700;margin-top:.2rem;">⏳</div>')
+        : '';
+      return `<td style="padding:.55rem .65rem;${nowBg}text-align:center;">${cellFn(slot)}${attBadge}</td>`;
     }).join('');
-    return `<tr style="${rowBg}">
-      <td style="padding:.55rem .7rem;font-size:.78rem;font-weight:700;white-space:nowrap;border:1px solid var(--border);">${ORD[h]||h+'ª'}${timeStr}</td>
+    return `<tr style="border-top:1px solid var(--border);${rowBg}">
+      <td style="padding:.55rem .7rem;font-size:.78rem;font-weight:700;white-space:nowrap;">${ORD[h]||h+'ª'}${timeStr}</td>
       ${cells}
     </tr>`;
   }).join('');
 
-  return `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;min-width:480px;border-radius:14px;overflow:hidden;border:1px solid var(--border);">
+  return `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;min-width:480px;border-radius:14px;overflow:hidden;">
     <thead><tr style="background:var(--navy);color:#fff;">
       <th style="padding:.55rem .7rem;font-size:.73rem;font-weight:700;text-align:left;">Hora</th>${headCells}
     </tr></thead>
@@ -6239,10 +6015,7 @@ function mapaRenderGrupo() {
   const slots = _mapaData.schedules.filter(s => s.course_id === courseId);
   el.innerHTML = _mapaWeekGrid(
     slots,
-    s => {
-      const lbl = s.subject || (s.type === 'subgroup' ? (s.course_name || 'Clase') : '—');
-      return `<div style="font-size:.8rem;font-weight:600;color:var(--navy);">${lbl}</div><div style="font-size:.73rem;color:var(--gray);">${s.teacher_name}</div>`;
-    },
+    s => `<div style="font-size:.8rem;font-weight:600;color:var(--navy);">${s.subject}</div><div style="font-size:.73rem;color:var(--gray);">${s.teacher_name}</div>`,
     _mapaData.bell_schedule,
     _mapaData.today_dow
   );
@@ -6258,102 +6031,11 @@ function mapaRenderDocente() {
     slots,
     s => {
       const lbl = s.type === 'subgroup' ? (s.course_name||'Subgrupo') : `${gradeLbl(s.grade)}${s.section||s.number}`;
-      return `<div style="font-size:.8rem;font-weight:700;color:var(--navy);">${lbl}</div><div style="font-size:.73rem;color:var(--gray);">${s.subject || ''}</div>`;
+      return `<div style="font-size:.8rem;font-weight:700;color:var(--navy);">${lbl}</div><div style="font-size:.73rem;color:var(--gray);">${s.subject}</div>`;
     },
     _mapaData.bell_schedule,
     _mapaData.today_dow
   );
-}
-
-function mapaRenderSemana() {
-  if (!_mapaData) return;
-  const { schedules, bell_schedule, today_dow } = _mapaData;
-  const el = document.getElementById('mapa-semana-grid');
-  const gradeFilter = document.getElementById('mapa-sel-semana-grado')?.value || '';
-
-  const slots = gradeFilter
-    ? schedules.filter(s => String(s.grade) === gradeFilter)
-    : schedules;
-
-  if (!slots.length) {
-    el.innerHTML = '<div style="color:var(--gray);padding:1rem 0;">Sin horario cargado.</div>';
-    return;
-  }
-
-  // day_of_week → class_hour → [slots]
-  const slotMap = {};
-  slots.forEach(s => {
-    if (!slotMap[s.day_of_week]) slotMap[s.day_of_week] = {};
-    if (!slotMap[s.day_of_week][s.class_hour]) slotMap[s.day_of_week][s.class_hour] = [];
-    slotMap[s.day_of_week][s.class_hour].push(s);
-  });
-
-  const DAYS   = {1:'Lunes',2:'Martes',3:'Miércoles',4:'Jueves',5:'Viernes'};
-  const ORD    = ['','1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª','10ª'];
-  const bellMap = {};
-  bell_schedule.forEach(b => bellMap[b.class_hour] = b);
-  const hours = bell_schedule.length
-    ? bell_schedule.map(b => b.class_hour)
-    : [...new Set(slots.map(s => s.class_hour))].sort((a,b) => a-b);
-
-  const headCells = [1,2,3,4,5].map(d =>
-    `<th style="padding:.55rem .65rem;font-size:.73rem;font-weight:700;text-align:center;min-width:130px;${d===today_dow?'background:rgba(20,184,176,.25);':''}">${DAYS[d]}</th>`
-  ).join('');
-
-  const rows = hours.map((h, i) => {
-    const bell    = bellMap[h];
-    const timeStr = bell?.start_time ? `<div style="font-size:.65rem;color:var(--gray);margin-top:.1rem;">${bell.start_time.substring(0,5)}</div>` : '';
-    const rowBg   = i%2 !== 0 ? 'background:var(--light);' : '';
-
-    const cells = [1,2,3,4,5].map(d => {
-      const isNow    = d === today_dow;
-      const isPast   = d < today_dow;
-      const daySlots = slotMap[d]?.[h] || [];
-
-      let cellBg = isNow ? 'background:rgba(20,184,176,.06);' : '';
-      if (daySlots.length && (isNow || isPast)) {
-        if (daySlots.every(s => s.attendance_taken)) {
-          cellBg = 'background:#dcfce7;';
-        } else if (isNow) {
-          cellBg = 'background:#fef9c3;';
-        } else {
-          cellBg = 'background:#fee2e2;';
-        }
-      }
-
-      if (!daySlots.length) return `<td style="padding:.4rem .5rem;${cellBg}vertical-align:top;border:1px solid var(--border);"></td>`;
-
-      const items = daySlots.map(s => {
-        const lbl          = s.type === 'subgroup' ? (s.course_name||'Subgrupo') : `${gradeLbl(s.grade)}${s.section||s.number}`;
-        const teacherShort = s.teacher_name.split(' ').slice(0,2).join(' ');
-        let badge = '';
-        if ((isNow || isPast) && s.attendance_taken) badge = '<span style="font-size:.6rem;">✅</span>';
-        else if (isNow)                              badge = '<span style="font-size:.6rem;">⏳</span>';
-        else if (isPast)                             badge = '<span style="font-size:.6rem;color:#b91c1c;">✗</span>';
-        return `<div style="background:#fff;border-radius:6px;padding:.25rem .4rem;margin-bottom:.2rem;font-size:.68rem;line-height:1.4;border:1px solid rgba(0,0,0,.12);">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.2rem;">
-            <span style="font-weight:700;color:var(--navy);">${lbl}</span>${badge}
-          </div>
-          <div style="color:#555;font-size:.65rem;">${s.subject || ''}</div>
-          <div style="color:var(--gray);font-size:.63rem;">${teacherShort}</div>
-        </div>`;
-      }).join('');
-
-      return `<td style="padding:.4rem .5rem;${cellBg}vertical-align:top;border:1px solid var(--border);">${items}</td>`;
-    }).join('');
-
-    return `<tr style="${rowBg}">
-      <td style="padding:.55rem .7rem;font-size:.78rem;font-weight:700;white-space:nowrap;border:1px solid var(--border);">${ORD[h]||h+'ª'}${timeStr}</td>
-      ${cells}
-    </tr>`;
-  }).join('');
-
-  el.innerHTML = `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;min-width:600px;border:1px solid var(--border);border-radius:14px;overflow:hidden;">
-    <thead><tr style="background:var(--navy);color:#fff;">
-      <th style="padding:.55rem .7rem;font-size:.73rem;font-weight:700;text-align:left;white-space:nowrap;">Hora</th>${headCells}
-    </tr></thead>
-    <tbody>${rows}</tbody>
-  </table></div>`;
 }
 
 // =====================================================
@@ -7685,31 +7367,26 @@ document.addEventListener('visibilitychange', () => {
     }
 
     body.innerHTML = list.map(e => {
-      const resolved   = e.type === 'evasion_confirmed' || e.type === 'evasion_dismissed';
-      const retracted  = e.type === 'evasion_retracted';
+      const resolved = e.type === 'evasion_confirmed' || e.type === 'evasion_dismissed';
       const resolvedLabel = e.type === 'evasion_confirmed'
         ? '<span style="background:#dcfce7;color:#16a34a;border-radius:6px;padding:.15rem .55rem;font-size:.72rem;font-weight:700;">✅ Confirmada — Caso abierto</span>'
         : e.type === 'evasion_dismissed'
         ? '<span style="background:#f1f5f9;color:#64748b;border-radius:6px;padding:.15rem .55rem;font-size:.72rem;font-weight:700;">🚫 Descartada</span>'
-        : e.type === 'evasion_retracted'
-        ? '<span style="background:#dcfce7;color:#15803d;border-radius:6px;padding:.15rem .55rem;font-size:.72rem;font-weight:700;">✅ Asistencia corregida por el docente</span>'
         : '';
-      const borderColor = retracted ? '#e2e8f0' : resolved ? 'var(--border)' : '#fca5a5';
-      const bgColor     = retracted ? '#f8fafc'  : resolved ? 'var(--light)'  : '#fff5f5';
       return `
-      <div style="padding:.85rem 1rem;border:1.5px solid ${borderColor};border-radius:12px;background:${bgColor};margin-bottom:.6rem;${retracted?'opacity:.8;':''}">
+      <div style="padding:.85rem 1rem;border:1.5px solid ${resolved?'var(--border)':'#fca5a5'};border-radius:12px;background:${resolved?'var(--light)':'#fff5f5'};margin-bottom:.6rem;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;flex-wrap:wrap;">
           <div style="flex:1;min-width:0;">
-            <div style="font-weight:700;color:${retracted?'var(--gray)':'var(--navy)'};${retracted?'text-decoration:line-through;':''}">🏃 ${e.student_name||e.title||'—'}
-              ${e.grade ? `<span style="font-size:.78rem;font-weight:600;background:${retracted?'#e2e8f0':'#fee2e2'};color:${retracted?'var(--gray)':'#b91c1c'};padding:.1rem .45rem;border-radius:6px;margin-left:.3rem;">${gradeLbl(e.grade)}${e.course||''}</span>` : ''}
+            <div style="font-weight:700;color:var(--navy);">🏃 ${e.student_name||e.title||'—'}
+              ${e.grade ? `<span style="font-size:.78rem;font-weight:600;background:#fee2e2;color:#b91c1c;padding:.1rem .45rem;border-radius:6px;margin-left:.3rem;">${gradeLbl(e.grade)}${e.course||''}</span>` : ''}
             </div>
             <div style="font-size:.8rem;color:var(--gray);margin:.15rem 0;">
               👤 ${e.teacher_name||e.reported_by||'—'} · 📅 ${e.date||date}
             </div>
-            <div style="font-size:.82rem;color:${retracted?'var(--gray)':'#b91c1c'};">${e.description||e.body||'Posible evasión detectada'}</div>
+            <div style="font-size:.82rem;color:#b91c1c;">${e.description||e.body||'Posible evasión detectada'}</div>
           </div>
           <div style="display:flex;flex-direction:column;gap:.35rem;align-items:flex-end;flex-shrink:0;">
-            ${(resolved || retracted) ? resolvedLabel : `
+            ${resolved ? resolvedLabel : `
               <button class="btn btn-sm" style="background:#dcfce7;color:#15803d;border:1.5px solid #86efac;border-radius:8px;padding:.3rem .75rem;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap;"
                 onclick="openConfirmEvasion('${e.id}','${(e.student_id||'').replace(/'/g,"\\'")}','${(e.student_name||'').replace(/'/g,"\\'")}','${e.grade||''}','${e.course||''}')">
                 ✅ Confirmar
@@ -7914,7 +7591,6 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
       const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-      reg.update();
       // Detectar nueva versión disponible
       reg.addEventListener('updatefound', () => {
         const newSW = reg.installing;
@@ -8550,12 +8226,10 @@ if (!navigator.onLine) showOfflineBanner();
                   ? '<span style="background:#dcfce7;color:#16a34a;border-radius:6px;padding:.12rem .45rem;font-size:.7rem;font-weight:700;">✅ Confirmada</span>'
                   : e.type==='evasion_dismissed'
                   ? '<span style="background:#f1f5f9;color:#64748b;border-radius:6px;padding:.12rem .45rem;font-size:.7rem;font-weight:700;">🚫 Descartada</span>'
-                  : e.type==='evasion_retracted'
-                  ? '<span style="background:#dcfce7;color:#15803d;border-radius:6px;padding:.12rem .45rem;font-size:.7rem;font-weight:700;">✅ Corregida</span>'
                   : '<span style="background:#fff7ed;color:#c2410c;border-radius:6px;padding:.12rem .45rem;font-size:.7rem;font-weight:700;">⏳ Pendiente</span>';
-                return `<tr style="${e.type==='evasion_retracted'?'opacity:.7;':''}">
+                return `<tr>
                   <td>${fmtDate(e.date||e.created_at?.slice(0,10))}</td>
-                  <td style="font-weight:600;${e.type==='evasion_retracted'?'text-decoration:line-through;color:var(--gray);':''}">${e.student_name||e.name||'—'}</td>
+                  <td style="font-weight:600;">${e.student_name||e.name||'—'}</td>
                   <td style="color:var(--gray);font-size:.8rem;">${e.grade!=null?gradeLbl(e.grade)+e.course:''}</td>
                   <td style="font-size:.8rem;">${e.teacher_name||e.by_name||'—'}</td>
                   <td style="font-size:.8rem;">${(e.description||e.body||'Evasión detectada').substring(0,60)}</td>
@@ -9328,9 +9002,6 @@ if (!navigator.onLine) showOfflineBanner();
       return;
     }
 
-    const groups = groupExcusas(excusas);
-    _excusaGroups = {};
-
     listEl.innerHTML = `
       <table style="width:100%;border-collapse:collapse;">
         <thead>
@@ -9343,40 +9014,31 @@ if (!navigator.onLine) showOfflineBanner();
           </tr>
         </thead>
         <tbody>
-          ${groups.map((group, idx) => {
-            const first   = group.excusas[0];
-            const last    = group.excusas[group.excusas.length - 1];
-            const st      = first.raice_students;
-            const name    = st ? `${st.first_name} ${st.last_name}` : '—';
-            const gradeStr = st ? `${gradeLbl(st.grade)}${st.course}` : '';
-            const count   = group.excusas.length;
-            const isRange = count > 1;
-            const horas   = first.horas && first.horas.length ? `Horas ${first.horas.join(', ')}` : 'Todas las horas';
-            const horasBg  = first.horas && first.horas.length ? '#f0fdf4' : '#eff6ff';
-            const horasBdr = first.horas && first.horas.length ? '#86efac' : '#bfdbfe';
-            const horasClr = first.horas && first.horas.length ? '#166534' : '#1e40af';
-            const dateHtml = isRange
-              ? `<div style="font-size:.85rem;">${first.date} <span style="color:var(--gray);">→</span> ${last.date}</div><span style="display:inline-block;margin-top:.25rem;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:999px;padding:.1rem .5rem;font-size:.72rem;color:#64748b;font-weight:600;">${count} días</span>`
-              : `<span style="font-size:.85rem;">${first.date}</span>`;
-            let deleteBtn;
-            if (isRange) {
-              const gk = `g_${idx}`;
-              _excusaGroups[gk] = { items: group.excusas.map(e => ({ id: e.id, date: e.date })), firstDate: first.date, lastDate: last.date, count };
-              deleteBtn = `<button onclick="showExcusaRangeDeleteModal('${gk}')" style="background:#fee2e2;border:1px solid #fecaca;color:#b91c1c;border-radius:8px;padding:.3rem .65rem;font-size:.76rem;cursor:pointer;">🗑️</button>`;
-            } else {
-              deleteBtn = `<button onclick="deleteAdminExcusa('${first.id}')" style="background:#fee2e2;border:1px solid #fecaca;color:#b91c1c;border-radius:8px;padding:.3rem .65rem;font-size:.76rem;cursor:pointer;">🗑️</button>`;
-            }
+          ${excusas.map(e => {
+            const st = e.raice_students;
+            const name = st ? `${st.first_name} ${st.last_name}` : '—';
+            const grade = st ? `${gradeLbl(st.grade)}${st.course}` : '';
+            const horas = e.horas && e.horas.length
+              ? `Horas ${e.horas.join(', ')}`
+              : 'Todas las horas';
             return `<tr style="border-bottom:1px solid #f1f5f9;">
               <td style="padding:.65rem 1rem;">
                 <div style="font-weight:600;font-size:.87rem;">${name}</div>
-                <div style="font-size:.76rem;color:var(--gray);">${gradeStr}</div>
+                <div style="font-size:.76rem;color:var(--gray);">${grade}</div>
               </td>
-              <td style="padding:.65rem 1rem;">${dateHtml}</td>
+              <td style="padding:.65rem 1rem;font-size:.85rem;">${e.date || '—'}</td>
               <td style="padding:.65rem 1rem;">
-                <span style="background:${horasBg};border:1px solid ${horasBdr};color:${horasClr};border-radius:999px;padding:.15rem .6rem;font-size:.76rem;font-weight:600;">${horas}</span>
+                <span style="background:${e.horas && e.horas.length ? '#f0fdf4' : '#eff6ff'};border:1px solid ${e.horas && e.horas.length ? '#86efac' : '#bfdbfe'};color:${e.horas && e.horas.length ? '#166534' : '#1e40af'};border-radius:999px;padding:.15rem .6rem;font-size:.76rem;font-weight:600;">
+                  ${horas}
+                </span>
               </td>
-              <td style="padding:.65rem 1rem;font-size:.83rem;color:#374151;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${first.motivo}</td>
-              <td style="padding:.65rem 1rem;">${deleteBtn}</td>
+              <td style="padding:.65rem 1rem;font-size:.83rem;color:#374151;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.motivo}</td>
+              <td style="padding:.65rem 1rem;">
+                <button onclick="deleteAdminExcusa('${e.id}')"
+                  style="background:#fee2e2;border:1px solid #fecaca;color:#b91c1c;border-radius:8px;padding:.3rem .65rem;font-size:.76rem;cursor:pointer;">
+                  🗑️
+                </button>
+              </td>
             </tr>`;
           }).join('')}
         </tbody>
@@ -9622,101 +9284,6 @@ if (!navigator.onLine) showOfflineBanner();
     await fetchAPI('/raice/excusas/cleanup-orphaned', { method: 'DELETE' });
   }
 
-  let _excusaGroups = {};
-
-  function groupExcusas(excusas) {
-    if (!excusas.length) return [];
-    const horasKey = e => JSON.stringify((e.horas || []).sort((a, b) => a - b));
-    const sorted = [...excusas].sort((a, b) => {
-      if (a.student_id !== b.student_id) return a.student_id < b.student_id ? -1 : 1;
-      if ((a.motivo||'') !== (b.motivo||'')) return (a.motivo||'') < (b.motivo||'') ? -1 : 1;
-      return a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
-    });
-    const groups = [];
-    let current = null;
-    for (const exc of sorted) {
-      if (current) {
-        const lastExc     = current.excusas[current.excusas.length - 1];
-        const sameStudent = exc.student_id === current.excusas[0].student_id;
-        const sameMotivo  = (exc.motivo||'') === (current.excusas[0].motivo||'');
-        const sameHoras   = horasKey(exc) === horasKey(lastExc);
-        if (sameStudent && sameMotivo && sameHoras) {
-          const prev = new Date(lastExc.date + 'T12:00:00');
-          const curr = new Date(exc.date     + 'T12:00:00');
-          const diff = Math.round((curr - prev) / 86400000);
-          // Consecutive: next calendar day OR Monday after Friday
-          if (diff === 1 || (diff === 3 && prev.getDay() === 5)) {
-            current.excusas.push(exc);
-            continue;
-          }
-        }
-      }
-      if (current) groups.push(current);
-      current = { excusas: [exc] };
-    }
-    if (current) groups.push(current);
-    // Sort groups by most recent date descending
-    groups.sort((a, b) => {
-      const aD = a.excusas[a.excusas.length - 1].date;
-      const bD = b.excusas[b.excusas.length - 1].date;
-      return bD > aD ? 1 : bD < aD ? -1 : 0;
-    });
-    return groups;
-  }
-
-  function showExcusaRangeDeleteModal(gk) {
-    const g = _excusaGroups[gk];
-    if (!g) return;
-    const checkboxRows = g.items.map(item =>
-      `<label style="display:flex;align-items:center;gap:.6rem;padding:.35rem .5rem;border-radius:8px;cursor:pointer;font-size:.84rem;">
-        <input type="checkbox" data-id="${item.id}" checked style="width:15px;height:15px;cursor:pointer;accent-color:var(--teal2);">
-        <span>${item.date}</span>
-      </label>`
-    ).join('');
-    const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
-    overlay.innerHTML = `<div style="background:#fff;border-radius:16px;padding:1.5rem;max-width:360px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.2);">
-      <div style="font-weight:700;font-size:1rem;margin-bottom:.15rem;">Selecciona los días a eliminar</div>
-      <div style="font-size:.8rem;color:var(--gray);margin-bottom:1rem;">${g.firstDate} → ${g.lastDate} · ${g.count} días</div>
-      <div id="_exc-check-list" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;padding:.35rem .5rem;margin-bottom:1rem;">
-        ${checkboxRows}
-      </div>
-      <div style="display:flex;gap:.6rem;flex-direction:column;">
-        <button id="_exc-del-sel" style="background:#fee2e2;border:1px solid #fecaca;color:#b91c1c;border-radius:10px;padding:.65rem 1rem;font-size:.85rem;font-weight:600;cursor:pointer;">
-          🗑️ Eliminar seleccionadas (${g.count})
-        </button>
-        <button id="_exc-del-cancel" style="background:var(--light);border:1px solid var(--border);color:#374151;border-radius:10px;padding:.65rem 1rem;font-size:.85rem;cursor:pointer;">
-          Cancelar
-        </button>
-      </div>
-    </div>`;
-    document.body.appendChild(overlay);
-    const checkList = overlay.querySelector('#_exc-check-list');
-    const delBtn    = overlay.querySelector('#_exc-del-sel');
-    function updateBtn() {
-      const n = checkList.querySelectorAll('input:checked').length;
-      delBtn.textContent = n > 0 ? `🗑️ Eliminar seleccionadas (${n})` : 'Selecciona al menos un día';
-      delBtn.disabled      = n === 0;
-      delBtn.style.opacity = n === 0 ? '.5' : '1';
-      delBtn.style.cursor  = n === 0 ? 'not-allowed' : 'pointer';
-    }
-    checkList.addEventListener('change', updateBtn);
-    delBtn.onclick = async () => {
-      const ids = [...checkList.querySelectorAll('input:checked')].map(cb => cb.dataset.id);
-      if (!ids.length) return;
-      overlay.remove();
-      await deleteAdminExcusaRangeAll(ids);
-    };
-    overlay.querySelector('#_exc-del-cancel').onclick = () => overlay.remove();
-    overlay.addEventListener('click', ev => { if (ev.target === overlay) overlay.remove(); });
-  }
-
-  async function deleteAdminExcusaRangeAll(ids) {
-    await Promise.all(ids.map(id => fetchAPI('/raice/excusas', { method: 'DELETE', body: JSON.stringify({ id }) })));
-    showToast(`${ids.length} excusa${ids.length > 1 ? 's' : ''} eliminada${ids.length > 1 ? 's' : ''}`, 'success');
-    loadAdminExcusasList();
-  }
-
   async function deleteAdminExcusa(id) {
     if (!confirm('¿Anular esta excusa?')) return;
     const { ok } = await fetchAPI('/raice/excusas', {
@@ -9881,6 +9448,9 @@ if (!navigator.onLine) showOfflineBanner();
         <select id="adm-sm-grade-filter" onchange="admSmOnGradeChange()"
           style="padding:.42rem .6rem;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:.82rem;">
           <option value="">Todos</option>
+          <option value="6">6°</option><option value="7">7°</option>
+          <option value="8">8°</option><option value="9">9°</option>
+          <option value="10">10°</option><option value="11">11°</option>
         </select>
         <select id="adm-sm-course-filter" onchange="admSmFilterChecklist()"
           style="padding:.42rem .6rem;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:.82rem;">
@@ -9941,15 +9511,6 @@ if (!navigator.onLine) showOfflineBanner();
         </div>
       </div>
 
-      <!-- Formato de nombre -->
-      <div>
-        <label style="font-weight:600;font-size:.82rem;color:var(--navy);display:block;margin-bottom:.45rem;">Formato de nombre</label>
-        <select id="ps-name-format" style="width:100%;padding:.35rem .6rem;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;">
-          <option value="last_first">Apellidos y Nombres (SANDOVAL, JOHN)</option>
-          <option value="first_last">Nombres y Apellidos (JOHN SANDOVAL)</option>
-        </select>
-      </div>
-
       <!-- Orientación -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;">
         <div class="form-group" style="margin:0;">
@@ -9962,7 +9523,7 @@ if (!navigator.onLine) showOfflineBanner();
         <!-- Filas en blanco -->
         <div class="form-group" style="margin:0;">
           <label>Filas en blanco al final <span style="font-weight:400;color:var(--gray);font-size:.78rem;">(invitados)</span></label>
-          <input type="number" id="ps-blank-rows" value="0" min="0" max="20"
+          <input type="number" id="ps-blank-rows" value="3" min="0" max="20"
             style="width:90px;padding:.35rem .6rem;border:1.5px solid var(--border);border-radius:8px;">
         </div>
       </div>
@@ -10127,9 +9688,8 @@ if (!navigator.onLine) showOfflineBanner();
     const inclRector  = document.getElementById('ps-role-rector')?.checked;
     const inclAdmin   = document.getElementById('ps-role-admin')?.checked;
     const inclTeacher = document.getElementById('ps-role-teacher')?.checked;
-    const blankRows   = Math.max(0, Math.min(20, parseInt(document.getElementById('ps-blank-rows').value) || 0));
+    const blankRows   = Math.max(0, Math.min(20, parseInt(document.getElementById('ps-blank-rows').value) || 3));
     const orient      = document.getElementById('ps-orient')?.value || 'landscape';
-    const nameFormat  = document.getElementById('ps-name-format')?.value || 'last_first';
 
     if (!inclRector && !inclAdmin && !inclTeacher) {
       showToast('Selecciona al menos un tipo de personal', 'warning'); return;
@@ -10178,28 +9738,27 @@ if (!navigator.onLine) showOfflineBanner();
     ].filter(g => g.members.length);
 
     let rowNum = 0;
-    const nameColLabel = nameFormat === 'first_last' ? 'NOMBRES Y APELLIDOS' : 'APELLIDOS Y NOMBRES';
     const buildRows = (members) => members.map(u => {
       rowNum++;
-      const name = nameFormat === 'first_last'
-        ? `${(u.first_name||'').toUpperCase()} ${(u.last_name||'').toUpperCase()}`
-        : `${(u.last_name||'').toUpperCase()}, ${(u.first_name||'').toUpperCase()}`;
+      const name = `${(u.last_name||'').toUpperCase()}, ${(u.first_name||'').toUpperCase()}`;
       const sedeCell = u.role === 'rector'
         ? 'Institución'
         : (u.role === 'admin' && u.sede_names && u.sede_names.length
             ? u.sede_names.join(' · ')
             : (u.sede_name || '—'));
-      return `<tr style="height:30px;">
-        <td style="border:1px solid #000;text-align:center;font-size:8pt;padding:2px 3px;">${rowNum}</td>
-        <td style="border:1px solid #000;padding:2px 7px;font-size:8.5pt;">${name}</td>
-        <td style="border:1px solid #000;padding:2px 6px;font-size:8pt;text-align:center;">${sedeCell}</td>
+      const subject = u.subject || '—';
+      return `<tr style="height:26px;">
+        <td style="border:1px solid #000;text-align:center;font-size:8pt;padding:1px 3px;">${rowNum}</td>
+        <td style="border:1px solid #000;padding:1px 7px;font-size:8.5pt;">${name}</td>
+        <td style="border:1px solid #000;padding:1px 6px;font-size:8pt;text-align:center;">${sedeCell}</td>
+        <td style="border:1px solid #000;padding:1px 6px;font-size:8pt;text-align:center;">${subject}</td>
         <td style="border:1px solid #000;"></td>
       </tr>`;
     }).join('');
 
     const buildGroup = (g) => `
       <tr style="background:#e8e8e8;">
-        <td colspan="4" style="border:1px solid #000;padding:3px 8px;font-size:8pt;font-weight:900;letter-spacing:.06em;">
+        <td colspan="5" style="border:1px solid #000;padding:3px 8px;font-size:8pt;font-weight:900;letter-spacing:.06em;">
           — ${g.label} (${g.members.length}) —
         </td>
       </tr>
@@ -10207,8 +9766,9 @@ if (!navigator.onLine) showOfflineBanner();
 
     const blankRowsHtml = Array.from({length: blankRows}, () => {
       rowNum++;
-      return `<tr style="height:30px;">
+      return `<tr style="height:26px;">
         <td style="border:1px solid #000;text-align:center;font-size:8pt;">${rowNum}</td>
+        <td style="border:1px solid #000;"></td>
         <td style="border:1px solid #000;"></td>
         <td style="border:1px solid #000;"></td>
         <td style="border:1px solid #000;"></td>
@@ -10224,7 +9784,6 @@ if (!navigator.onLine) showOfflineBanner();
   * { box-sizing: border-box; }
   body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
   table { border-collapse: collapse; }
-  table.staff-tbl td:last-child, table.staff-tbl th:last-child { border-right: 2px solid #000 !important; }
   tr { page-break-inside: avoid; }
   .underline { display:inline-block; border-bottom:1px solid #000; }
 </style>
@@ -10237,7 +9796,7 @@ if (!navigator.onLine) showOfflineBanner();
     <td style="vertical-align:middle;text-align:center;padding:0 10px;">
       <div style="font-weight:900;font-size:13pt;line-height:1.3;">${schoolName}</div>
       ${schoolLoc ? `<div style="font-size:8.5pt;color:#555;">${schoolLoc}</div>` : ''}
-      <div style="font-weight:900;font-size:10pt;margin-top:3px;letter-spacing:.04em;white-space:nowrap;">PLANILLA DE ASISTENCIA — PERSONAL DOCENTE Y DIRECTIVO</div>
+      <div style="font-weight:900;font-size:11pt;margin-top:3px;letter-spacing:.04em;">PLANILLA DE ASISTENCIA — PERSONAL DOCENTE Y DIRECTIVO</div>
       <div style="font-size:8pt;color:#444;">Sedes: ${sedeLabel} &nbsp;·&nbsp; Generado: ${today}</div>
     </td>
     <td style="width:60px;vertical-align:middle;text-align:center;">${raiceLogo}</td>
@@ -10273,20 +9832,21 @@ if (!navigator.onLine) showOfflineBanner();
 </table>
 
 <!-- ══ TABLA DE ASISTENCIA ══ -->
-<table class="staff-tbl" style="width:100%;">
+<table style="width:100%;">
   <thead>
     <tr style="background:#d0d0d0;">
-      <th style="border:1px solid #000;padding:4px 3px;font-size:8pt;width:5%;text-align:center;">N°</th>
-      <th style="border:1px solid #000;padding:4px 7px;font-size:8pt;width:42%;text-align:left;">${nameColLabel}</th>
-      <th style="border:1px solid #000;padding:4px 6px;font-size:8pt;width:18%;text-align:center;">SEDE</th>
-      <th style="border:1px solid #000;padding:4px 6px;font-size:8pt;width:35%;text-align:center;">FIRMA</th>
+      <th style="border:1px solid #000;padding:4px 3px;font-size:8pt;width:32px;text-align:center;">N°</th>
+      <th style="border:1px solid #000;padding:4px 7px;font-size:8pt;text-align:left;">APELLIDOS Y NOMBRES</th>
+      <th style="border:1px solid #000;padding:4px 6px;font-size:8pt;width:120px;text-align:center;">SEDE</th>
+      <th style="border:1px solid #000;padding:4px 6px;font-size:8pt;width:90px;text-align:center;">ASIGNATURA</th>
+      <th style="border:1px solid #000;padding:4px 6px;font-size:8pt;width:160px;text-align:center;">FIRMA</th>
     </tr>
   </thead>
   <tbody>
     ${groups.map(buildGroup).join('')}
     ${blankRows > 0 ? `
     <tr style="background:#f0f0f0;">
-      <td colspan="4" style="border:1px solid #000;padding:3px 8px;font-size:8pt;font-weight:700;font-style:italic;">
+      <td colspan="5" style="border:1px solid #000;padding:3px 8px;font-size:8pt;font-weight:700;font-style:italic;">
         — INVITADOS / OTROS —
       </td>
     </tr>
@@ -10326,7 +9886,7 @@ if (!navigator.onLine) showOfflineBanner();
   // =====================================================
   // IMPRIMIR LISTA DE ESTUDIANTES
   // =====================================================
-  async function openPrintListModal() {
+  function openPrintListModal() {
     if (!allStudents.length) { showToast('Carga los estudiantes primero', 'warning'); return; }
     // Agrupar cursos por grado (solo activos)
     const byGrade = {};
@@ -10334,7 +9894,8 @@ if (!navigator.onLine) showOfflineBanner();
       if (!byGrade[s.grade]) byGrade[s.grade] = new Set();
       byGrade[s.grade].add(s.course);
     });
-    let html = Object.keys(byGrade).sort((a,b) => Number(a)-Number(b)).map(g => {
+    const el = document.getElementById('pl-courses');
+    el.innerHTML = Object.keys(byGrade).sort((a,b) => Number(a)-Number(b)).map(g => {
       const courses = [...byGrade[g]].sort((a,b) => Number(a)-Number(b));
       const _gLbl = g === '0' ? 'Transición' : `Grado ${gradeLbl(Number(g))}`;
       return `<div>
@@ -10347,23 +9908,6 @@ if (!navigator.onLine) showOfflineBanner();
         </div>
       </div>`;
     }).join('');
-    // Cargar subgrupos
-    const { ok, data } = await fetchAPI('/raice/courses');
-    if (ok) {
-      const subgroups = (data.courses || []).filter(c => c.type === 'subgroup');
-      if (subgroups.length) {
-        html += `<div style="margin-top:.5rem;padding-top:.5rem;border-top:1.5px dashed var(--border);">
-          <div style="font-size:.72rem;font-weight:700;color:var(--teal);text-transform:uppercase;margin-bottom:.25rem;">Subgrupos</div>
-          <div style="display:flex;flex-wrap:wrap;gap:.3rem .85rem;">
-            ${subgroups.map(sg => `<label style="display:flex;align-items:center;gap:.35rem;cursor:pointer;font-size:.84rem;font-weight:600;">
-              <input type="checkbox" class="pl-course-cb" value="sub_${sg.id}" checked style="accent-color:var(--teal);">
-              ${sg.name || 'Subgrupo'}
-            </label>`).join('')}
-          </div>
-        </div>`;
-      }
-    }
-    document.getElementById('pl-courses').innerHTML = html;
     document.getElementById('modal-print-list').style.display = 'flex';
   }
 
@@ -10375,7 +9919,7 @@ if (!navigator.onLine) showOfflineBanner();
     document.querySelectorAll('.pl-course-cb').forEach(cb => cb.checked = checked);
   }
 
-  async function printStudentList() {
+  function printStudentList() {
     const selected = [...document.querySelectorAll('.pl-course-cb:checked')].map(cb => cb.value);
     if (!selected.length) { showToast('Selecciona al menos un curso', 'warning'); return; }
 
@@ -10393,18 +9937,7 @@ if (!navigator.onLine) showOfflineBanner();
       : `<div style="font-size:1.8rem;line-height:1;">🏫</div>`;
     const _raiceLogo  = `<img src="${window.location.origin}/favicon.png" style="height:32px;object-fit:contain;" alt="RAICE" onerror="this.style.display='none'">`;
 
-    // Pre-cargar miembros de subgrupos seleccionados
-    const subgroupKeys = selected.filter(k => k.startsWith('sub_'));
-    const subgroupData = {};
-    for (const key of subgroupKeys) {
-      const sgId = key.replace('sub_', '');
-      const { ok, data } = await fetchAPI(`/raice/subgroup-members?subgroup_id=${sgId}`);
-      if (ok) subgroupData[sgId] = data.members || [];
-    }
-
-    const regularKeys = selected.filter(k => !k.startsWith('sub_'));
-
-    const pages = [...regularKeys.map(key => {
+    const pages = selected.map(key => {
       const [grade, course] = key.split('_');
       const students = allStudents
         .filter(s => s.status === 'active' && String(s.grade) === grade && String(s.course) === course)
@@ -10414,40 +9947,18 @@ if (!navigator.onLine) showOfflineBanner();
         ? 'TRANSICIÓN'
         : `GRADO ${grade}${String(course).padStart(2,'0')}`;
 
-      return { students, gradeLbl };
-    }), ...subgroupKeys.map(key => {
-      const sgId = key.replace('sub_', '');
-      const members = subgroupData[sgId] || [];
-      const students = members.map(m => ({
-        first_name: m.first_name, last_name: m.last_name
-      }));
-      // Buscar nombre del subgrupo desde los checkboxes
-      const cb = document.querySelector(`.pl-course-cb[value="${key}"]`);
-      const sgName = cb ? cb.parentElement.textContent.trim() : 'SUBGRUPO';
-      return { students, gradeLbl: sgName.toUpperCase() };
-    })].map(({ students, gradeLbl }) => {
-
       const colHeaders = Array.from({length: cols}, () =>
         `<th style="border:1px solid #000;padding:3px 1px;font-size:7pt;text-align:center;width:${colW}px;">${colHdr}</th>`
       ).join('');
-
-      // Calculate row height to fill exactly one page
-      // Letter page: portrait ~920px usable, landscape ~590px usable (after margins ~12mm top/bottom)
-      const headerH = 90; // approximate header table height
-      const theadH = 22;  // approximate thead row height
-      const footerH = 14; // student count line
-      const pageH = orient === 'portrait' ? 920 : 590;
-      const availableH = pageH - headerH - theadH - footerH;
-      const rowH = Math.max(16, Math.floor(availableH / Math.max(students.length, 1)));
 
       const rows = students.map((s, i) => {
         const name = `${s.last_name.toUpperCase()} ${s.first_name.toUpperCase()}`;
         const cells = Array.from({length: cols}, () =>
           `<td style="border:1px solid #000;"></td>`
         ).join('');
-        return `<tr style="height:${rowH}px;">
-          <td style="border:1px solid #000;text-align:center;padding:0 4px;font-size:8.5pt;">${i+1}</td>
-          <td style="border:1px solid #000;padding:0 6px;font-size:8.5pt;">${name}</td>
+        return `<tr>
+          <td style="border:1px solid #000;text-align:center;padding:2px 4px;font-size:8.5pt;">${i+1}</td>
+          <td style="border:1px solid #000;padding:2px 6px;font-size:8.5pt;">${name}</td>
           ${cells}
         </tr>`;
       }).join('');
@@ -10477,17 +9988,17 @@ if (!navigator.onLine) showOfflineBanner();
             </td>
           </tr>
         </table>
-        <table class="data-tbl" style="width:100%;border-collapse:collapse;">
+        <table style="width:100%;border-collapse:collapse;">
           <thead>
             <tr style="background:#f0f0f0;">
-              <th style="border:1px solid #000;padding:3px;font-size:8pt;width:28px;text-align:center;">N°</th>
-              <th style="border:1px solid #000;padding:3px;font-size:8pt;text-align:left;">APELLIDOS Y NOMBRES</th>
+              <th style="border:1px solid #000;padding:4px;font-size:8pt;width:28px;text-align:center;">N°</th>
+              <th style="border:1px solid #000;padding:4px;font-size:8pt;text-align:left;">APELLIDOS Y NOMBRES</th>
               ${colHeaders}
             </tr>
           </thead>
           <tbody>${rows}</tbody>
         </table>
-        <div style="font-size:7pt;color:#666;text-align:right;">${students.length} estudiante${students.length!==1?'s':''}</div>
+        <div style="margin-top:3px;font-size:7pt;color:#666;text-align:right;">${students.length} estudiante${students.length!==1?'s':''}</div>
       </div>`;
     }).join('');
 
@@ -10497,11 +10008,8 @@ if (!navigator.onLine) showOfflineBanner();
   @page { size: letter ${orient}; margin: 12mm 10mm 10mm 10mm; }
   * { box-sizing: border-box; }
   body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
-  .course-page { page-break-after: always; display:flex; flex-direction:column; height:100vh; }
+  .course-page { page-break-after: always; }
   .course-page:last-child { page-break-after: avoid; }
-  .course-page table.data-tbl { flex:1; }
-  .course-page table.data-tbl td, .course-page table.data-tbl th { vertical-align:middle; }
-  .course-page table.data-tbl td:last-child, .course-page table.data-tbl th:last-child { border-right: 2px solid #000 !important; }
   tr { page-break-inside: avoid; }
 </style>
 </head><body>

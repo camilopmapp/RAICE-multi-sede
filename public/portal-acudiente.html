@@ -165,36 +165,6 @@
   .cal-T    { background:#fef3c7; color:#b45309; }
   .cal-nodata { background:var(--light); color:var(--gray); }
 
-  /* ---- SUBJECT TABLE ---- */
-  .subj-table { width:100%; border-collapse:separate; border-spacing:0; font-size:.82rem; }
-  .subj-table th { text-align:left; font-weight:600; color:var(--gray); font-size:.72rem;
-                     text-transform:uppercase; padding:.4rem .5rem; border-bottom:1.5px solid var(--border); }
-  .subj-table td { padding:.55rem .5rem; border-bottom:1px solid var(--border); }
-  .subj-table tr:last-child td { border-bottom:none; }
-  .subj-pct { font-weight:700; font-size:.88rem; }
-
-  /* ---- COMMITMENT ITEMS ---- */
-  .commit-item { border-left:4px solid var(--border); padding:.65rem 1rem;
-                  margin-bottom:.55rem; background:var(--light); border-radius:0 8px 8px 0; }
-  .commit-pending { border-color:#f59e0b; }
-  .commit-done    { border-color:#22c55e; }
-  .commit-overdue { border-color:var(--red); }
-
-  /* ---- DIRECTOR CARD ---- */
-  .director-card { display:flex; align-items:center; gap:.75rem; padding:.75rem 1rem;
-                    background:var(--light); border-radius:10px; margin-bottom:1.1rem; }
-  .director-ico  { width:38px; height:38px; border-radius:50%; background:var(--teal);
-                    color:var(--white); display:flex; align-items:center; justify-content:center;
-                    font-size:1rem; flex-shrink:0; }
-
-  /* ---- ACUDIENTE INFO ---- */
-  .acud-item { display:flex; gap:.75rem; align-items:flex-start; padding:.55rem 0;
-                border-bottom:1px solid var(--border); }
-  .acud-item:last-child { border-bottom:none; }
-  .acud-ico  { width:32px; height:32px; border-radius:50%; background:#ede9fe;
-                color:#7c3aed; display:flex; align-items:center; justify-content:center;
-                font-size:.85rem; flex-shrink:0; margin-top:.1rem; }
-
   @media (max-width:480px) {
     .stats-row { grid-template-columns:repeat(3,1fr); }
     .student-card { flex-wrap:wrap; }
@@ -203,21 +173,6 @@
 </style>
 </head>
 <body>
-
-<div id="sw-update-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#1d4ed8;color:#fff;padding:.6rem 1rem;display:none;align-items:center;justify-content:center;gap:1rem;font-size:.85rem;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.2);">
-  🔄 Hay una versión nueva disponible
-  <button onclick="location.reload()" style="background:#fff;color:#1d4ed8;border:none;border-radius:6px;padding:.3rem .8rem;font-weight:700;cursor:pointer;">Actualizar ahora</button>
-</div>
-<script>
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.addEventListener('message', e => {
-      if (e.data?.type === 'NEW_VERSION') document.getElementById('sw-update-banner').style.display = 'flex';
-    });
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      document.getElementById('sw-update-banner').style.display = 'flex';
-    });
-  }
-</script>
 
 <header class="header">
   <div id="header-raice-wrap"><img src="/icons/icon-96.png" alt="RAICE" style="width:36px;height:36px;border-radius:9px;object-fit:contain;background:#fff;padding:2px;flex-shrink:0;"></div>
@@ -258,17 +213,12 @@
     </div>
   </div>
 
-  <!-- Director de grado -->
-  <div id="director-wrap" style="display:none;"></div>
-
   <!-- Tabs -->
   <div class="tabs">
     <button class="tab active" onclick="showTab('asistencia',this)">📋 Asistencia</button>
-    <button class="tab" onclick="showTab('casos',this)">🚨 Casos</button>
-    <button class="tab" onclick="showTab('compromisos',this)">📝 Compromisos</button>
-    <button class="tab" onclick="showTab('observaciones',this)">👁️ Observador</button>
+    <button class="tab" onclick="showTab('casos',this)">🚨 Casos RAICE</button>
+    <button class="tab" onclick="showTab('observaciones',this)">📝 Observaciones</button>
     <button class="tab" onclick="showTab('sanciones',this)">⚖️ Disciplina</button>
-    <button class="tab" onclick="showTab('acudientes',this)">👨‍👩‍👦 Datos</button>
   </div>
 
   <!-- Tab: Asistencia -->
@@ -281,23 +231,15 @@
         <div style="display:flex;gap:.75rem;flex-wrap:wrap;font-size:.73rem;color:var(--gray);margin-top:.25rem;">
           <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#dcfce7;margin-right:3px;"></span>Presente</span>
           <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#fee2e2;margin-right:3px;"></span>Ausente</span>
-          <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#fef9c3;margin-right:3px;"></span>Excusa</span>
+          <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#fef9c3;margin-right:3px;"></span>Media jornada</span>
           <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#fef3c7;margin-right:3px;"></span>Tardanza</span>
           <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#f3f4f6;border:1px solid #e5e7eb;margin-right:3px;"></span>Sin datos</span>
         </div>
       </div>
     </div>
-    <div class="card" id="att-subject-card" style="display:none;">
-      <div class="card-header">Asistencia por asignatura</div>
-      <div class="card-body" id="att-subject"></div>
-    </div>
     <div class="card">
       <div class="card-header">Detalle de inasistencias</div>
       <div class="card-body" id="att-detail"></div>
-    </div>
-    <div class="card" id="excusas-card" style="display:none;">
-      <div class="card-header">Excusas registradas</div>
-      <div class="card-body" id="excusas-list"></div>
     </div>
   </div>
 
@@ -317,14 +259,6 @@
     </div>
   </div>
 
-  <!-- Tab: Compromisos -->
-  <div class="tab-content" id="tab-compromisos">
-    <div class="card">
-      <div class="card-header">Compromisos adquiridos</div>
-      <div class="card-body" id="compromisos-list"></div>
-    </div>
-  </div>
-
   <!-- Tab: Sanciones -->
   <div class="tab-content" id="tab-sanciones">
     <div class="card">
@@ -334,14 +268,6 @@
     <div class="card">
       <div class="card-header">Retiros de clase</div>
       <div class="card-body" id="rem-list"></div>
-    </div>
-  </div>
-
-  <!-- Tab: Acudientes -->
-  <div class="tab-content" id="tab-acudientes">
-    <div class="card">
-      <div class="card-header">Datos del acudiente registrados</div>
-      <div class="card-body" id="acudientes-list"></div>
     </div>
   </div>
 
@@ -425,29 +351,10 @@ function renderDashboard(data) {
     (data.school?.school_name ? ` &nbsp;·&nbsp; ${data.school.school_name}` : '') +
     (s.status !== 'active' ? ` &nbsp;<span class="student-grade">${s.status === 'graduated' ? 'Egresado' : 'Trasladado'}</span>` : '');
 
-  // Director de grado
-  const dirWrap = document.getElementById('director-wrap');
-  if (data.director?.name) {
-    dirWrap.style.display = 'block';
-    dirWrap.innerHTML = `<div class="director-card">
-      <div class="director-ico">👨‍🏫</div>
-      <div>
-        <div style="font-size:.88rem;font-weight:700;color:var(--navy);">${data.director.name}</div>
-        <div style="font-size:.75rem;color:var(--gray);">Director(a) de grado</div>
-      </div>
-    </div>`;
-  } else {
-    dirWrap.style.display = 'none';
-  }
-
   renderAsistencia(data.attendance);
-  renderAttBySubject(data.att_by_subject || []);
-  renderExcusas(data.excusas || []);
   renderCasos(data.cases);
-  renderCompromisos(data.commitments || []);
   renderObservaciones(data.observations);
   renderSanciones(data.suspensions, data.removals);
-  renderAcudientes(data.acudientes || []);
 }
 
 function renderAsistencia(att) {
@@ -542,7 +449,7 @@ function renderAsistencia(att) {
     return;
   }
 
-  const stLabel = { A:'Ausente', T:'Tardanza', PE:'Excusa justificada' };
+  const stLabel = { A:'Ausente', T:'Tardanza', PE:'Media jornada' };
   document.getElementById('att-detail').innerHTML = `<div class="att-list">` +
     absenceDays.map(r => `<div class="att-row">
       <div class="att-badge att-${r.status}">${r.status}</div>
@@ -616,85 +523,6 @@ function renderSanciones(suspensions, removals) {
       </div>`).join('');
   }
 }
-function renderAttBySubject(subjects) {
-  const card = document.getElementById('att-subject-card');
-  const el   = document.getElementById('att-subject');
-  if (!subjects.length) { card.style.display = 'none'; return; }
-  card.style.display = 'block';
-  el.innerHTML = `<table class="subj-table">
-    <thead><tr><th>Asignatura</th><th style="text-align:center;">✅</th><th style="text-align:center;">❌</th><th style="text-align:center;">⏰</th><th style="text-align:center;">🤒</th><th style="text-align:center;">%</th></tr></thead>
-    <tbody>${subjects.map(s => {
-      const pctColor = s.pct === null ? 'var(--gray)' : s.pct >= 80 ? 'var(--green)' : s.pct >= 60 ? 'var(--amber)' : 'var(--red)';
-      return `<tr>
-        <td style="font-weight:600;">${s.subject}</td>
-        <td style="text-align:center;">${s.present}</td>
-        <td style="text-align:center;color:${s.absent>0?'var(--red)':'inherit'}">${s.absent}</td>
-        <td style="text-align:center;">${s.late}</td>
-        <td style="text-align:center;">${s.permit}</td>
-        <td style="text-align:center;"><span class="subj-pct" style="color:${pctColor}">${s.pct !== null ? s.pct+'%' : '—'}</span></td>
-      </tr>`;
-    }).join('')}</tbody></table>`;
-}
-
-function renderExcusas(excusas) {
-  const card = document.getElementById('excusas-card');
-  const el   = document.getElementById('excusas-list');
-  if (!excusas.length) { card.style.display = 'none'; return; }
-  card.style.display = 'block';
-  el.innerHTML = `<div class="att-list">${excusas.map(e => {
-    const horasText = e.horas && e.horas.length ? `Horas: ${e.horas.join(', ')}` : 'Día completo';
-    return `<div class="att-row">
-      <div class="att-badge att-PE">🤒</div>
-      <div>
-        <div style="font-size:.84rem;font-weight:500;">${fmtDate(e.date)} · <span style="color:var(--gray);font-weight:400;">${horasText}</span></div>
-        <div style="font-size:.8rem;color:var(--navy);margin-top:.15rem;">${e.motivo}</div>
-      </div>
-    </div>`;
-  }).join('')}</div>`;
-}
-
-function renderCompromisos(commitments) {
-  const el = document.getElementById('compromisos-list');
-  if (!commitments.length) {
-    el.innerHTML = `<div class="empty-state">✅ Sin compromisos registrados</div>`;
-    return;
-  }
-  const today = new Date().toISOString().slice(0,10);
-  el.innerHTML = commitments.map(c => {
-    const overdue = !c.fulfilled && c.due_date && c.due_date < today;
-    const cls = c.fulfilled ? 'commit-done' : overdue ? 'commit-overdue' : 'commit-pending';
-    const badge = c.fulfilled
-      ? '<span style="font-size:.72rem;font-weight:700;padding:.15rem .55rem;border-radius:5px;background:#f0fdf4;color:#15803d;">✅ Cumplido</span>'
-      : overdue
-        ? '<span style="font-size:.72rem;font-weight:700;padding:.15rem .55rem;border-radius:5px;background:#fee2e2;color:#991b1b;">⚠️ Vencido</span>'
-        : '<span style="font-size:.72rem;font-weight:700;padding:.15rem .55rem;border-radius:5px;background:#fef9c3;color:#854d0e;">⏳ Pendiente</span>';
-    return `<div class="commit-item ${cls}">
-      <div style="margin-bottom:.35rem;">${badge}</div>
-      <div style="font-size:.85rem;color:var(--navy);line-height:1.45;">${c.description}</div>
-      ${c.due_date ? `<div style="font-size:.75rem;color:var(--gray);margin-top:.3rem;">📅 Fecha límite: ${fmtDate(c.due_date)}</div>` : ''}
-      ${c.signed_by ? `<div style="font-size:.75rem;color:var(--gray);margin-top:.15rem;">✍️ Firmado por: ${c.signed_by}</div>` : ''}
-    </div>`;
-  }).join('');
-}
-
-function renderAcudientes(acudientes) {
-  const el = document.getElementById('acudientes-list');
-  if (!acudientes.length) {
-    el.innerHTML = `<div class="empty-state">No hay datos de acudiente registrados.<br><span style="font-size:.78rem;">Solicite al director de grado registrar sus datos de contacto.</span></div>`;
-    return;
-  }
-  el.innerHTML = acudientes.map(a => `
-    <div class="acud-item">
-      <div class="acud-ico">👤</div>
-      <div>
-        <div style="font-size:.88rem;font-weight:600;color:var(--navy);">${a.name}</div>
-        <div style="font-size:.78rem;color:var(--gray);margin-top:.1rem;">${a.relationship || 'Acudiente'}</div>
-        ${a.phone ? `<div style="font-size:.82rem;color:var(--navy);margin-top:.25rem;">📞 ${a.phone}</div>` : ''}
-        ${a.email ? `<div style="font-size:.82rem;color:var(--navy);margin-top:.1rem;">✉️ ${a.email}</div>` : ''}
-      </div>
-    </div>`).join('');
-}
-
 // Supabase Realtime Auto-Refresh for Acudiente Dashboard
 async function initRealtime() {
   try {
