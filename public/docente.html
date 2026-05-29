@@ -188,7 +188,7 @@
   .att-title { font-family:'Fraunces',serif; font-size:1.25rem; font-weight:700; color:var(--navy); }
   .att-date-info { font-size:.85rem; color:var(--gray); }
   .att-stats {
-    display:grid; grid-template-columns:repeat(3,1fr); gap:.65rem;
+    display:grid; grid-template-columns:repeat(4,1fr); gap:.65rem;
     margin-bottom:1.25rem;
   }
   .att-stat {
@@ -439,6 +439,21 @@
 </head>
 <body>
 
+<div id="sw-update-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#1d4ed8;color:#fff;padding:.6rem 1rem;display:none;align-items:center;justify-content:center;gap:1rem;font-size:.85rem;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.2);">
+  🔄 Hay una versión nueva disponible
+  <button onclick="location.reload()" style="background:#fff;color:#1d4ed8;border:none;border-radius:6px;padding:.3rem .8rem;font-weight:700;cursor:pointer;">Actualizar ahora</button>
+</div>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', e => {
+      if (e.data?.type === 'NEW_VERSION') document.getElementById('sw-update-banner').style.display = 'flex';
+    });
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      document.getElementById('sw-update-banner').style.display = 'flex';
+    });
+  }
+</script>
+
 <!-- ===== SIDEBAR ===== -->
 <aside class="sidebar">
   <div class="sidebar-brand">
@@ -563,7 +578,7 @@
     <section class="section" id="sec-asistencia">
       <div id="att-no-course" style="text-align:center;padding:3rem 1rem;">
         <div style="font-size:3rem;margin-bottom:.75rem;">📋</div>
-        <div style="font-family:'Fraunces',serif;font-size:1.2rem;font-weight:700;color:var(--navy);margin-bottom:.4rem;">Selecciona un curso</div>
+        <div style="font-family:'Fraunces',serif;font-size:1.20rem;font-weight:700;color:var(--navy);margin-bottom:.4rem;">Selecciona un curso</div>
         <div style="color:var(--gray);font-size:.9rem;margin-bottom:1.5rem;">Elige el curso para pasar lista desde "Mis cursos".</div>
         <button class="btn btn-primary" onclick="showSection('mis-cursos',document.querySelector('.nav-item'))">← Ver mis cursos</button>
       </div>
@@ -598,6 +613,9 @@
           <div class="att-stat t" style="background:#fff8e1;border-color:#f59e0b;"><span id="count-t" style="color:#f59e0b;">0</span><div class="att-stat-label" style="color:#b45309;">⏰ Tarde</div></div>
           <div class="att-stat pe"><span id="count-pe">0</span><div class="att-stat-label">🤒 Con permiso</div></div>
         </div>
+
+        <!-- Panel de posibles evasiones — aparece tras guardar lista si se detectaron -->
+        <div id="evasion-alert-panel" style="display:none;margin-bottom:1rem;"></div>
 
         <div class="card">
           <div class="card-header">
@@ -1090,7 +1108,10 @@
     </div>
     <div class="modal-body">
       <input type="hidden" id="obs-student-id">
-      <div style="font-weight:700;color:var(--navy);margin-bottom:1rem;" id="obs-student-name">Estudiante</div>
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem;">
+        <div style="font-weight:700;color:var(--navy);flex:1;" id="obs-student-name">Estudiante</div>
+        <button class="btn btn-ghost btn-sm" onclick="printObservador(document.getElementById('obs-student-id').value)" title="Imprimir observador" style="font-size:.8rem;">🖨️ Observador</button>
+      </div>
       <div class="form-group">
         <label>Tipo de observación</label>
         <select id="obs-type">
@@ -1107,6 +1128,29 @@
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-obs')">Cancelar</button>
       <button class="btn btn-teal" onclick="saveObservation()">Guardar observación</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Horario del curso con asistencia del estudiante -->
+<div class="modal-overlay" id="modal-course-schedule">
+  <div class="modal" style="max-width:540px;">
+    <div class="modal-header">
+      <div>
+        <h3>📅 Horario del curso</h3>
+        <div id="modal-sched-subtitle" style="font-size:.78rem;color:var(--gray);margin-top:.2rem;"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-course-schedule')">✕</button>
+    </div>
+    <div class="modal-body" id="modal-sched-body" style="padding:0;">
+      <div style="text-align:center;padding:2.5rem;color:var(--gray);">Cargando…</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-course-schedule')">Cerrar</button>
+      <button class="btn btn-primary" id="modal-sched-case-btn" style="display:none;"
+        onclick="closeModal('modal-course-schedule');_pendingEvasionCase&&openCaseForEvasion(_pendingEvasionCase.courseId,_pendingEvasionCase.studentId,_pendingEvasionCase.studentName)">
+        ⚠️ Abrir caso RAICE
+      </button>
     </div>
   </div>
 </div>
@@ -1537,7 +1581,7 @@
         return nowMins > eh * 60 + em;
       }
       // No time info: consider past if class_hour already had attendance saved
-      return (slot.course?.saved_hours || []).includes(slot.class_hour);
+      return (slot.course?.saved_hours || []).some(s => s.hour === slot.class_hour);
     }
 
     if (!todayEntries.length) {
@@ -1559,12 +1603,12 @@
     }
 
     // Separate pending vs done entries
-    const pending = todayEntries.filter(e => !(e.course.saved_hours || []).includes(e.slot.class_hour));
-    const done    = todayEntries.filter(e =>  (e.course.saved_hours || []).includes(e.slot.class_hour));
+    const pending = todayEntries.filter(e => !(e.course.saved_hours || []).some(s => s.hour === e.slot.class_hour));
+    const done    = todayEntries.filter(e =>  (e.course.saved_hours || []).some(s => s.hour === e.slot.class_hour));
 
     function buildCard(e) {
       const { course: c, slot } = e;
-      const saved    = (c.saved_hours || []).includes(slot.class_hour);
+      const saved    = (c.saved_hours || []).some(s => s.hour === slot.class_hour);
       const active   = isActiveNow(slot);
       const past     = isPast(slot);
       const hourLabel = ordinals[slot.class_hour - 1] || slot.class_hour + 'ª';
@@ -1637,6 +1681,8 @@
   async function openCourseAttendance(course) {
     activeCourse = course;
     _attDirty = false; // fresh course, no unsaved changes
+    _evasionHours.clear();
+    clearEvasionPanel();
     document.getElementById('att-no-course').style.display = 'none';
     document.getElementById('att-content').style.display   = 'block';
     const courseLabel = course.type === 'subgroup' ? (course.name || 'Subgrupo') : `${course.grade}°${course.number}`;
@@ -1692,11 +1738,12 @@
     const ordinals   = ['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª','10ª'];
     const historyMode = isHistoryMode();
     const scheduledHours = (course?.today_slots || []).map(s => s.class_hour);
-    const savedHours     = course?.saved_hours || [];
+    const savedHours     = (course?.saved_hours || []).map(s => s.hour);
 
     const hasAnySchedule = (course?.week_slots || []).length > 0;
     const noScheduleAtAll = !hasAnySchedule;
     const hasSchedule    = scheduledHours.length > 0;
+    const date           = document.getElementById('att-date-picker')?.value || todayColombia();
 
     // History mode banner
     let histBanner = document.getElementById('att-history-banner');
@@ -1721,12 +1768,14 @@
     container.innerHTML = Array.from({length: classesPerDay}, (_,i) => i+1).map(h => {
       const isActive    = h === activeHour;
       const isScheduled = scheduledHours.includes(h);
-      const isSaved     = savedHours.includes(h);
+      const isSaved     = savedHours.includes(h) || (_hourCache[_cacheKey(course?.id || '', date, h)]?.saved === true);
       // In history mode: all hours are clickable (we don't know which had class that day)
-      const isLocked    = historyMode ? false : (noScheduleAtAll || (hasSchedule && !isScheduled));
+      // A saved hour is never locked — teacher must be able to view it even if not in today's schedule
+      const isLocked    = historyMode ? false : !isSaved && (noScheduleAtAll || (hasSchedule && !isScheduled));
       const slot        = (course?.today_slots || []).find(s => s.class_hour === h);
       const timeLabel   = slot?.start_time ? '<br><span style="font-size:.65rem;opacity:.8;">' + slot.start_time.substring(0,5) + '</span>' : '';
-      const savedDot    = !historyMode && isSaved ? ' ✅' : !historyMode && isScheduled ? ' ⏳' : '';
+      const hasEvasion  = _evasionHours.has(h);
+      const savedDot    = !historyMode && isSaved ? (hasEvasion ? ' 🏃' : ' ✅') : !historyMode && isScheduled ? ' ⏳' : '';
 
       let bg, border, color, cursor, opacity;
       if (isLocked) {
@@ -1770,6 +1819,7 @@
 
   function selectHour(h) {
     activeHour = h;
+    clearEvasionPanel();
     _actividadEspecial = false;
     _actividadNote = '';
     const noteArea = document.getElementById('ae-note-area');
@@ -1854,7 +1904,7 @@
     const list     = document.getElementById('student-list');
     const date     = document.getElementById('att-date-picker').value;
     const key      = _cacheKey(activeCourse?.id || '', date, activeHour);
-    const isSaved  = activeCourse?.saved_hours?.includes(activeHour) || (_hourCache[key]?.saved === true);
+    const isSaved  = (activeCourse?.saved_hours || []).some(s => s.hour === activeHour) || (_hourCache[key]?.saved === true);
     const saveBtn  = document.getElementById('btn-save-att');
     const quickMark = document.querySelector('.quick-mark');
 
@@ -1892,6 +1942,39 @@
       roBanner.style.display      = 'block';
     } else {
       roBanner.style.display      = 'none';
+    }
+
+    // Botón "Partir de hora anterior" — solo cuando: misma hora >= 2, sin guardar, sin cambios, hora anterior guardada
+    let copyPrevBtn = document.getElementById('btn-copy-prev-hour');
+    if (!copyPrevBtn) {
+      copyPrevBtn = document.createElement('div');
+      copyPrevBtn.id = 'btn-copy-prev-hour';
+      list.parentNode.insertBefore(copyPrevBtn, list);
+    }
+    const prevHour = activeHour - 1;
+    const prevKey = _cacheKey(activeCourse?.id || '', date, prevHour);
+    const prevSaved = (activeCourse?.saved_hours || []).some(s => s.hour === prevHour) || (_hourCache[prevKey]?.saved === true);
+    const prevHourEntry = (activeCourse?.saved_hours || []).find(s => s.hour === prevHour);
+    const prevSavedByMe = prevHourEntry ? prevHourEntry.by === currentUser?.id : (_hourCache[prevKey]?.saved === true);
+    const showCopyBtn = !isSaved && !histMode && !_attDirty
+      && activeHour >= 2
+      && !!prevSaved;
+    if (showCopyBtn) {
+      const ordinals = ['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª','10ª'];
+      copyPrevBtn.style.display = 'block';
+      copyPrevBtn.innerHTML = prevSavedByMe ? `
+        <div style="background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:10px;padding:.6rem 1rem;margin-bottom:.6rem;display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;">
+          <span style="font-size:.8rem;color:#0369a1;">📋 La ${ordinals[prevHour-1]||prevHour+'ª'} hora ya fue registrada por ti</span>
+          <button onclick="copyFromPrevHour(${prevHour})"
+            style="background:#0ea5e9;color:#fff;border:none;border-radius:8px;padding:.35rem .85rem;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap;">
+            Partir de hora anterior
+          </button>
+        </div>` : `
+        <div style="background:#f9fafb;border:1.5px solid #e5e7eb;border-radius:10px;padding:.6rem 1rem;margin-bottom:.6rem;font-size:.8rem;color:#6b7280;">
+          📋 La ${ordinals[prevHour-1]||prevHour+'ª'} hora fue registrada por otro docente
+        </div>`;
+    } else {
+      copyPrevBtn.style.display = 'none';
     }
 
     list.innerHTML = sortStudents(studentsAtt).map((s, i) => {
@@ -2051,13 +2134,27 @@
     }
   }
 
+  // ---- PRINT OBSERVADOR ----
+  async function printObservador(studentId) {
+    if (!studentId) { showToast('Selecciona un estudiante', 'warning'); return; }
+    showToast('Generando observador…', 'info');
+    const [fichaRes, configRes] = await Promise.all([
+      fetchAPI('/raice/student-ficha?id=' + studentId + '&all_obs=1'),
+      fetchAPI('/raice/config')
+    ]);
+    if (!fichaRes.ok || !fichaRes.data?.student) { showToast('Error al cargar datos del estudiante', 'error'); return; }
+    const d = fichaRes.data;
+    const cfg = configRes.ok ? configRes.data : {};
+    _printObservadorWindow(d, cfg);
+  }
+
   // ---- CASES ----
   function populateCaseCourses() {
     const sel = document.getElementById('case-course');
     if (!sel) return;
     sel.innerHTML = '<option value="">— Selecciona un curso —</option>' +
       [...myCourses].sort((a,b) => a.grade - b.grade || a.number - b.number || (a.subject||'').localeCompare(b.subject||''))
-        .map(c => `<option value="${c.id}">${c.grade}°${c.number} — ${c.subject||'Clase'}</option>`).join('');
+        .map(c => `<option value="${c.id}">${c.type === 'subgroup' ? (c.name || 'Subgrupo') : `${c.grade}°${c.number}`} — ${c.subject||'Clase'}</option>`).join('');
   }
 
   async function loadStudentsForCase() {
@@ -2680,10 +2777,15 @@
           const key   = `${slot.course_id}_${slot.subject}`;
           const col   = colorMap[key] || { bg:'#f1f5f9', border:'#cbd5e1' };
           const time  = slot.start_time ? `<div style="font-size:.65rem;color:#6b7280;margin-top:.1rem;">${slot.start_time.substring(0,5)}–${(slot.end_time||'').substring(0,5)}</div>` : '';
+          const isSubg = slot.course_type === 'subgroup';
+          const mainLbl = isSubg ? (slot.course_name || 'Subgrupo') : (slot.subject || '—');
+          const subLbl  = isSubg
+            ? (slot.grade ? `${slot.grade}° · ${slot.subject || 'Clase'}` : (slot.subject || 'Clase'))
+            : `${slot.grade}°${slot.section || slot.course_num}`;
           html += `<td style="padding:.3rem;border:1px solid #e2e8f0;background:${isToday?'#f0fdf4':'white'};">
             <div style="background:${col.bg};border:1.5px solid ${col.border};border-radius:8px;padding:.3rem .5rem;">
-              <div style="font-weight:700;font-size:.78rem;color:#1a2744;">${slot.subject||'—'}</div>
-              <div style="font-size:.7rem;color:#64748b;">${slot.grade}°${slot.section||slot.course_num}</div>
+              <div style="font-weight:700;font-size:.78rem;color:#1a2744;">${mainLbl}</div>
+              <div style="font-size:.7rem;color:#64748b;">${subLbl}</div>
               ${time}
             </div>
           </td>`;
@@ -2699,7 +2801,10 @@
     html += `<div style="margin-top:1rem;display:flex;flex-wrap:wrap;gap:.5rem;">`;
     const subjectMap = {};
     schedules.forEach(s => {
-      const k = `${s.subject}|${s.grade}°${s.section||s.course_num}`;
+      const isSubg = s.course_type === 'subgroup';
+      const courseLbl = isSubg ? (s.course_name || 'Subgrupo') : `${s.grade}°${s.section||s.course_num}`;
+      const subjLbl   = isSubg ? (s.subject || 'Clase') : (s.subject || '—');
+      const k = `${subjLbl}|${courseLbl}`;
       subjectMap[k] = (subjectMap[k]||0) + 1;
     });
     Object.entries(subjectMap).forEach(([key, count]) => {
@@ -2780,8 +2885,8 @@
         if (slot) {
           html += `<td style="padding:.2rem;border:1px solid var(--border);">
             <div style="background:${SCHED_DAY_COLORS[d]};border:1.5px solid ${SCHED_DAY_BORDER[d]};border-radius:6px;padding:.25rem .3rem;${isToday?'border-left:3px solid var(--teal2);':''}">
-              <div style="font-weight:700;font-size:.7rem;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${slot.subject||'Clase'}</div>
-              <div style="font-size:.74rem;color:var(--gray);">${slot.grade}°${slot.section||slot.course_num}</div>
+              <div style="font-weight:700;font-size:.7rem;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${slot.course_type==='subgroup'?(slot.course_name||'Subgrupo'):(slot.subject||'Clase')}</div>
+              <div style="font-size:.74rem;color:var(--gray);">${slot.course_type==='subgroup'?(slot.grade?slot.grade+'°'+(slot.subject?'·'+slot.subject:''):(slot.subject||'Clase')):(slot.grade+'°'+(slot.section||slot.course_num))}</div>
             </div></td>`;
         } else {
           html += `<td style="padding:.2rem;border:1px solid var(--border);background:#fafafa;"></td>`;
@@ -2817,7 +2922,7 @@
           <div style="font-size:.74rem;color:var(--gray);">hora</div>
         </div>
         <div style="flex:1;">
-          <div style="font-weight:700;">${s.subject||'Clase'} — ${s.grade}°${s.section||s.course_num}</div>
+          <div style="font-weight:700;">${s.course_type==='subgroup'?(s.course_name||'Subgrupo')+(s.grade?' · '+s.grade+'°':''):(s.subject||'Clase')+' — '+s.grade+'°'+(s.section||s.course_num)}</div>
           <div style="font-size:.75rem;color:var(--gray);">${timeStr}</div>
         </div>
         ${badge}
@@ -2960,10 +3065,10 @@
       _attDirty = false;
       const key0 = _cacheKey(activeCourse.id, date, activeHour);
       _hourCache[key0] = { students: studentsAtt.map(s => ({...s})), saved: true };
-      if (activeCourse.saved_hours && !activeCourse.saved_hours.includes(activeHour)) {
-        activeCourse.saved_hours.push(activeHour);
+      if (activeCourse.saved_hours && !activeCourse.saved_hours.some(s => s.hour === activeHour)) {
+        activeCourse.saved_hours.push({ hour: activeHour, by: currentUser?.id || null });
       } else if (!activeCourse.saved_hours) {
-        activeCourse.saved_hours = [activeHour];
+        activeCourse.saved_hours = [{ hour: activeHour, by: currentUser?.id || null }];
       }
       btn.disabled = false;
       btn.innerHTML = `💾 Guardar lista — <span id="btn-hour-label">${hourLabel} hora</span>`;
@@ -2982,10 +3087,10 @@
       const date2 = document.getElementById('att-date-picker').value;
       const key2  = _cacheKey(activeCourse.id, date2, activeHour);
       _hourCache[key2] = { students: studentsAtt.map(s => ({...s})), saved: true };
-      if (activeCourse.saved_hours && !activeCourse.saved_hours.includes(activeHour)) {
-        activeCourse.saved_hours.push(activeHour);
+      if (activeCourse.saved_hours && !activeCourse.saved_hours.some(s => s.hour === activeHour)) {
+        activeCourse.saved_hours.push({ hour: activeHour, by: currentUser?.id || null });
       } else if (!activeCourse.saved_hours) {
-        activeCourse.saved_hours = [activeHour];
+        activeCourse.saved_hours = [{ hour: activeHour, by: currentUser?.id || null }];
       }
       buildHourSelector();
       renderStudentList(); // ← switch list to read-only mode immediately
@@ -2993,6 +3098,19 @@
       document.getElementById('att-saved-badge').textContent = '✅ Guardada';
       const tardes = studentsAtt.filter(s => s.status==='T').length;
       if (tardes > 0) showToast(`⏰ ${tardes} tardanza(s) reportadas a coordinación`, 'info');
+      // Show evasion feedback — toast always if detected, panel if student data available
+      if (data.evasiones > 0) {
+        _evasionHours.add(activeHour);
+        buildHourSelector(); // refresh selector to show 🏃 on this hour
+        showToast(`🏃 ${data.evasiones} posible(s) evasión detectada(s) — coordinador notificado`, 'warning');
+        if (data.evadidos?.length) {
+          renderEvasionPanel(data.evadidos);
+        } else {
+          clearEvasionPanel();
+        }
+      } else {
+        clearEvasionPanel();
+      }
     } else if (status === 423) {
       const msg = data?.error || 'El horario escolar finalizó';
       showToast('🔒 ' + msg, 'warning');
@@ -3029,6 +3147,178 @@
   }
   window.addEventListener('online',  updateNetworkStatus);
   window.addEventListener('offline', updateNetworkStatus);
+
+  // ---- EVASION PANEL ----
+  let _pendingEvasionCase = null; // { courseId, studentId, studentName }
+  const _evasionHours = new Set(); // horas con evasión detectada en esta sesión (se limpia al cambiar curso)
+
+  async function copyFromPrevHour(prevHour) {
+    if (!activeCourse) return;
+    const date = document.getElementById('att-date-picker').value;
+
+    // Fetch previous hour's attendance
+    const { ok, data } = await fetchAPI(
+      `/raice/attendance/course?course_id=${activeCourse.id}&date=${date}&hour=${prevHour}`
+    );
+    if (!ok || !data.students?.length) {
+      showToast('No se pudo cargar la lista de la hora anterior', 'error');
+      return;
+    }
+
+    // Validar que la guardó el mismo docente
+    if (data.saved_by && data.saved_by !== currentUser?.id) {
+      showToast('Esa hora fue registrada por otro docente — no se puede copiar', 'warning');
+      return;
+    }
+
+    // Aplicar statuses de la hora anterior a studentsAtt actual
+    const prevMap = {};
+    (data.students || []).forEach(s => { prevMap[s.id] = s.attendance_status || 'P'; });
+
+    let copied = 0;
+    studentsAtt.forEach(s => {
+      if (prevMap[s.id]) { s.status = prevMap[s.id]; copied++; }
+    });
+
+    if (copied === 0) {
+      showToast('No se encontraron coincidencias con la lista anterior', 'warning');
+      return;
+    }
+
+    _attDirty = true;
+
+    // Ocultar el botón de copia y mostrar banner de aviso
+    const copyBtn = document.getElementById('btn-copy-prev-hour');
+    if (copyBtn) {
+      const ordinals = ['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª','10ª'];
+      copyBtn.innerHTML = `
+        <div style="background:#fffbeb;border:1.5px solid #fde68a;border-radius:10px;padding:.6rem 1rem;margin-bottom:.6rem;font-size:.8rem;color:#92400e;">
+          ⚠️ Partiendo de la lista de la ${ordinals[prevHour-1]||prevHour+'ª'} hora — <strong>revisa y ajusta antes de guardar</strong>
+        </div>`;
+    }
+
+    renderStudentList();
+    updateCounts();
+    showToast(`Lista de la ${['','1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª'][prevHour]||prevHour+'ª'} hora cargada como referencia`, 'info');
+  }
+
+  function clearEvasionPanel() {
+    const panel = document.getElementById('evasion-alert-panel');
+    if (panel) { panel.style.display = 'none'; panel.innerHTML = ''; }
+  }
+
+  function renderEvasionPanel(evadidos) {
+    const panel = document.getElementById('evasion-alert-panel');
+    if (!panel) return;
+    const courseId = activeCourse?.id || '';
+    const date     = document.getElementById('att-date-picker')?.value || '';
+    const n = evadidos.length;
+
+    panel.style.display = 'block';
+    panel.innerHTML = `
+      <div style="background:#fff7ed;border:1.5px solid #fed7aa;border-radius:12px;padding:1rem;">
+        <div style="font-weight:700;color:#c2410c;margin-bottom:.75rem;font-size:.93rem;">
+          ⚠️ Posible${n>1?'s':''} evasión${n>1?'es':''} detectada${n>1?'s':''} — ${n} estudiante${n>1?'s':''}
+        </div>
+        <div style="font-size:.78rem;color:#92400e;margin-bottom:.85rem;">
+          El coordinador ya fue notificado automáticamente. Verifica si es real o corrige la lista.
+        </div>
+        ${evadidos.map(e => `
+          <div style="background:#fff;border:1.5px solid #fed7aa;border-radius:10px;padding:.75rem;margin-bottom:.5rem;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;flex-wrap:wrap;">
+              <div style="flex:1;min-width:0;">
+                <div style="font-weight:700;color:var(--navy);font-size:.88rem;">🏃 ${e.student_name}</div>
+                <div style="font-size:.75rem;color:var(--gray);margin-top:.15rem;">${e.body||''}</div>
+              </div>
+              <div style="display:flex;gap:.45rem;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;">
+                <button onclick="openCourseScheduleModal('${courseId}','${date}','${e.student_id}','${(e.student_name||'').replace(/'/g,"\\'")}')"
+                  style="border:1.5px solid #0b7a75;background:#f0fdfa;color:#0b7a75;border-radius:8px;padding:.35rem .7rem;font-size:.76rem;font-weight:700;cursor:pointer;white-space:nowrap;">
+                  📅 Ver horario
+                </button>
+                <button onclick="openCaseForEvasion('${courseId}','${e.student_id}','${(e.student_name||'').replace(/'/g,"\\'")}')"
+                  style="border:1.5px solid #7c3aed;background:#f5f3ff;color:#6d28d9;border-radius:8px;padding:.35rem .7rem;font-size:.76rem;font-weight:700;cursor:pointer;white-space:nowrap;">
+                  ⚠️ Abrir caso
+                </button>
+              </div>
+            </div>
+          </div>`).join('')}
+      </div>`;
+  }
+
+  async function openCourseScheduleModal(courseId, date, studentId, studentName) {
+    _pendingEvasionCase = { courseId, studentId, studentName };
+    const subtitle = document.getElementById('modal-sched-subtitle');
+    if (subtitle) subtitle.textContent = `Seguimiento de ${studentName} · ${date}`;
+    const caseBtn = document.getElementById('modal-sched-case-btn');
+    if (caseBtn) caseBtn.style.display = 'inline-flex';
+    openModal('modal-course-schedule');
+
+    const body = document.getElementById('modal-sched-body');
+    body.innerHTML = '<div style="text-align:center;padding:2.5rem;color:var(--gray);">Cargando…</div>';
+
+    const { ok, data } = await fetchAPI(
+      `/raice/course-day-schedule?course_id=${courseId}&date=${date}&student_id=${studentId}`
+    );
+    if (!ok) {
+      body.innerHTML = '<div style="color:#f43f5e;padding:1rem 1.4rem;">Error al cargar el horario</div>';
+      return;
+    }
+
+    const hours = data.hours || [];
+    if (!hours.length) {
+      body.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--gray);">No hay horario configurado para este curso en este día.</div>';
+      return;
+    }
+
+    const ordinals = ['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª'];
+    const statusInfo = {
+      P:  { label: 'Presente',         icon: '✅', color: '#15803d', bg: '#f0fdf4' },
+      A:  { label: 'Ausente',           icon: '❌', color: '#b91c1c', bg: '#fff5f5' },
+      T:  { label: 'Tarde',             icon: '⏰', color: '#b45309', bg: '#fff8e1' },
+      PE: { label: 'Con permiso',       icon: '🤒', color: '#0b7a75', bg: '#f0fdfa' },
+      S:  { label: 'Act. especial',     icon: '📌', color: '#7c3aed', bg: '#f5f3ff' },
+    };
+
+    body.innerHTML = hours.map(h => {
+      const st = h.student_status ? (statusInfo[h.student_status] || { label: h.student_status, icon: '?', color: 'var(--gray)', bg: 'transparent' }) : null;
+      const isEvasion = h.student_status === 'A';
+      const rowBg = isEvasion ? '#fff5f5' : '';
+      const hourLabel = ordinals[h.class_hour - 1] || h.class_hour + 'ª';
+      return `
+        <div style="display:flex;align-items:center;gap:.75rem;padding:.7rem 1.2rem;border-bottom:1px solid var(--border);background:${rowBg};">
+          <div style="font-size:.78rem;font-weight:700;color:var(--gray);min-width:2rem;text-align:center;">${hourLabel}</div>
+          ${h.start_time ? `<div style="font-size:.72rem;color:var(--gray);min-width:3rem;">${h.start_time.slice(0,5)}</div>` : '<div style="min-width:3rem;"></div>'}
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:.86rem;font-weight:600;color:var(--navy);">${h.teacher_name}</div>
+            ${h.subject ? `<div style="font-size:.74rem;color:var(--gray);">${h.subject}</div>` : ''}
+          </div>
+          ${st ? `
+            <div style="display:flex;align-items:center;gap:.3rem;background:${st.bg};border-radius:8px;padding:.2rem .55rem;flex-shrink:0;">
+              <span style="font-size:.85rem;">${st.icon}</span>
+              <span style="font-size:.74rem;font-weight:700;color:${st.color};">${st.label}${isEvasion ? ' ← evasión' : ''}</span>
+            </div>` : `
+            <div style="font-size:.74rem;color:var(--gray);flex-shrink:0;">⏳ Sin registrar</div>`}
+        </div>`;
+    }).join('');
+  }
+
+  function openCaseForEvasion(courseId, studentId, studentName) {
+    showSection('reportar', document.querySelector('[onclick*="reportar"]'));
+    setTimeout(() => {
+      const courseEl = document.getElementById('case-course');
+      if (courseEl && courseId) {
+        courseEl.value = courseId;
+        loadStudentsForCase().then(() => {
+          const studentEl = document.getElementById('case-student');
+          if (studentEl && studentId) studentEl.value = studentId;
+        });
+      }
+      const desc = document.getElementById('case-description');
+      if (desc && !desc.value) {
+        desc.value = `Posible evasión de clase: ${studentName} estuvo presente en una hora y ausente en la siguiente. Verificar si hubo permiso o excusa no notificada.`;
+      }
+    }, 150);
+  }
 
   // ---- INIT ----
   function applyLogoToSidebar(logoUrl, schoolName) {
@@ -3599,7 +3889,7 @@
     if (ok) {
       closeModal('modal-unlock');
       if (activeCourse.saved_hours) {
-        activeCourse.saved_hours = activeCourse.saved_hours.filter(h => h !== activeHour);
+        activeCourse.saved_hours = activeCourse.saved_hours.filter(s => s.hour !== activeHour);
       }
       const key = _cacheKey(activeCourse.id, date, activeHour);
       if (_hourCache[key]) _hourCache[key].saved = false;
@@ -3662,7 +3952,7 @@
     const sel = document.getElementById('hatt-course');
     sel.innerHTML = '<option value="">— Selecciona un curso —</option>' +
       [...myCourses].sort((a,b) => a.grade - b.grade || a.number - b.number || (a.subject||'').localeCompare(b.subject||''))
-        .map(c => `<option value="${c.id}">${c.grade}°${c.number} — ${c.subject||'Clase'}</option>`).join('');
+        .map(c => `<option value="${c.id}" data-tcid="${c.teacher_course_id||''}">${c.type === 'subgroup' ? (c.name || 'Subgrupo') : `${c.grade}°${c.number}`} — ${c.subject||'Clase'}</option>`).join('');
 
     // Keep previous course selection if possible
     if (_hattCourseId && myCourses.find(c => c.id === _hattCourseId)) {
@@ -3763,7 +4053,8 @@
     wrap.innerHTML = `<div style="text-align:center;padding:2.5rem;color:var(--gray);">⏳ Cargando…</div>`;
     document.getElementById('hatt-summary-strip').style.display = 'none';
 
-    const params = `course_id=${courseId}&from=${from}&to=${to}${hour !== 'all' ? '&hour='+hour : ''}`;
+    const tcId = document.getElementById('hatt-course').selectedOptions[0]?.dataset.tcid || '';
+    const params = `course_id=${courseId}&from=${from}&to=${to}${hour !== 'all' ? '&hour='+hour : ''}${tcId ? '&tc_id='+tcId : ''}`;
     const { ok, data } = await fetchAPI('/raice/attendance/range?' + params);
 
     if (!ok || !data.records) {
@@ -3818,7 +4109,7 @@
     const dayTotals = {};
     dates.forEach(d => {
       const all = students.flatMap(s => map[s.id][d]);
-      const countable = all.filter(x => x !== 'S' && x !== 'PE').length;
+      const countable = all.filter(x => x !== 'S').length;
       const present   = all.filter(x => x === 'P' || x === 'T').length;
       dayTotals[d] = countable ? Math.round(present/countable*100) : null;
     });
@@ -3860,8 +4151,8 @@
       const cntT  = allStatuses.filter(x => x === 'T').length;
       const cntPE = allStatuses.filter(x => x === 'PE').length;
       const cntS  = allStatuses.filter(x => x === 'S').length;
-      const countable = allStatuses.length - cntS - cntPE;
-      const pct   = countable ? Math.round((cntP + cntT) / countable * 100) : (allStatuses.length - cntS > 0 ? 100 : null);
+      const countable = allStatuses.length - cntS;
+      const pct   = countable ? Math.round((cntP + cntT) / countable * 100) : null;
       const pctColor = pct === null ? '#9ca3af' : pct >= 90 ? '#16a34a' : pct >= 75 ? '#ca8a04' : '#dc2626';
       const pctBg   = pct === null ? '#f3f4f6' : pct >= 90 ? '#dcfce7' : pct >= 75 ? '#fef9c3' : '#fee2e2';
 
@@ -3913,9 +4204,8 @@
     const late     = records.filter(r => r.status === 'T').length;
     const permit   = records.filter(r => r.status === 'PE').length;
     const special  = records.filter(r => r.status === 'S').length;
-    // % asistencia excluye actividad especial (S) y permisos justificados (PE)
-    const countable = total - special - permit;
-    const pct      = countable ? Math.round((present + late) / countable * 100) : (total - special > 0 ? 100 : 0);
+    const countable = total - special;
+    const pct      = countable ? Math.round((present + late) / countable * 100) : 0;
 
     cardsTop.innerHTML = [
       { label:'Asistencia general', value: pct+'%', icon:'📈',
@@ -4169,6 +4459,106 @@
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  function _printObservadorWindow(d, cfg) {
+    const s = d.student, at = d.attendance || {}, obs = d.observations || [], cases = d.cases || [];
+    const schoolName = cfg.school_name || 'Institución Educativa';
+    const schoolLoc  = cfg.location || '';
+    const schoolLogo = cfg.logo_url
+      ? `<img src="${cfg.logo_url}" style="height:55px;object-fit:contain;" alt="logo">`
+      : `<div style="font-size:2.2rem;">🏫</div>`;
+    const raiceLogo = `<img src="${window.location.origin}/favicon.png" style="height:40px;object-fit:contain;" alt="RAICE" onerror="this.style.display='none'">`;
+    const now = new Date().toLocaleDateString('es-CO', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    const curso = s.grade ? `${s.grade}°${s.number || ''}` : (s.course || '—');
+
+    const typeLabel = { positive: 'Positiva', neutral: 'Neutra', negative: 'Negativa' };
+    const typeColor = { positive: '#16a34a', neutral: '#64748b', negative: '#dc2626' };
+    const statusLabel = { open: 'Abierto', tracking: 'En seguimiento', closed: 'Cerrado' };
+
+    const obsRows = obs.map(o => {
+      const fecha = new Date(o.created_at).toLocaleDateString('es-CO', { day:'numeric', month:'short', year:'numeric' });
+      const tl = typeLabel[o.type] || o.type;
+      const tc = typeColor[o.type] || '#333';
+      return `<tr>
+        <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${fecha}</td>
+        <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;font-weight:600;color:${tc};">${tl}</td>
+        <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${o.text || ''}</td>
+        <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${o.teacher_name || '—'}</td>
+      </tr>`;
+    }).join('');
+
+    const casesRows = cases.map(c => {
+      const fecha = new Date(c.created_at).toLocaleDateString('es-CO', { day:'numeric', month:'short', year:'numeric' });
+      const st = statusLabel[c.status] || c.status;
+      return `<tr>
+        <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${fecha}</td>
+        <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;text-align:center;">Tipo ${c.type}</td>
+        <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${(c.description || '').substring(0, 120)}</td>
+        <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;text-align:center;">${st}</td>
+        <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${c.teacher_name || '—'}</td>
+      </tr>`;
+    }).join('');
+
+    const w = window.open('', '_blank');
+    w.document.write(`<!DOCTYPE html><html><head><title>Observador — ${s.first_name} ${s.last_name}</title>
+    <style>
+      @page{size:A4;margin:15mm}
+      body{font-family:Arial,sans-serif;font-size:10pt;color:#1e293b;line-height:1.5;}
+      table{width:100%;border-collapse:collapse;}
+      th{background:#f1f5f9;border:1px solid #ccc;padding:5px 8px;font-size:8.5pt;text-transform:uppercase;letter-spacing:.03em;text-align:left;}
+      tr:nth-child(even){background:#fafbfc;}
+      .header{display:flex;align-items:center;justify-content:space-between;border-bottom:2.5px solid #1e293b;padding-bottom:.8rem;margin-bottom:1.2rem;}
+      .header-center{text-align:center;flex:1;}
+      .header-center h1{margin:0;font-size:13pt;font-weight:800;}
+      .header-center .loc{font-size:8.5pt;color:#555;margin-top:2px;}
+      .section-title{font-size:11pt;font-weight:800;color:#1e293b;margin:1.2rem 0 .5rem;padding-bottom:.3rem;border-bottom:1.5px solid #e2e8f0;}
+      .student-info{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem .8rem;margin-bottom:1rem;background:#f8fafc;padding:.7rem 1rem;border-radius:6px;border:1px solid #e2e8f0;}
+      .si-label{font-size:8pt;color:#64748b;text-transform:uppercase;letter-spacing:.04em;}
+      .si-value{font-size:10pt;font-weight:700;color:#1e293b;}
+      .att-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:.5rem;margin-bottom:1rem;}
+      .att-box{text-align:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:.5rem .3rem;}
+      .att-val{font-size:14pt;font-weight:800;}
+      .att-lbl{font-size:7.5pt;color:#64748b;text-transform:uppercase;}
+      .footer{text-align:center;margin-top:2rem;font-size:8pt;color:#999;border-top:1px solid #e2e8f0;padding-top:.5rem;}
+    </style></head><body>
+    <div class="header">
+      ${schoolLogo}
+      <div class="header-center">
+        <h1>${schoolName}</h1>
+        ${schoolLoc ? `<div class="loc">${schoolLoc}</div>` : ''}
+        <div style="font-size:10pt;font-weight:600;margin-top:6px;color:#0b7a75;">OBSERVADOR DEL ESTUDIANTE</div>
+      </div>
+      ${raiceLogo}
+    </div>
+
+    <div class="student-info">
+      <div><div class="si-label">Nombre completo</div><div class="si-value">${s.first_name} ${s.last_name}</div></div>
+      <div><div class="si-label">Curso</div><div class="si-value">${curso}</div></div>
+      <div><div class="si-label">Estado</div><div class="si-value">${s.status === 'inactive' ? 'Retirado' : 'Activo'}</div></div>
+    </div>
+
+    <div class="section-title">Resumen de asistencia</div>
+    <div class="att-grid">
+      <div class="att-box"><div class="att-val" style="color:${at.pct !== null && at.pct < 80 ? '#dc2626' : '#16a34a'};">${at.pct ?? '—'}%</div><div class="att-lbl">Asistencia</div></div>
+      <div class="att-box"><div class="att-val" style="color:#16a34a;">${at.present || 0}</div><div class="att-lbl">Presencias</div></div>
+      <div class="att-box"><div class="att-val" style="color:#dc2626;">${at.absent || 0}</div><div class="att-lbl">Ausencias</div></div>
+      <div class="att-box"><div class="att-val" style="color:#f59e0b;">${at.late || 0}</div><div class="att-lbl">Tardanzas</div></div>
+      <div class="att-box"><div class="att-val" style="color:#7c3aed;">${at.permit || 0}</div><div class="att-lbl">Permisos</div></div>
+    </div>
+    <div style="font-size:7.5pt;color:#94a3b8;text-align:center;margin-top:-.5rem;margin-bottom:.8rem;">* Estadísticas en horas de clase</div>
+
+    <div class="section-title">Observaciones (${obs.length})</div>
+    ${obs.length ? `<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Observación</th><th>Docente</th></tr></thead><tbody>${obsRows}</tbody></table>`
+      : '<div style="text-align:center;padding:1rem;color:#94a3b8;font-size:9pt;">Sin observaciones registradas</div>'}
+
+    <div class="section-title">Casos RAICE (${cases.length})</div>
+    ${cases.length ? `<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Descripción</th><th>Estado</th><th>Reportado por</th></tr></thead><tbody>${casesRows}</tbody></table>`
+      : '<div style="text-align:center;padding:1rem;color:#94a3b8;font-size:9pt;">Sin casos RAICE registrados</div>'}
+
+    <div class="footer">Generado el ${now} — Sistema RAICE</div>
+    </body></html>`);
+    w.document.close();
+    setTimeout(() => w.print(), 500);
+  }
 
 </script>
 
@@ -4285,7 +4675,9 @@
 
 <script>
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    navigator.serviceWorker.register('/sw.js').then(reg => {
+      reg.update();
+    }).catch(() => {});
   }
 </script>
 

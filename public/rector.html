@@ -54,25 +54,31 @@
   @media(max-width:880px){.main{grid-template-columns:1fr;}}
   @media(max-width:600px){.main{padding:.9rem 1rem;gap:.9rem;}.search-hero{padding:1.2rem 1rem 1rem;}}
 
+  /* full-width section below grid */
+  .full-section{padding:0 1.5rem 1.5rem;}
+  @media(max-width:600px){.full-section{padding:0 1rem 1rem;}}
+
   /* cards */
   .card{background:white;border-radius:16px;border:1.5px solid var(--border);}
   .card+.card{margin-top:1.2rem;}
-  .card-hd{padding:.85rem 1.15rem;border-bottom:1.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
-  .card-hd h3{font-size:.9rem;font-weight:700;color:var(--navy);}
-  .card-bd{padding:.95rem 1.15rem;}
+  .card-hd{padding:.75rem 1.1rem;border-bottom:1.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+  .card-hd h3{font-size:.88rem;font-weight:700;color:var(--navy);}
+  .card-bd{padding:.85rem 1.1rem;}
+  @media(max-width:600px){.card-hd{padding:.65rem .85rem;}.card-bd{padding:.7rem .85rem;}}
   .card-badge{font-size:.74rem;color:var(--gray);}
 
   /* stat grid */
-  .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1.2rem;}
-  .stat-card{background:white;border-radius:14px;border:1.5px solid var(--border);padding:.85rem 1rem;}
-  .s-ico2{font-size:1.35rem;margin-bottom:.3rem;}
-  .s-val{font-family:'Fraunces',serif;font-size:1.7rem;font-weight:800;color:var(--navy);line-height:1;}
-  .s-lbl{font-size:.71rem;font-weight:600;color:var(--gray);margin-top:.2rem;text-transform:uppercase;letter-spacing:.04em;}
+  .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin-bottom:1rem;}
+  .stat-card{background:white;border-radius:14px;border:1.5px solid var(--border);padding:.7rem .85rem;}
+  .s-ico2{font-size:1.2rem;margin-bottom:.2rem;}
+  .s-val{font-family:'Fraunces',serif;font-size:1.5rem;font-weight:800;color:var(--navy);line-height:1;}
+  .s-lbl{font-size:.68rem;font-weight:600;color:var(--gray);margin-top:.15rem;text-transform:uppercase;letter-spacing:.04em;}
+  @media(max-width:600px){.stat-grid{gap:.5rem;}.stat-card{padding:.55rem .7rem;}.s-val{font-size:1.3rem;}}
 
   /* rows */
-  .a-row{display:flex;align-items:flex-start;gap:.6rem;padding:.6rem 0;border-bottom:1px solid var(--border);}
+  .a-row{display:flex;align-items:flex-start;gap:.5rem;padding:.45rem 0;border-bottom:1px solid var(--border);}
   .a-row:last-child{border-bottom:none;}
-  .a-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:5px;}
+  .a-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:5px;}
   .d-red{background:#ef4444;} .d-orange{background:#f97316;} .d-blue{background:#3b82f6;}
   .a-title{font-size:.83rem;font-weight:600;color:var(--navy);}
   .a-desc{font-size:.75rem;color:var(--gray);margin-top:.12rem;}
@@ -84,14 +90,15 @@
   .ab-reason{font-size:.74rem;color:var(--gray);margin-top:.1rem;}
   .ab-badge{margin-left:auto;background:#fee2e2;color:#dc2626;border-radius:6px;padding:.12rem .45rem;font-size:.68rem;font-weight:700;white-space:nowrap;flex-shrink:0;}
 
-  .g-row{display:flex;align-items:center;gap:.7rem;padding:.3rem 0;}
-  .g-lbl{font-size:.77rem;font-weight:600;color:var(--navy);width:42px;flex-shrink:0;}
-  .g-track{flex:1;height:7px;background:#f1f5f9;border-radius:99px;overflow:hidden;}
+  .g-row{display:flex;align-items:center;gap:.5rem;padding:.25rem 0;}
+  .g-lbl{font-size:.74rem;font-weight:600;color:var(--navy);width:42px;flex-shrink:0;}
+  .g-track{flex:1;height:6px;background:#f1f5f9;border-radius:99px;overflow:hidden;}
   .g-fill{height:100%;border-radius:99px;transition:width .5s ease;}
-  .g-pct{font-size:.74rem;font-weight:700;width:32px;text-align:right;flex-shrink:0;}
+  .g-pct{font-size:.72rem;font-weight:700;width:32px;text-align:right;flex-shrink:0;}
 
-  .c-row{display:flex;align-items:center;gap:.55rem;padding:.52rem 0;border-bottom:1px solid var(--border);font-size:.82rem;}
+  .c-row{display:flex;align-items:center;gap:.5rem;padding:.42rem 0;border-bottom:1px solid var(--border);font-size:.8rem;}
   .c-row:last-child{border-bottom:none;}
+  @media(max-width:600px){.c-row{font-size:.76rem;gap:.4rem;padding:.35rem 0;}}
   .pill-t1{background:#dbeafe;color:#1d4ed8;border-radius:6px;padding:.12rem .45rem;font-size:.68rem;font-weight:700;flex-shrink:0;}
   .pill-t2{background:#fef9c3;color:#a16207;border-radius:6px;padding:.12rem .45rem;font-size:.68rem;font-weight:700;flex-shrink:0;}
   .pill-t3{background:#fee2e2;color:#dc2626;border-radius:6px;padding:.12rem .45rem;font-size:.68rem;font-weight:700;flex-shrink:0;}
@@ -105,7 +112,7 @@
   /* modal */
   .modal-ov{display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.5);backdrop-filter:blur(2px);align-items:center;justify-content:center;padding:1rem;}
   .modal-ov.open{display:flex;}
-  .modal{background:white;border-radius:20px;width:100%;max-width:680px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,.25);}
+  .modal{background:white;border-radius:20px;width:100%;max-width:720px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,.25);}
   .modal-hd{padding:1rem 1.35rem;border-bottom:1.5px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;flex-shrink:0;}
   .modal-hd h3{font-family:'Fraunces',serif;font-size:1.05rem;font-weight:700;color:var(--navy);}
   .modal-sub{font-size:.78rem;color:var(--gray);margin-top:.15rem;}
@@ -148,9 +155,135 @@
   .toast{padding:.6rem 1rem;border-radius:11px;font-size:.81rem;font-weight:600;color:white;box-shadow:0 4px 14px rgba(0,0,0,.2);animation:fu .22s ease;max-width:300px;}
   .toast.info{background:#0ea5e9;} .toast.error{background:#dc2626;} .toast.warning{background:#f59e0b;}
   @keyframes fu{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+
+  /* trend chart */
+  .trend-chart{display:flex;align-items:flex-end;gap:2px;height:110px;padding:.5rem 0;}
+  .trend-bar{flex:1;min-width:3px;border-radius:3px 3px 0 0;transition:height .3s ease;cursor:pointer;position:relative;}
+  .trend-bar:hover::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);background:var(--navy);color:white;font-size:.62rem;padding:.2rem .4rem;border-radius:4px;white-space:nowrap;z-index:10;}
+
+  /* risk table */
+  .risk-wrap{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;}
+  @media(max-width:880px){.risk-wrap{grid-template-columns:1fr;}}
+  @media(max-width:600px){.risk-wrap{gap:.45rem;}}
+
+  /* compliance row */
+  .comp-row{display:flex;align-items:center;gap:.5rem;padding:.32rem 0;border-bottom:1px solid var(--border);}
+  .comp-row:last-child{border-bottom:none;}
+  .comp-name{font-size:.76rem;font-weight:600;flex-shrink:0;width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .comp-track{flex:1;height:5px;background:#f1f5f9;border-radius:99px;overflow:hidden;}
+  .comp-fill{height:100%;border-radius:99px;transition:width .4s;}
+  .comp-pct{font-size:.72rem;font-weight:700;width:36px;text-align:right;flex-shrink:0;}
+  .comp-detail{font-size:.65rem;color:var(--gray);width:40px;text-align:center;flex-shrink:0;}
+  @media(max-width:600px){
+    .comp-name{width:110px;font-size:.72rem;}
+    .comp-detail{width:34px;}
+  }
+
+  /* cases summary */
+  .cs-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem;margin-bottom:.75rem;}
+  .cs-box{background:var(--light);border-radius:10px;padding:.55rem .7rem;text-align:center;}
+  .cs-val{font-family:'Fraunces',serif;font-size:1.2rem;font-weight:800;}
+  .cs-lbl{font-size:.65rem;font-weight:600;color:var(--gray);text-transform:uppercase;}
+  @media(max-width:600px){.cs-grid{grid-template-columns:repeat(2,1fr);}.cs-val{font-size:1rem;}}
+
+  /* case detail card (ficha) */
+  .case-card{background:var(--light);border:1.5px solid var(--border);border-radius:12px;padding:.85rem 1rem;margin-bottom:.65rem;}
+  .case-card:last-child{margin-bottom:0;}
+  .case-top{display:flex;align-items:center;gap:.4rem;margin-bottom:.4rem;flex-wrap:wrap;}
+  .case-meta{font-size:.73rem;color:var(--gray);margin-bottom:.35rem;}
+  .case-desc{font-size:.82rem;color:var(--navy);margin-bottom:.4rem;line-height:1.4;}
+  .case-section{margin-top:.5rem;padding-top:.4rem;border-top:1px dashed var(--border);}
+  .case-section-title{font-size:.7rem;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.3rem;}
+  .case-sub-item{font-size:.78rem;color:var(--navy);padding:.2rem 0;padding-left:.5rem;border-left:2px solid var(--teal2);}
+  .case-sub-item+.case-sub-item{margin-top:.25rem;}
+  .case-sub-meta{font-size:.67rem;color:var(--gray);}
+
+  /* insights grid */
+  .insights-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;}
+  .insights-grid>.card{display:flex;flex-direction:column;margin-top:0 !important;}
+  .insights-grid>.card>.card-bd{flex:1;overflow-y:auto;max-height:480px;}
+  @media(max-width:880px){
+    .insights-grid{grid-template-columns:1fr;}
+    .insights-grid>.card>.card-bd{max-height:none;overflow-y:visible;}
+  }
+
+  /* sedes grid */
+  .sedes-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:.65rem;}
+  @media(max-width:880px){.sedes-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));}}
+  @media(max-width:600px){.sedes-grid{grid-template-columns:1fr 1fr;gap:.5rem;}}
+
+  /* sede selector */
+  .sede-sel{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.8);border-radius:8px;padding:.22rem .5rem;font-size:.73rem;font-family:'DM Sans',sans-serif;outline:none;cursor:pointer;max-width:160px;}
+  .sede-sel:focus{border-color:var(--teal2);}
+  .sede-sel option{background:var(--navy);color:white;}
+
+  /* ahora mismo */
+  .ahora-pill{display:inline-block;font-size:.68rem;font-weight:700;padding:.15rem .55rem;border-radius:999px;}
+  .ahora-pill-ok{background:#dcfce7;color:#166534;}
+  .ahora-pill-pend{background:#fef9c3;color:#92400e;}
+  .ahora-card{border-radius:10px;padding:.6rem .75rem;border-left:3px solid var(--border);background:#fff;transition:box-shadow .15s;}
+  .ahora-card:hover{box-shadow:0 2px 10px rgba(0,0,0,.09);}
+  .ahora-card-ok{border-left-color:#16a34a;background:#f0fdf4;}
+  .ahora-card-pend{border-left-color:#d97706;background:#fefce8;}
+  .ahora-teacher{font-weight:700;font-size:.78rem;color:var(--navy);margin-bottom:.12rem;}
+  .ahora-sub{font-size:.72rem;color:var(--gray);}
+  .ahora-course{font-size:.68rem;font-weight:600;color:var(--teal);margin-top:.08rem;}
+
+  /* schedule grid — por grado (unchanged) */
+  .sched-table{width:100%;border-collapse:collapse;font-size:.75rem;}
+  .sched-table th{background:var(--navy);color:white;padding:.4rem .5rem;font-weight:600;font-size:.68rem;text-transform:uppercase;letter-spacing:.03em;position:sticky;top:0;}
+  .sched-table td{padding:.35rem .45rem;border:1px solid var(--border);vertical-align:top;min-width:90px;}
+  .sched-cell{font-size:.72rem;line-height:1.3;}
+  .sched-subj{font-weight:600;color:var(--navy);}
+  .sched-teacher{color:var(--gray);font-size:.67rem;}
+  .sched-hour-label{font-weight:700;color:var(--teal);font-size:.72rem;text-align:center;white-space:nowrap;}
+  .sched-taken{background:#dcfce7;} .sched-missed{background:#fee2e2;}
+  .sched-tabs{display:flex;gap:.3rem;margin-bottom:.75rem;flex-wrap:wrap;}
+  .sched-tab{padding:.35rem .75rem;border-radius:8px;font-size:.76rem;font-weight:600;border:1.5px solid var(--border);background:white;color:var(--gray);cursor:pointer;transition:all .15s;}
+  .sched-tab.active{background:var(--teal);color:white;border-color:var(--teal);}
+  .sched-filter{display:flex;gap:.5rem;align-items:center;margin-bottom:.75rem;flex-wrap:wrap;}
+  .sched-select{padding:.3rem .5rem;border:1.5px solid var(--border);border-radius:8px;font-size:.78rem;font-family:'DM Sans',sans-serif;outline:none;background:white;color:var(--navy);}
+  .sched-select:focus{border-color:var(--teal2);}
+
+  /* schedule grid v2 — por docente (card style) */
+  .sched-v2{width:100%;border-collapse:separate;border-spacing:3px;font-size:.75rem;}
+  .sched-v2 thead th{padding:.5rem .6rem;font-weight:700;font-size:.67rem;text-transform:uppercase;letter-spacing:.04em;text-align:center;border-radius:8px;}
+  .sched-v2 .v2-hour-th{background:var(--navy);color:white;width:62px;}
+  .sched-v2 .v2-day-past{background:#f1f5f9;color:var(--navy);}
+  .sched-v2 .v2-day-today{background:var(--navy);color:white;}
+  .sched-v2 .v2-day-future{background:#f8fafc;color:var(--gray);}
+  .sched-v2 tbody td{padding:.2rem;vertical-align:top;}
+  .sched-v2 .v2-hour-td{text-align:center;padding:.3rem .35rem;background:#f8fafc;border-radius:8px;white-space:nowrap;}
+  .sched-v2 .v2-hour-num{font-weight:700;color:var(--teal);font-size:.72rem;}
+  .sched-v2 .v2-hour-time{font-size:.6rem;color:var(--gray);margin-top:.1rem;}
+  .sched-v2 .v2-card{border-radius:8px;padding:.38rem .5rem;font-size:.72rem;line-height:1.35;transition:box-shadow .15s;}
+  .sched-v2 .v2-card:hover{box-shadow:0 2px 8px rgba(0,0,0,.1);}
+  .sched-v2 .v2-subj{font-weight:700;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .sched-v2 .v2-course{font-size:.67rem;font-weight:600;color:var(--teal);margin-top:.1rem;}
+  .sched-v2 .v2-card-taken{background:#f0fdf4;border:1.5px solid #86efac;}
+  .sched-v2 .v2-card-pending{background:#fefce8;border:1.5px solid #fde047;}
+  .sched-v2 .v2-card-missed{background:#fff1f2;border:1.5px solid #fca5a5;}
+  .sched-v2 .v2-card-neutral{background:#fff;border:1.5px solid var(--border);}
+  .sched-v2 .v2-empty{text-align:center;color:#cbd5e1;font-size:.75rem;}
 </style>
+<script src="/js/chart.umd.min.js"></script>
 </head>
 <body>
+
+<div id="sw-update-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#1d4ed8;color:#fff;padding:.6rem 1rem;display:none;align-items:center;justify-content:center;gap:1rem;font-size:.85rem;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.2);">
+  🔄 Hay una versión nueva disponible
+  <button onclick="location.reload()" style="background:#fff;color:#1d4ed8;border:none;border-radius:6px;padding:.3rem .8rem;font-weight:700;cursor:pointer;">Actualizar ahora</button>
+</div>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', e => {
+      if (e.data?.type === 'NEW_VERSION') document.getElementById('sw-update-banner').style.display = 'flex';
+    });
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      document.getElementById('sw-update-banner').style.display = 'flex';
+    });
+  }
+</script>
 
 <header class="topbar">
   <div class="tb-brand">
@@ -159,98 +292,212 @@
       <img src="/icons/icon-96.png" style="height:25px;object-fit:contain;" alt="RAICE">
       <span>RAICE</span>
     </div>
-    <div class="tb-badge">🏫 Rector</div>
+    <div class="tb-badge">Rector</div>
   </div>
   <div class="tb-right">
+    <select id="sede-selector" class="sede-sel" onchange="cambiarSede(this.value)" style="display:none;">
+      <option value="">Todas las sedes</option>
+    </select>
     <div class="tb-date" id="top-date"></div>
     <div class="tb-user">
       <div class="u-avatar" id="r-av">RE</div>
       <span class="u-name" id="r-name">Rector</span>
     </div>
-    <button class="btn-logout" onclick="openPerfil()">👤 Mi perfil</button>
+    <button class="btn-logout" onclick="openPerfil()">Mi perfil</button>
     <button class="btn-logout" onclick="logout()">Salir</button>
   </div>
 </header>
 
 <div class="search-hero">
-  <h1 id="greeting">Buenos días — ¿qué necesitas consultar?</h1>
+  <h1 id="greeting">Buenos dias</h1>
+
+  <!-- Banner sede seleccionada -->
+  <div id="sede-banner" style="display:none;margin-top:.85rem;margin-bottom:.15rem;">
+    <div style="display:flex;align-items:center;gap:.85rem;flex-wrap:wrap;">
+      <span style="font-size:1.6rem;line-height:1;flex-shrink:0;">📍</span>
+      <div style="flex:1;min-width:0;">
+        <div id="sede-banner-name" style="font-family:'Fraunces',serif;font-size:2rem;font-weight:900;color:var(--teal2);line-height:1;letter-spacing:-.02em;"></div>
+        <div style="font-size:.75rem;color:rgba(255,255,255,.4);margin-top:.2rem;">Vista filtrada por sede</div>
+      </div>
+      <button onclick="resetSede()" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:rgba(255,255,255,.55);border-radius:8px;padding:.3rem .75rem;font-size:.74rem;cursor:pointer;font-family:'DM Sans',sans-serif;flex-shrink:0;transition:background .15s;" onmouseover="this.style.background='rgba(255,255,255,.15)'" onmouseout="this.style.background='rgba(255,255,255,.08)'">✕ Todas las sedes</button>
+    </div>
+  </div>
+
   <div class="search-wrap">
-    <span class="s-ico">🔍</span>
-    <input type="text" id="s-input" placeholder="Buscar estudiante por nombre o apellido…"
+    <span class="s-ico">&#128269;</span>
+    <input type="text" id="s-input" placeholder="Buscar estudiante por nombre o apellido..."
            oninput="onSearch(this.value)" autocomplete="off" spellcheck="false">
-    <button class="s-clear" id="s-clear" onclick="clearSearch()">✕</button>
+    <button class="s-clear" id="s-clear" onclick="clearSearch()">&#10005;</button>
     <div class="s-results" id="s-results"></div>
   </div>
 </div>
 
+<!-- 1. SEDES -->
+<div class="full-section" style="padding-top:1.2rem;">
+  <div id="sedes-stats-wrap" style="display:none;">
+    <div style="font-size:.78rem;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.6rem;">Sedes</div>
+    <div id="sedes-stats-grid" class="sedes-grid"></div>
+  </div>
+</div>
+
+<!-- 2. STAT CARDS + DOCENTES AUSENTES -->
 <div class="main">
-  <!-- LEFT -->
   <div>
-    <!-- Resumen por sedes -->
-    <div id="sedes-stats-wrap" style="display:none;margin-bottom:1.2rem;">
-      <div style="font-size:.78rem;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.6rem;">🏢 Sedes</div>
-      <div id="sedes-stats-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.65rem;"></div>
-    </div>
-
     <div class="stat-grid" id="stat-grid">
-      <div class="stat-card"><div class="s-ico2">⏳</div><div class="s-val">—</div><div class="s-lbl">Cargando</div></div>
-      <div class="stat-card"><div class="s-ico2">⏳</div><div class="s-val">—</div><div class="s-lbl">Cargando</div></div>
-      <div class="stat-card"><div class="s-ico2">⏳</div><div class="s-val">—</div><div class="s-lbl">Cargando</div></div>
-      <div class="stat-card"><div class="s-ico2">⏳</div><div class="s-val">—</div><div class="s-lbl">Cargando</div></div>
+      <div class="stat-card"><div class="s-ico2">&#9203;</div><div class="s-val">&mdash;</div><div class="s-lbl">Cargando</div></div>
+      <div class="stat-card"><div class="s-ico2">&#9203;</div><div class="s-val">&mdash;</div><div class="s-lbl">Cargando</div></div>
+      <div class="stat-card"><div class="s-ico2">&#9203;</div><div class="s-val">&mdash;</div><div class="s-lbl">Cargando</div></div>
+      <div class="stat-card"><div class="s-ico2">&#9203;</div><div class="s-val">&mdash;</div><div class="s-lbl">Cargando</div></div>
     </div>
+  </div>
+  <div>
+    <div class="card">
+      <div class="card-hd">
+        <h3>Docentes ausentes hoy</h3>
+        <span class="card-badge" id="abs-badge"></span>
+      </div>
+      <div class="card-bd" id="abs-bd">
+        <div class="empty"><div class="ei">&#9203;</div>Cargando...</div>
+      </div>
+    </div>
+  </div>
+</div>
 
+<!-- 3. ALERTAS + ASISTENCIA HOY (donut) -->
+<div class="full-section">
+  <div class="insights-grid">
     <div class="card">
       <div class="card-hd">
         <div style="display:flex;align-items:center;gap:.5rem;flex:1;">
-          <h3>⚠️ Alertas</h3>
+          <h3>Alertas activas</h3>
           <select id="filter-alerts" onchange="applyFilters()" style="font-size:.72rem;padding:.1rem .3rem;border:1px solid var(--border);border-radius:6px;outline:none;background:var(--light);color:var(--navy);">
             <option value="all">Todas</option>
-            <option value="high">Alta 🔴</option>
-            <option value="medium">Media 🟠</option>
-            <option value="low">Baja 🔵</option>
+            <option value="high">Alta</option>
+            <option value="medium">Media</option>
+            <option value="low">Baja</option>
           </select>
         </div>
         <span class="card-badge" id="alerts-badge"></span>
       </div>
       <div class="card-bd" id="alerts-bd">
-        <div class="empty"><div class="ei">⏳</div>Cargando…</div>
+        <div class="empty"><div class="ei">&#9203;</div>Cargando...</div>
       </div>
     </div>
-
     <div class="card">
-      <div class="card-hd"><h3>📊 Asistencia por grado — hoy</h3></div>
-      <div class="card-bd" id="grade-bd">
-        <div class="empty"><div class="ei">⏳</div>Cargando…</div>
+      <div class="card-hd"><h3>Asistencia hoy</h3></div>
+      <div class="card-bd" id="att-donut-bd">
+        <div class="empty"><div class="ei">&#9203;</div>Cargando...</div>
       </div>
     </div>
   </div>
+</div>
 
-  <!-- RIGHT -->
-  <div>
+<!-- 4. CASOS POR TIPO + ASISTENCIA POR GRADO -->
+<div class="full-section">
+  <div class="insights-grid">
     <div class="card">
-      <div class="card-hd">
-        <h3>🏠 Docentes ausentes hoy</h3>
-        <span class="card-badge" id="abs-badge"></span>
-      </div>
-      <div class="card-bd" id="abs-bd">
-        <div class="empty"><div class="ei">⏳</div>Cargando…</div>
+      <div class="card-hd"><h3>⚠️ Casos por tipo</h3></div>
+      <div class="card-bd" id="cs-bd">
+        <div class="empty"><div class="ei">&#9203;</div>Cargando...</div>
       </div>
     </div>
-
     <div class="card">
-      <div class="card-hd">
-        <div style="display:flex;align-items:center;gap:.5rem;flex:1;">
-          <h3>📋 Casos recientes</h3>
-          <select id="filter-cases" onchange="applyFilters()" style="font-size:.72rem;padding:.1rem .3rem;border:1px solid var(--border);border-radius:6px;outline:none;background:var(--light);color:var(--navy);">
-            <option value="all">Todos</option>
-            <option value="open">Abiertos</option>
-            <option value="closed">Cerrados</option>
-          </select>
-        </div>
-        <span class="card-badge" id="cases-badge"></span>
+      <div class="card-hd"><h3>🏫 Asistencia por grado</h3></div>
+      <div class="card-bd" id="grade-bd" style="min-height:200px;">
+        <div class="empty"><div class="ei">&#9203;</div>Cargando...</div>
       </div>
-      <div class="card-bd" id="cases-bd">
-        <div class="empty"><div class="ei">⏳</div>Cargando…</div>
+    </div>
+  </div>
+</div>
+
+<!-- 5. ÚLTIMOS CASOS REGISTRADOS -->
+<div class="full-section">
+  <div class="card">
+    <div class="card-hd">
+      <div style="display:flex;align-items:center;gap:.5rem;flex:1;">
+        <h3>⚠️ Últimos casos registrados</h3>
+        <select id="filter-cases" onchange="applyFilters()" style="font-size:.72rem;padding:.1rem .3rem;border:1px solid var(--border);border-radius:6px;outline:none;background:var(--light);color:var(--navy);">
+          <option value="all">Todos</option>
+          <option value="open">Abiertos</option>
+          <option value="closed">Cerrados</option>
+        </select>
+      </div>
+      <span class="card-badge" id="cases-badge"></span>
+    </div>
+    <div class="card-bd" id="cases-bd">
+      <div class="empty"><div class="ei">&#9203;</div>Cargando...</div>
+    </div>
+  </div>
+</div>
+
+<!-- 6. CUMPLIMIENTO DOCENTE + RANKING GRADOS -->
+<div class="full-section">
+  <div class="insights-grid">
+    <div class="card">
+      <div class="card-hd"><h3>Cumplimiento docente &mdash; hoy</h3><span class="card-badge" id="comp-badge"></span></div>
+      <div class="card-bd" id="comp-bd">
+        <div class="empty"><div class="ei">&#9203;</div>Cargando...</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><h3>Ranking grados &mdash; mes actual</h3></div>
+      <div class="card-bd" id="ranking-bd">
+        <div class="empty"><div class="ei">&#9203;</div>Cargando...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 7. ESTUDIANTES EN RIESGO -->
+<div class="full-section">
+  <div class="card">
+    <div class="card-hd"><h3>Estudiantes en riesgo</h3><span class="card-badge" id="risk-badge"></span></div>
+    <div class="card-bd" id="risk-bd">
+      <div class="empty"><div class="ei">&#9203;</div>Cargando...</div>
+    </div>
+  </div>
+</div>
+
+<!-- 8. AHORA MISMO -->
+<div class="full-section">
+  <div class="card">
+    <div class="card-hd">
+      <h3>🔴 Ahora mismo</h3>
+      <span class="card-badge" id="rector-ahora-badge"></span>
+    </div>
+    <div class="card-bd">
+      <div id="rector-ahora-header" style="margin-bottom:.75rem;"></div>
+      <div id="rector-ahora-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:.6rem;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 9. HORARIOS -->
+<div class="full-section">
+  <div class="card">
+    <div class="card-hd"><h3>Horarios</h3></div>
+    <div class="card-bd">
+      <div class="sched-tabs">
+        <button class="sched-tab active" onclick="switchSchedView('grade',this)">Por grado</button>
+        <button class="sched-tab" onclick="switchSchedView('teacher',this)">Por docente</button>
+      </div>
+      <div id="sched-grade-view">
+        <div class="sched-filter">
+          <label style="font-size:.78rem;font-weight:600;color:var(--gray);">Grado:</label>
+          <select id="sched-grade-select" class="sched-select" onchange="renderGradeSchedule()"></select>
+        </div>
+        <div id="sched-grade-table" style="overflow-x:auto;">
+          <div class="empty"><div class="ei">&#9203;</div>Cargando...</div>
+        </div>
+      </div>
+      <div id="sched-teacher-view" style="display:none;">
+        <div class="sched-filter">
+          <label style="font-size:.78rem;font-weight:600;color:var(--gray);">Docente:</label>
+          <select id="sched-teacher-select" class="sched-select" onchange="loadTeacherSchedule()"></select>
+        </div>
+        <div id="sched-teacher-table" style="overflow-x:auto;">
+          <div class="empty"><div class="ei">&#128197;</div>Selecciona un docente</div>
+        </div>
       </div>
     </div>
   </div>
@@ -264,14 +511,15 @@
         <h3 id="f-nombre">Estudiante</h3>
         <div class="modal-sub" id="f-curso"></div>
       </div>
-      <button class="m-close" onclick="closeFicha()">✕</button>
+      <button id="ficha-print-btn" style="margin-left:auto;margin-right:.5rem;padding:.3rem .7rem;border-radius:8px;border:1.5px solid var(--border);background:white;color:var(--navy);font-size:.78rem;font-weight:600;cursor:pointer;" onclick="printObservador()">🖨️ Imprimir</button>
+      <button class="m-close" onclick="closeFicha()">&#10005;</button>
     </div>
     <div class="modal-bd">
       <div class="f-tabs">
-        <button class="f-tab active" onclick="switchTab('resumen',this)">📈 Resumen</button>
-        <button class="f-tab" onclick="switchTab('asistencia',this)">📅 Asistencia</button>
-        <button class="f-tab" onclick="switchTab('casos',this)">⚠️ Casos</button>
-        <button class="f-tab" onclick="switchTab('obs',this)">📝 Observaciones</button>
+        <button class="f-tab active" onclick="switchTab('resumen',this)">Resumen</button>
+        <button class="f-tab" onclick="switchTab('asistencia',this)">Asistencia</button>
+        <button class="f-tab" onclick="switchTab('casos',this)">Casos</button>
+        <button class="f-tab" onclick="switchTab('obs',this)">Observaciones</button>
       </div>
       <div id="t-resumen"></div>
       <div id="t-asistencia" style="display:none;"></div>
@@ -291,43 +539,41 @@
   <div class="modal" style="max-width:480px;">
     <div class="modal-hd">
       <div>
-        <h3>👤 Mi perfil</h3>
-        <div class="modal-sub">Información de tu cuenta RAICE</div>
+        <h3>Mi perfil</h3>
+        <div class="modal-sub">Informacion de tu cuenta RAICE</div>
       </div>
-      <button class="m-close" onclick="closePerfil()">✕</button>
+      <button class="m-close" onclick="closePerfil()">&#10005;</button>
     </div>
     <div class="modal-bd">
-      <!-- Datos personales -->
       <div style="display:flex;align-items:center;gap:1rem;padding:.75rem 0 1.25rem;border-bottom:1.5px solid var(--border);margin-bottom:1.25rem;">
         <div style="width:52px;height:52px;border-radius:50%;background:var(--teal2);color:var(--navy);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.15rem;flex-shrink:0;" id="p-avatar">RE</div>
         <div>
           <div style="font-family:'Fraunces',serif;font-size:1.05rem;font-weight:700;color:var(--navy);" id="p-fullname">Rector</div>
           <div style="font-size:.82rem;color:var(--gray);" id="p-username">@rector</div>
-          <div style="margin-top:.35rem;display:inline-block;background:rgba(20,184,176,.12);color:var(--teal);border-radius:999px;padding:.15rem .65rem;font-size:.72rem;font-weight:700;">🏫 Rector</div>
+          <div style="margin-top:.35rem;display:inline-block;background:rgba(20,184,176,.12);color:var(--teal);border-radius:999px;padding:.15rem .65rem;font-size:.72rem;font-weight:700;">Rector</div>
         </div>
       </div>
-      <!-- Cambiar contraseña -->
-      <div style="font-weight:700;color:var(--navy);font-size:.88rem;margin-bottom:.85rem;">🔑 Cambiar contraseña</div>
+      <div style="font-weight:700;color:var(--navy);font-size:.88rem;margin-bottom:.85rem;">Cambiar contrasena</div>
       <div style="display:flex;flex-direction:column;gap:.7rem;">
         <div>
-          <label style="font-size:.78rem;font-weight:600;color:var(--gray);display:block;margin-bottom:.25rem;">Contraseña actual</label>
-          <input type="password" id="p-pwd-current" placeholder="••••••••"
+          <label style="font-size:.78rem;font-weight:600;color:var(--gray);display:block;margin-bottom:.25rem;">Contrasena actual</label>
+          <input type="password" id="p-pwd-current" placeholder="........"
             style="width:100%;padding:.55rem .85rem;border:1.5px solid var(--border);border-radius:9px;font-size:.85rem;font-family:'DM Sans',sans-serif;outline:none;"
             onfocus="this.style.borderColor='var(--teal2)'" onblur="this.style.borderColor='var(--border)'">
         </div>
         <div>
-          <label style="font-size:.78rem;font-weight:600;color:var(--gray);display:block;margin-bottom:.25rem;">Nueva contraseña</label>
-          <input type="password" id="p-pwd-new" placeholder="••••••••"
+          <label style="font-size:.78rem;font-weight:600;color:var(--gray);display:block;margin-bottom:.25rem;">Nueva contrasena</label>
+          <input type="password" id="p-pwd-new" placeholder="........"
             style="width:100%;padding:.55rem .85rem;border:1.5px solid var(--border);border-radius:9px;font-size:.85rem;font-family:'DM Sans',sans-serif;outline:none;"
             onfocus="this.style.borderColor='var(--teal2)'" onblur="this.style.borderColor='var(--border)'">
         </div>
         <div>
-          <label style="font-size:.78rem;font-weight:600;color:var(--gray);display:block;margin-bottom:.25rem;">Confirmar nueva contraseña</label>
-          <input type="password" id="p-pwd-confirm" placeholder="••••••••"
+          <label style="font-size:.78rem;font-weight:600;color:var(--gray);display:block;margin-bottom:.25rem;">Confirmar nueva contrasena</label>
+          <input type="password" id="p-pwd-confirm" placeholder="........"
             style="width:100%;padding:.55rem .85rem;border:1.5px solid var(--border);border-radius:9px;font-size:.85rem;font-family:'DM Sans',sans-serif;outline:none;"
             onfocus="this.style.borderColor='var(--teal2)'" onblur="this.style.borderColor='var(--border)'">
         </div>
-        <button id="p-pwd-btn" onclick="changeMyPassword()" style="width:100%;padding:.6rem;background:var(--teal);color:white;border:none;border-radius:10px;font-size:.85rem;font-weight:700;cursor:pointer;margin-top:.2rem;font-family:'DM Sans',sans-serif;">💾 Actualizar contraseña</button>
+        <button id="p-pwd-btn" onclick="changeMyPassword()" style="width:100%;padding:.6rem;background:var(--teal);color:white;border:none;border-radius:10px;font-size:.85rem;font-weight:700;cursor:pointer;margin-top:.2rem;font-family:'DM Sans',sans-serif;">Actualizar contrasena</button>
       </div>
     </div>
     <div class="modal-ft">
@@ -341,6 +587,10 @@ const API_URL = '/api';
 let _students = [];
 let _schoolConfig = null;
 let _lastData = { dash: null, alerts: [], absences: [] };
+let _insights = null;
+let _activeSede = null; // {id, name} or null for all
+let _schedData = null; // cached schedule overview
+let _bellSchedule = [];
 
 // AUTH
 async function initSession() {
@@ -348,28 +598,24 @@ async function initSession() {
   const role  = sessionStorage.getItem('raice_role');
   const user  = JSON.parse(sessionStorage.getItem('raice_user') || 'null');
   if (!token || role !== 'rector') { window.location.href = '/login.html'; return; }
-  
-  // Load school config for logos
   loadSchoolConfig();
-
   if (user) {
     const ini = ((user.first_name||'R')[0]+(user.last_name||'E')[0]).toUpperCase();
-    document.getElementById('r-av').textContent   = ini;
+    document.getElementById('r-av').textContent = ini;
     document.getElementById('r-name').textContent = (user.first_name||'')+' '+(user.last_name||'');
-    // Populate profile modal
-    document.getElementById('p-avatar').textContent   = ini;
+    document.getElementById('p-avatar').textContent = ini;
     document.getElementById('p-fullname').textContent = `${user.first_name||''} ${user.last_name||''}`.trim();
     document.getElementById('p-username').textContent = `@${user.username||'rector'}`;
     const h = new Date().getHours();
-    const g = h<12?'Buenos días':h<18?'Buenas tardes':'Buenas noches';
-    document.getElementById('greeting').textContent = g+', '+(user.first_name||'Rector')+' — ¿qué necesitas consultar?';
+    const g = h<12?'Buenos dias':h<18?'Buenas tardes':'Buenas noches';
+    document.getElementById('greeting').textContent = g+', '+(user.first_name||'Rector')+' — Panel institucional';
   }
   const d = new Date();
   document.getElementById('top-date').textContent = d.toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 }
 
 function logout() {
-  if (!confirm('¿Cerrar sesión?')) return;
+  if (!confirm('Cerrar sesion?')) return;
   sessionStorage.clear();
   ['raice_token','raice_role','raice_user'].forEach(k => localStorage.removeItem(k));
   window.location.href = '/login.html';
@@ -381,26 +627,22 @@ function openPerfil() {
   });
   document.getElementById('modal-perfil').classList.add('open');
 }
+function closePerfil() { document.getElementById('modal-perfil').classList.remove('open'); }
 
-function closePerfil() {
-  document.getElementById('modal-perfil').classList.remove('open');
-}
-
-// Unified password change function (replaced redundant changeRectorPassword)
-async function _api(path, opts={}) {
-  return await api(path, opts);
-}
-
-// API
 async function api(path, opts={}) {
   const token = sessionStorage.getItem('raice_token');
+  // Inject sede_filter for GET requests when a sede is selected
+  let fullPath = path;
+  if (_activeSede && _activeSede.id && (!opts.method || opts.method === 'GET')) {
+    const sep = path.includes('?') ? '&' : '?';
+    fullPath = path + sep + 'sede_filter=' + _activeSede.id;
+  }
   try {
-    const r = await fetch(API_URL+path, {...opts, headers:{'Content-Type':'application/json','Authorization':'Bearer '+token,...(opts.headers||{})}});
+    const r = await fetch(API_URL+fullPath, {...opts, headers:{'Content-Type':'application/json','Authorization':'Bearer '+token,...(opts.headers||{})}});
     return { ok:r.ok, status:r.status, data: await r.json().catch(()=>({})) };
-  } catch { return { ok:false, status:0, data:{error:'Sin conexión'} }; }
+  } catch { return { ok:false, status:0, data:{error:'Sin conexion'} }; }
 }
 
-// TOAST
 function toast(msg, type='info', ms=3500) {
   const w = document.getElementById('t-wrap');
   const t = document.createElement('div');
@@ -408,8 +650,16 @@ function toast(msg, type='info', ms=3500) {
   setTimeout(() => t.remove(), ms);
 }
 
-// ESC
 function esc(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function daysAgo(dateStr) {
+  if (!dateStr) return '—';
+  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
+  if (diff < 0) return 'futuro';
+  if (diff === 0) return 'hoy';
+  if (diff === 1) return '1 día';
+  return diff + ' días';
+}
 
 // DASHBOARD
 async function loadSchoolConfig() {
@@ -418,34 +668,80 @@ async function loadSchoolConfig() {
     _schoolConfig = data;
     const container = document.getElementById('school-logo-container');
     if (data.logo_url) {
-      container.innerHTML = `<img src="${data.logo_url}" style="height:32px;object-fit:contain;border-radius:6px;background:white;padding:1px;" alt="School Logo">`;
+      container.innerHTML = `<img src="${data.logo_url}" style="height:32px;object-fit:contain;border-radius:6px;background:white;padding:1px;" alt="Logo">`;
       container.style.display = 'flex';
-      // The gap in the parent tb-logo handles the spacing.
     }
   }
 }
 
-// DASHBOARD
+async function loadSedes() {
+  const { ok, data } = await api('/raice/sedes');
+  if (!ok || !data.sedes?.length) return;
+  const sedes = data.sedes.filter(s => s.active !== false);
+  if (sedes.length < 2) return; // no need for selector with 1 sede
+  const sel = document.getElementById('sede-selector');
+  sel.innerHTML = '<option value="">Todas las sedes</option>' +
+    sedes.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  sel.style.display = '';
+}
+
+function cambiarSede(id) {
+  const sel  = document.getElementById('sede-selector');
+  const name = sel.options[sel.selectedIndex]?.text || '';
+  _activeSede = id ? { id, name } : null;
+
+  // Sede banner
+  const banner = document.getElementById('sede-banner');
+  const bannerName = document.getElementById('sede-banner-name');
+  if (id) {
+    bannerName.textContent = name;
+    banner.style.display = '';
+  } else {
+    banner.style.display = 'none';
+  }
+
+  // Reload everything filtered by the new sede
+  loadDashboard();
+  loadInsights();
+  loadStudents();
+  loadScheduleOverview();
+}
+
+function resetSede() {
+  document.getElementById('sede-selector').value = '';
+  cambiarSede('');
+}
+
 async function loadDashboard() {
   const [dash, abs, alr] = await Promise.all([
     api('/raice/dashboard'),
     api('/raice/teacher-absences'),
     api('/raice/alerts')
   ]);
-
   if (dash.ok) _lastData.dash = dash.data;
   if (alr.ok)  _lastData.alerts = alr.data.alerts || [];
   if (abs.ok)  _lastData.absences = abs.data.absences || [];
-
   applyFilters();
-  loadSedesStats(); // carga resumen por sedes en paralelo
+  loadSedesStats();
+}
+
+async function loadInsights() {
+  const { ok, data } = await api('/raice/rector-insights');
+  if (!ok) return;
+  _insights = data;
+  renderTrend(data.attendance_trend || []);
+  renderRanking(data.grade_ranking || []);
+  renderCompliance(data.teacher_compliance || []);
+  renderCasesSummary(data.cases_summary || {});
+  renderRisk(data.students_at_risk || []);
+  renderExcusas(data.excusas_summary || {});
 }
 
 async function loadSedesStats() {
   const { ok, data } = await api('/raice/sedes?stats=true');
   if (!ok || !data.sedes?.length) return;
   const sedes = data.sedes.filter(s => s.active !== false);
-  if (sedes.length < 2) return; // solo muestra si hay 2+ sedes activas
+  if (sedes.length < 2) return;
   const wrap = document.getElementById('sedes-stats-wrap');
   const grid = document.getElementById('sedes-stats-grid');
   if (!wrap || !grid) return;
@@ -474,22 +770,10 @@ async function loadSedesStats() {
 
 function applyFilters() {
   if (!_lastData.dash) return;
-  
   const alertFilter = document.getElementById('filter-alerts').value;
   const caseFilter = document.getElementById('filter-cases').value;
-
-  // Filter alerts
-  const filteredAlerts = _lastData.alerts.filter(a => {
-    if (alertFilter === 'all') return true;
-    return a.severity === alertFilter;
-  });
-
-  // Filter cases (recent_cases inside dash)
-  const filteredCases = (_lastData.dash.recent_cases || []).filter(c => {
-    if (caseFilter === 'all') return true;
-    return c.status === caseFilter;
-  });
-
+  const filteredAlerts = _lastData.alerts.filter(a => alertFilter === 'all' || a.severity === alertFilter);
+  const filteredCases = (_lastData.dash.recent_cases || []).filter(c => caseFilter === 'all' || c.status === caseFilter);
   renderDash(_lastData.dash, filteredAlerts, filteredCases);
   renderAbsences(_lastData.absences);
 }
@@ -498,10 +782,10 @@ function renderDash(d, alerts=[], cases=[]) {
   const pct = d.attendance_today;
   const pc  = pct===null?'#64748b':pct>=90?'#16a34a':pct>=75?'#ca8a04':'#dc2626';
   document.getElementById('stat-grid').innerHTML = [
-    {ico:'👨‍🎓', val:d.students||0,                    lbl:'Estudiantes activos'},
-    {ico:'👩‍🏫', val:d.teachers||0,                    lbl:'Docentes activos'},
-    {ico:'📋',  val:d.open_cases||0,                   lbl:'Casos RAICE abiertos'},
-    {ico:'📊',  val:pct!==null?pct+'%':'—', lbl:'Asistencia hoy', col:pc},
+    {ico:'&#x1F468;&#x200D;&#x1F393;', val:d.students||0, lbl:'Estudiantes activos'},
+    {ico:'&#x1F469;&#x200D;&#x1F3EB;', val:d.teachers||0, lbl:'Docentes activos'},
+    {ico:'&#128203;', val:d.open_cases||0, lbl:'Casos RAICE abiertos'},
+    {ico:'&#128202;', val:pct!==null?pct+'%':'&mdash;', lbl:'Asistencia hoy', col:pc},
   ].map(c=>`<div class="stat-card"><div class="s-ico2">${c.ico}</div>
     <div class="s-val" style="color:${c.col||'var(--navy)'};">${c.val}</div>
     <div class="s-lbl">${c.lbl}</div></div>`).join('');
@@ -514,39 +798,136 @@ function renderDash(d, alerts=[], cases=[]) {
           <div><div class="a-title">${esc(a.title)}</div>
           <div class="a-desc">${esc(a.description||'')}</div></div></div>`;
       }).join('')
-    : '<div class="empty"><div class="ei">✅</div>Sin alertas activas.</div>';
+    : '<div class="empty"><div class="ei">&#10003;</div>Sin alertas activas.</div>';
 
+  // Asistencia por grado — bar chart con canvas
   const gr = d.att_by_grade||[];
-  document.getElementById('grade-bd').innerHTML = gr.length
-    ? gr.map(g=>{
-        const col=g.pct>=90?'#16a34a':g.pct>=75?'#ca8a04':'#dc2626';
-        return `<div class="g-row"><div class="g-lbl">${g.name || (g.grade+'°')}</div>
-          <div class="g-track"><div class="g-fill" style="width:${g.pct}%;background:${col};"></div></div>
-          <div class="g-pct" style="color:${col};">${g.pct}%</div></div>`;
-      }).join('')
-    : '<div class="empty"><div class="ei">📊</div>Sin datos de asistencia hoy.</div>';
+  const gradeEl = document.getElementById('grade-bd');
+  if (gr.length) {
+    gradeEl.innerHTML = '<canvas id="chart-grade-rector" style="width:100%;max-height:220px;"></canvas>';
+    const grCtx = document.getElementById('chart-grade-rector')?.getContext('2d');
+    if (grCtx) {
+      if (window._rectorGradeChart) window._rectorGradeChart.destroy();
+      window._rectorGradeChart = new Chart(grCtx, {
+        type:'bar',
+        data:{
+          labels: gr.map(g => g.name || (g.grade+'°')),
+          datasets:[{data: gr.map(g=>g.pct),
+            backgroundColor: gr.map(g => g.pct>=90?'rgba(13,148,136,.85)':g.pct>=75?'rgba(245,158,11,.85)':'rgba(244,63,94,.85)'),
+            borderRadius:6, borderSkipped:false}]
+        },
+        options:{
+          responsive:true, maintainAspectRatio:false,
+          plugins:{legend:{display:false}},
+          scales:{
+            x:{grid:{display:false}, ticks:{font:{size:10,weight:'600'}, autoSkip:false, maxRotation:45, minRotation:45}},
+            y:{min:0, max:100, ticks:{callback:v=>v+'%'}, grid:{color:'rgba(0,0,0,.05)'}}
+          }
+        }
+      });
+    }
+  } else {
+    gradeEl.innerHTML = '<div class="empty"><div class="ei">&#128202;</div>Sin datos de asistencia hoy.</div>';
+  }
 
+  // Asistencia hoy — donut (estilo admin)
+  const donutEl = document.getElementById('att-donut-bd');
+  const present = d.present || 0;
+  const absent = d.absent || 0;
+  const late = d.late || 0;
+  const permit = d.permit || 0;
+  const totalAtt = present + absent + late + permit;
+  if (totalAtt > 0) {
+    const attPct = d.attendance_today || Math.round(((present+late)/totalAtt)*100);
+    const CIRC = 2 * Math.PI * 65;
+    const segs = [
+      [present,'#0d9488'],
+      [late,'#f59e0b'],
+      [permit,'#a78bfa'],
+      [absent,'#f43f5e']
+    ];
+    let svgSegs = '', offset = 0;
+    segs.forEach(([val, col]) => {
+      const arc = (val / totalAtt) * CIRC;
+      svgSegs += `<circle cx="80" cy="80" r="65" fill="none" stroke="${col}" stroke-width="22" stroke-dasharray="${arc} ${CIRC - arc}" stroke-dashoffset="${-offset}" stroke-linecap="butt"/>`;
+      offset += arc;
+    });
+    donutEl.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;gap:1rem;">
+        <div style="position:relative;width:160px;height:160px;">
+          <svg width="160" height="160" viewBox="0 0 160 160" style="transform:rotate(-90deg);">
+            <circle cx="80" cy="80" r="65" fill="none" stroke="#f1f5f9" stroke-width="22"/>
+            ${svgSegs}
+          </svg>
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;">
+            <div style="font-family:'Fraunces',serif;font-size:1.6rem;font-weight:900;color:var(--navy);line-height:1;">${attPct}%</div>
+            <div style="font-size:.65rem;color:var(--gray);">asistencia</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.45rem;width:100%;">
+          ${[['Presentes',present,'#0d9488'],['Ausentes',absent,'#f43f5e'],['Tarde',late,'#f59e0b'],['Permiso',permit,'#a78bfa']].map(([l,v,c]) =>
+            `<div style="background:var(--white);border:1px solid var(--border);border-left:4px solid ${c};border-radius:10px;padding:.55rem .75rem;box-shadow:0 1px 4px rgba(15,31,61,.06);">
+              <div style="font-family:'Fraunces',serif;font-size:1.75rem;font-weight:900;line-height:1;color:var(--navy);">${v}</div>
+              <div style="font-size:.72rem;color:var(--gray);font-weight:500;margin-top:.15rem;">${l}</div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+  } else {
+    const emptyCards = [['Presentes',0,'#0d9488'],['Ausentes',0,'#f43f5e'],['Tarde',0,'#f59e0b'],['Permiso',0,'#a78bfa']].map(([l,v,c]) =>
+      `<div style="background:var(--white);border:1px solid var(--border);border-left:4px solid ${c};border-radius:10px;padding:.55rem .75rem;box-shadow:0 1px 4px rgba(15,31,61,.06);">
+        <div style="font-family:'Fraunces',serif;font-size:1.75rem;font-weight:900;line-height:1;color:var(--navy);">${v}</div>
+        <div style="font-size:.72rem;color:var(--gray);font-weight:500;margin-top:.15rem;">${l}</div>
+      </div>`).join('');
+    const CIRC_E = 2 * Math.PI * 65;
+    donutEl.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;gap:1rem;">
+        <div style="position:relative;width:160px;height:160px;">
+          <svg width="160" height="160" viewBox="0 0 160 160" style="transform:rotate(-90deg);">
+            <circle cx="80" cy="80" r="65" fill="none" stroke="#f1f5f9" stroke-width="22"/>
+            <circle cx="80" cy="80" r="65" fill="none" stroke="#f43f5e" stroke-width="6" stroke-dasharray="2 ${CIRC_E - 2}" stroke-dashoffset="${CIRC_E * 0.25}" stroke-linecap="round"/>
+          </svg>
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;">
+            <div style="font-family:'Fraunces',serif;font-size:1.6rem;font-weight:900;color:var(--navy);line-height:1;">—</div>
+            <div style="font-size:.65rem;color:var(--gray);">asistencia</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.45rem;width:100%;">
+          ${emptyCards}
+        </div>
+      </div>`;
+  }
+
+  // Últimos casos — tabla
   document.getElementById('cases-badge').textContent = cases.length ? cases.length + ' vistos' : '';
   document.getElementById('cases-bd').innerHTML = cases.length
-    ? cases.map(c=>{
-        const pc2=c.type===3?'pill-t3':c.type===2?'pill-t2':'pill-t1';
-        const sc =c.status==='open'?'pill-open':'pill-closed';
-        const desc=(c.description||'').slice(0,55)+((c.description||'').length>55?'…':'');
-        return `<div class="c-row">
-          <span class="${pc2}">T${c.type}</span>
-          <div style="flex:1;min-width:0;overflow:hidden;cursor:pointer;" onclick="openFicha('${c.student_id}')">
-            <div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(c.student_name)}</div>
-            <div style="font-size:.72rem;color:var(--gray);">${esc(desc)}</div>
-          </div>
-          <span class="${sc}">${c.status==='open'?'Abierto':'Cerrado'}</span></div>`;
-      }).join('')
-    : '<div class="empty"><div class="ei">📋</div>Sin casos recientes.</div>';
+    ? `<div class="table-wrap" style="overflow-x:auto;max-width:900px;margin:0 auto;"><table style="width:100%;border-collapse:collapse;font-size:.82rem;table-layout:fixed;">
+        <colgroup><col style="width:35%"><col style="width:10%"><col style="width:25%"><col style="width:12%"><col style="width:10%"></colgroup>
+        <thead><tr style="border-bottom:2px solid var(--border);">
+          <th style="text-align:left;padding:.4rem .5rem;font-size:.7rem;font-weight:700;color:var(--gray);text-transform:uppercase;">Estudiante</th>
+          <th style="text-align:center;padding:.4rem .3rem;font-size:.7rem;font-weight:700;color:var(--gray);text-transform:uppercase;">Tipo</th>
+          <th style="text-align:left;padding:.4rem .5rem;font-size:.7rem;font-weight:700;color:var(--gray);text-transform:uppercase;">Docente</th>
+          <th style="text-align:center;padding:.4rem .3rem;font-size:.7rem;font-weight:700;color:var(--gray);text-transform:uppercase;">Hace</th>
+          <th style="text-align:center;padding:.4rem .3rem;font-size:.7rem;font-weight:700;color:var(--gray);text-transform:uppercase;">Estado</th>
+        </tr></thead>
+        <tbody>${cases.map(c=>{
+          const tp=c.type===3?'pill-t3':c.type===2?'pill-t2':'pill-t1';
+          const sc=c.status==='open'?'pill-open':'pill-closed';
+          const tName = c.teacher_name && c.teacher_name!=='—' ? esc(c.teacher_name) : '—';
+          return `<tr style="border-bottom:1px solid var(--border);cursor:pointer;" onclick="openFicha('${c.student_id}')">
+            <td style="padding:.38rem .5rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><strong>${esc(c.student_name)}</strong></td>
+            <td style="padding:.38rem .3rem;text-align:center;"><span class="${tp}">Tipo ${c.type}</span></td>
+            <td style="padding:.38rem .5rem;color:var(--gray);font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${tName}</td>
+            <td style="padding:.38rem .3rem;text-align:center;color:var(--gray);font-size:.78rem;">${daysAgo(c.created_at)}</td>
+            <td style="padding:.38rem .3rem;text-align:center;"><span class="${sc}">${c.status==='open'?'Abierto':'Cerrado'}</span></td>
+          </tr>`;
+        }).join('')}</tbody></table></div>`
+    : '<div class="empty"><div class="ei">&#128203;</div>Sin casos recientes.</div>';
 }
 
 function renderAbsences(list) {
   document.getElementById('abs-badge').textContent = list.length ? list.length+' hoy':'';
   document.getElementById('abs-bd').innerHTML = !list.length
-    ? '<div class="empty"><div class="ei">✅</div>Ningún docente ausente hoy.</div>'
+    ? '<div class="empty"><div class="ei">&#10003;</div>Ningun docente ausente hoy.</div>'
     : list.map(a=>{
         const ini=(a.teacher_name||'D').split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
         const reps=(a.replacements||[]).length;
@@ -556,11 +937,144 @@ function renderAbsences(list) {
           <div class="ab-av">${ini}</div>
           <div style="flex:1;min-width:0;">
             <div class="ab-name">${esc(a.teacher_name)}</div>
-            <div class="ab-reason">${esc(a.reason||'Sin motivo')} · <span style="color:${rc};font-weight:600;">${rl}</span></div>
+            <div class="ab-reason">${esc(a.reason||'Sin motivo')} &middot; <span style="color:${rc};font-weight:600;">${rl}</span></div>
           </div>
-          ${a.hours_absent?`<span class="ab-badge">${a.hours_absent}h`+`</span>`:''}
+          ${a.hours_absent?`<span class="ab-badge">${a.hours_absent}h</span>`:''}
         </div>`;
       }).join('');
+}
+
+// ── INSIGHTS RENDERERS ──
+
+function renderTrend(trend) {
+  const el = document.getElementById('trend-bd');
+  if (!el) return;
+  if (!trend.length) { el.innerHTML = '<div class="empty"><div class="ei">&#128202;</div>Sin datos suficientes.</div>'; return; }
+  const maxPct = 100;
+  const avg = trend.filter(t=>t.pct!==null);
+  const avgPct = avg.length ? Math.round(avg.reduce((s,t)=>s+t.pct,0)/avg.length) : null;
+  const bars = trend.map(t => {
+    const h = t.pct !== null ? Math.max(4, (t.pct / maxPct) * 100) : 2;
+    const col = t.pct === null ? '#e2e8f0' : t.pct >= 90 ? '#16a34a' : t.pct >= 75 ? '#ca8a04' : '#dc2626';
+    const day = t.date.slice(8,10);
+    const tip = t.pct !== null ? `${day}: ${t.pct}%` : `${day}: sin datos`;
+    return `<div class="trend-bar" style="height:${h}px;background:${col};" data-tip="${tip}"></div>`;
+  }).join('');
+  el.innerHTML = `<div class="trend-chart">${bars}</div>
+    <div style="display:flex;justify-content:space-between;font-size:.68rem;color:var(--gray);margin-top:.2rem;">
+      <span>${trend[0].date.slice(5).replace('-','/')}</span>
+      ${avgPct!==null?`<span style="font-weight:700;color:var(--navy);">Promedio: ${avgPct}%</span>`:''}
+      <span>${trend[trend.length-1].date.slice(5).replace('-','/')}</span>
+    </div>`;
+}
+
+function renderRanking(ranking) {
+  const el = document.getElementById('ranking-bd');
+  if (!ranking.length) { el.innerHTML = '<div class="empty"><div class="ei">&#127942;</div>Sin datos del mes.</div>'; return; }
+  el.innerHTML = ranking.map((g, i) => {
+    const col = g.pct >= 90 ? '#16a34a' : g.pct >= 75 ? '#ca8a04' : '#dc2626';
+    const medal = i === 0 ? '&#129351;' : i === 1 ? '&#129352;' : i === 2 ? '&#129353;' : `<span style="font-size:.72rem;color:var(--gray);font-weight:700;">${i+1}</span>`;
+    return `<div class="g-row">
+      <div style="width:24px;text-align:center;flex-shrink:0;">${medal}</div>
+      <div class="g-lbl">${g.name}</div>
+      <div class="g-track"><div class="g-fill" style="width:${g.pct}%;background:${col};"></div></div>
+      <div class="g-pct" style="color:${col};">${g.pct}%</div>
+    </div>`;
+  }).join('');
+}
+
+function renderCompliance(list) {
+  const el = document.getElementById('comp-bd');
+  const badge = document.getElementById('comp-badge');
+  const missing = list.filter(t => t.pct !== null && t.pct < 100);
+  badge.textContent = missing.length ? missing.length + ' pendiente' + (missing.length !== 1 ? 's' : '') : '';
+  if (!list.length) { el.innerHTML = '<div class="empty"><div class="ei">&#9203;</div>Sin clases programadas hasta ahora.</div>'; return; }
+  list.sort((a, b) => (b.pct ?? -1) - (a.pct ?? -1));
+  el.innerHTML = list.map(t => {
+    const col = t.pct === null ? '#94a3b8' : t.pct >= 100 ? '#16a34a' : t.pct >= 50 ? '#ca8a04' : '#dc2626';
+    const pctVal = t.pct !== null ? t.pct : 0;
+    return `<div class="comp-row">
+      <div class="comp-name" title="${esc(t.name)}">${esc(t.name)}</div>
+      <div class="comp-track"><div class="comp-fill" style="width:${pctVal}%;background:${col};"></div></div>
+      <div class="comp-pct" style="color:${col};">${t.pct !== null ? t.pct + '%' : '—'}</div>
+      <div class="comp-detail">${t.taken}/${t.scheduled}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderCasesSummary(cs) {
+  const el = document.getElementById('cs-bd');
+  if (!cs.total) { el.innerHTML = '<div class="empty"><div class="ei">&#128203;</div>Sin casos registrados.</div>'; return; }
+  el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem;margin-bottom:.85rem;">
+    <div class="cs-box"><div class="cs-val" style="color:var(--navy);">${cs.total}</div><div class="cs-lbl">Total</div></div>
+    <div class="cs-box"><div class="cs-val" style="color:#16a34a;">${cs.open}</div><div class="cs-lbl">Abiertos</div></div>
+    <div class="cs-box"><div class="cs-val" style="color:#64748b;">${cs.closed}</div><div class="cs-lbl">Cerrados</div></div>
+    <div class="cs-box"><div class="cs-val" style="color:#0ea5e9;">${cs.this_month}</div><div class="cs-lbl">Este mes</div></div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;">
+    <div style="background:var(--light);border-radius:10px;padding:.55rem .7rem;text-align:center;border-left:4px solid #1d4ed8;">
+      <div style="font-size:.7rem;font-weight:700;color:#1d4ed8;margin-bottom:.2rem;">Tipo 1</div>
+      <div style="font-family:'Fraunces',serif;font-size:1.4rem;font-weight:800;color:var(--navy);">${cs.by_type[1]||0}</div>
+    </div>
+    <div style="background:var(--light);border-radius:10px;padding:.55rem .7rem;text-align:center;border-left:4px solid #a16207;">
+      <div style="font-size:.7rem;font-weight:700;color:#a16207;margin-bottom:.2rem;">Tipo 2</div>
+      <div style="font-family:'Fraunces',serif;font-size:1.4rem;font-weight:800;color:var(--navy);">${cs.by_type[2]||0}</div>
+    </div>
+    <div style="background:var(--light);border-radius:10px;padding:.55rem .7rem;text-align:center;border-left:4px solid #dc2626;">
+      <div style="font-size:.7rem;font-weight:700;color:#dc2626;margin-bottom:.2rem;">Tipo 3</div>
+      <div style="font-family:'Fraunces',serif;font-size:1.4rem;font-weight:800;color:var(--navy);">${cs.by_type[3]||0}</div>
+    </div>
+  </div>`;
+}
+
+function renderRisk(list) {
+  const el = document.getElementById('risk-bd');
+  const badge = document.getElementById('risk-badge');
+  badge.textContent = list.length ? list.length + ' identificados' : '';
+  if (!list.length) { el.innerHTML = '<div class="empty"><div class="ei">&#10003;</div>No hay estudiantes en riesgo este mes.</div>'; return; }
+  el.innerHTML = '<div class="risk-wrap">' + list.map(s => {
+    const level = s.risk_score >= 60 ? 'Alto' : s.risk_score >= 30 ? 'Medio' : 'Bajo';
+    const lvlColor = s.risk_score >= 60 ? '#dc2626' : s.risk_score >= 30 ? '#c2410c' : '#a16207';
+    const lvlBg = s.risk_score >= 60 ? '#fee2e2' : s.risk_score >= 30 ? '#fff7ed' : '#fef9c3';
+    const borderCol = s.risk_score >= 60 ? '#fca5a5' : s.risk_score >= 30 ? '#fed7aa' : '#fde68a';
+    const ini = (s.name||'??').split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
+    const badges = [];
+    if (s.att_pct !== null && s.att_pct < 80) badges.push(`<span style="background:#fee2e2;color:#dc2626;border-radius:6px;padding:.15rem .5rem;font-size:.7rem;font-weight:700;">${s.att_pct}% asist.</span>`);
+    if (s.open_cases > 0) badges.push(`<span style="background:#dbeafe;color:#1d4ed8;border-radius:6px;padding:.15rem .5rem;font-size:.7rem;font-weight:700;">${s.open_cases} caso${s.open_cases>1?'s':''}</span>`);
+    if (s.pending_commitments > 0) badges.push(`<span style="background:#fef9c3;color:#a16207;border-radius:6px;padding:.15rem .5rem;font-size:.7rem;font-weight:700;">${s.pending_commitments} comp.</span>`);
+    return `<div style="background:white;border:1.5px solid ${borderCol};border-left:4px solid ${lvlColor};border-radius:12px;padding:.7rem .9rem;display:flex;align-items:center;gap:.7rem;cursor:pointer;transition:box-shadow .15s;" onclick="openFicha('${s.id}')" onmouseover="this.style.boxShadow='0 3px 12px rgba(0,0,0,.1)'" onmouseout="this.style.boxShadow='none'">
+      <div style="width:36px;height:36px;border-radius:50%;background:${lvlBg};color:${lvlColor};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.75rem;flex-shrink:0;">${ini}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:700;font-size:.84rem;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(s.name)}</div>
+        <div style="font-size:.72rem;color:var(--gray);margin-top:.1rem;">${esc(s.course)} · <span style="color:${lvlColor};font-weight:700;">Riesgo ${level}</span></div>
+      </div>
+      <div style="display:flex;gap:.3rem;flex-wrap:wrap;justify-content:flex-end;">${badges.join('')}</div>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+function renderExcusas(ex) {
+  const el = document.getElementById('exc-bd');
+  if (!el) return;
+  const badge = document.getElementById('exc-badge');
+  if (badge) badge.textContent = ex.total_week ? ex.total_week + ' esta semana' : '';
+  if (!ex.total_week) { el.innerHTML = '<div class="empty"><div class="ei">&#128196;</div>Sin excusas esta semana.</div>'; return; }
+  const bt = ex.by_type || {};
+  let html = `<div style="display:flex;gap:.5rem;margin-bottom:.6rem;flex-wrap:wrap;">
+    <span style="background:#dbeafe;color:#1d4ed8;border-radius:6px;padding:.15rem .45rem;font-size:.7rem;font-weight:700;">Dia completo: ${bt.dia_completo||0}</span>
+    <span style="background:#fef9c3;color:#a16207;border-radius:6px;padding:.15rem .45rem;font-size:.7rem;font-weight:700;">Por horas: ${bt.horas||0}</span>
+  </div>`;
+  const recent = (ex.recent || []).slice(0, 5);
+  if (recent.length) {
+    html += recent.map(e => {
+      const horasLabel = e.horas && e.horas.length ? ` (H${e.horas.join(',')})` : ' (dia completo)';
+      return `<div style="font-size:.78rem;padding:.3rem 0;border-bottom:1px solid var(--border);">
+        <span style="color:var(--gray);">${esc(e.date||'')}</span> &middot; <strong>${esc(e.student_name||'—')}</strong>${horasLabel}
+        <div style="font-size:.7rem;color:var(--gray);">${esc(e.motivo||'Sin motivo')} &middot; por ${esc(e.registered_by_name||'—')}</div>
+      </div>`;
+    }).join('');
+  }
+  el.innerHTML = html;
 }
 
 // SEARCH
@@ -588,7 +1102,7 @@ function onSearch(val) {
       return `<div class="s-item" onclick="openFicha('${s.id}')">
         <div class="s-av">${ini}</div>
         <div><div class="s-name">${esc(s.last_name)}, ${esc(s.first_name)}</div>
-        <div class="s-sub">${esc(curso)}${s.status==='inactive'?' · Retirado':''}</div></div>
+        <div class="s-sub">${esc(curso)}${s.status==='inactive'?' &middot; Retirado':''}</div></div>
       </div>`;
     }).join('');
     res.style.display='block';
@@ -613,7 +1127,9 @@ function switchTab(name, btn) {
 
 function closeFicha(){document.getElementById('modal-ficha').classList.remove('open');}
 
+let _fichaStudentId = null;
 async function openFicha(id) {
+  _fichaStudentId = id;
   clearSearch();
   ['t-resumen','t-asistencia','t-casos','t-obs'].forEach(t=>{
     document.getElementById(t).innerHTML='<div style="text-align:center;padding:1.5rem;"><div class="spin"></div></div>';
@@ -622,7 +1138,7 @@ async function openFicha(id) {
   document.getElementById('t-casos').style.display='none';
   document.getElementById('t-obs').style.display='none';
   document.getElementById('t-resumen').style.display='';
-  document.getElementById('f-nombre').textContent='Cargando…';
+  document.getElementById('f-nombre').textContent='Cargando...';
   document.getElementById('f-curso').textContent='';
   document.querySelectorAll('.f-tab').forEach((b,i)=>{ b.classList.toggle('active',i===0); });
   document.getElementById('modal-ficha').classList.add('open');
@@ -634,25 +1150,21 @@ async function openFicha(id) {
 
 function renderFicha(d) {
   const s=d.student, at=d.attendance;
-
-  // header
   document.getElementById('f-nombre').textContent=s.first_name+' '+s.last_name;
   const curso=s.grade?'Grado '+s.grade+'°'+(s.number||''):'';
-  document.getElementById('f-curso').textContent=[curso,s.status==='inactive'?'⛔ Retirado':null].filter(Boolean).join(' · ');
+  document.getElementById('f-curso').textContent=[curso,s.status==='inactive'?'Retirado':null].filter(Boolean).join(' &middot; ');
 
-  // colors
   const pc=at.pct===null?'#64748b':at.pct>=90?'#16a34a':at.pct>=75?'#ca8a04':'#dc2626';
-  const openC=(d.cases||[]).filter(c=>c.status==='open').length;
-  const closedC=(d.cases||[]).filter(c=>c.status!=='open').length;
-  const tards=at.late||0; // Use late count from at object (hours)
+  const openC=(d.cases||[]).filter(c=>c.status==='open'||c.status==='tracking').length;
+  const tards=at.late||0;
 
-  // ── RESUMEN ──
+  // RESUMEN
   const warns=[];
-  if(at.pct!==null&&at.pct<80) warns.push({ico:'🚨',txt:'Asistencia crítica: '+at.pct+'%',bg:'#fee2e2',col:'#dc2626'});
-  if(openC>0) warns.push({ico:'⚠️',txt:openC+' caso'+(openC>1?'s':'')+' RAICE abierto'+(openC>1?'s':''),bg:'#fff7ed',col:'#c2410c'});
-  if(tards>12) warns.push({ico:'⏰',txt:tards+' horas de tardanza',bg:'#fffbeb',col:'#92400e'});
+  if(at.pct!==null&&at.pct<80) warns.push({txt:'Asistencia critica: '+at.pct+'%',bg:'#fee2e2',col:'#dc2626'});
+  if(openC>0) warns.push({txt:openC+' caso'+(openC>1?'s':'')+' RAICE abierto'+(openC>1?'s':''),bg:'#fff7ed',col:'#c2410c'});
+  if(tards>12) warns.push({txt:tards+' horas de tardanza',bg:'#fffbeb',col:'#92400e'});
   const unpaid=(d.commitments||[]).filter(c=>!c.fulfilled).length;
-  if(unpaid>0) warns.push({ico:'📝',txt:unpaid+' compromiso'+(unpaid>1?'s':'')+' sin cumplir',bg:'#f0fdf4',col:'#166534'});
+  if(unpaid>0) warns.push({txt:unpaid+' compromiso'+(unpaid>1?'s':'')+' sin cumplir',bg:'#f0fdf4',col:'#166534'});
 
   const statsHtml=[
     {v:at.pct!==null?at.pct+'%':'—',l:'Asistencia',c:pc},
@@ -663,21 +1175,19 @@ function renderFicha(d) {
     {v:openC,l:'Casos abiertos',c:openC>0?'#dc2626':'#16a34a'},
   ].map(c=>`<div class="f-stat"><div class="f-val" style="color:${c.c};">${c.v}</div><div class="f-lbl">${c.l}</div></div>`).join('');
 
-  const noteHtml = `<div style="font-size:.65rem;color:var(--gray);text-align:center;margin: -.5rem 0 1rem;text-transform:uppercase;letter-spacing:.02em;">Estadísticas en <b>horas de clase</b> para mayor precisión</div>`;
-
-  const warnsHtml=warns.map(w=>`<div style="background:${w.bg};border-radius:10px;padding:.55rem .85rem;margin-bottom:.45rem;font-size:.82rem;font-weight:600;color:${w.col};">${w.ico} ${w.txt}</div>`).join('');
+  const noteHtml = `<div style="font-size:.65rem;color:var(--gray);text-align:center;margin: -.5rem 0 1rem;text-transform:uppercase;letter-spacing:.02em;">Estadisticas en <b>horas de clase</b></div>`;
+  const warnsHtml=warns.map(w=>`<div style="background:${w.bg};border-radius:10px;padding:.55rem .85rem;margin-bottom:.45rem;font-size:.82rem;font-weight:600;color:${w.col};">${w.txt}</div>`).join('');
 
   const acuds=d.acudientes||[];
   const acudHtml=acuds.length?`<div style="margin-top:.75rem;">
     <div style="font-size:.75rem;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.35rem;">Acudientes</div>
     ${acuds.map(a=>`<div style="font-size:.81rem;padding:.28rem 0;border-bottom:1px solid var(--border);">
-      <strong>${esc(a.name)}</strong>${a.relationship?' · '+esc(a.relationship):''}${a.phone?' · 📞 '+esc(a.phone):''}${a.email?' · ✉️ '+esc(a.email):''}
+      <strong>${esc(a.name)}</strong>${a.relationship?' &middot; '+esc(a.relationship):''}${a.phone?' &middot; Tel: '+esc(a.phone):''}${a.email?' &middot; '+esc(a.email):''}
     </div>`).join('')}</div>`:'';
 
-  document.getElementById('t-resumen').innerHTML=
-    `<div class="f-stats">${statsHtml}</div>${noteHtml}${warnsHtml}${acudHtml}`;
+  document.getElementById('t-resumen').innerHTML=`<div class="f-stats">${statsHtml}</div>${noteHtml}${warnsHtml}${acudHtml}`;
 
-  // ── ASISTENCIA ──
+  // ASISTENCIA
   const rec=at.recent||[];
   const calHtml=rec.map(r=>{
     const cls=r.status==='P'?'mc-p':r.status==='A'?'mc-a':r.status==='T'?'mc-t':r.status==='PE'?'mc-pe':'mc-x';
@@ -687,7 +1197,7 @@ function renderFicha(d) {
   }).join('');
 
   document.getElementById('t-asistencia').innerHTML=
-    `<div style="font-size:.75rem;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.45rem;">Últimas 30 fechas registradas</div>
+    `<div style="font-size:.75rem;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.45rem;">Ultimas 30 fechas registradas</div>
     <div class="mc">${calHtml||'<span style="color:var(--gray);font-size:.82rem;">Sin registros</span>'}</div>
     <div style="display:flex;gap:.65rem;flex-wrap:wrap;margin:.6rem 0;font-size:.73rem;">
       <span><span class="mc-c mc-p" style="display:inline-flex;width:14px;height:14px;margin-right:3px;border-radius:3px;"></span>Presente</span>
@@ -703,60 +1213,510 @@ function renderFicha(d) {
         </div>`).join('')}
     </div>`;
 
-  // ── CASOS ──
+  // CASOS (enriched)
   const cases=d.cases||[];
   document.getElementById('t-casos').innerHTML=cases.length
-    ?cases.map(c=>{
-        const pt=c.type===3?'pill-t3':c.type===2?'pill-t2':'pill-t1';
-        const sc=c.status==='open'?'pill-open':'pill-closed';
-        const fecha=new Date(c.created_at).toLocaleDateString('es-CO',{day:'numeric',month:'short',year:'numeric'});
-        return `<div class="c-row"><span class="${pt}">Tipo ${c.type}</span>
-          <div style="flex:1;min-width:0;overflow:hidden;">
-            <div style="font-size:.82rem;">${esc(c.description||'Sin descripción')}</div>
-            <div style="font-size:.71rem;color:var(--gray);">${fecha}</div>
-          </div>
-          <span class="${sc}">${c.status==='open'?'Abierto':'Cerrado'}</span></div>`;
-      }).join('')
-    :'<div class="empty"><div class="ei">✅</div>Sin casos RAICE registrados.</div>';
+    ? cases.map(c => renderCaseCard(c)).join('')
+    :'<div class="empty"><div class="ei">&#10003;</div>Sin casos RAICE registrados.</div>';
 
-  // ── OBSERVACIONES ──
+  // OBSERVACIONES
   const obs=d.observations||[];
   document.getElementById('t-obs').innerHTML=obs.length
     ?obs.map(o=>{
         const fecha=new Date(o.created_at).toLocaleDateString('es-CO',{day:'numeric',month:'short',year:'numeric'});
         return `<div class="o-row"><div>${esc(o.text||'')}</div>
-          <div class="o-meta">📅 ${fecha} · 👤 ${esc(o.teacher_name||'—')}</div></div>`;
+          <div class="o-meta">${fecha} &middot; ${esc(o.teacher_name||'—')}</div></div>`;
       }).join('')
-    :'<div class="empty"><div class="ei">📝</div>Sin observaciones registradas.</div>';
+    :'<div class="empty"><div class="ei">&#128221;</div>Sin observaciones registradas.</div>';
 }
 
-function openPerfil() {
-  document.getElementById('modal-perfil').classList.add('open');
-  // Clear password fields each time
-  ['p-pwd-current','p-pwd-new','p-pwd-confirm'].forEach(id => {
-    const el = document.getElementById(id); if (el) el.value = '';
-  });
+async function printObservador() {
+  if (!_fichaStudentId) { toast('No hay estudiante seleccionado','warning'); return; }
+  toast('Generando observador…','info');
+  const { ok, data } = await api('/raice/student-ficha?id=' + _fichaStudentId + '&all_obs=1');
+  if (!ok || !data?.student) { toast('Error al cargar datos','error'); return; }
+  _printObservadorWindow(data, _schoolConfig || {});
 }
-function closePerfil() { document.getElementById('modal-perfil').classList.remove('open'); }
+
+function _printObservadorWindow(d, cfg) {
+  const s = d.student, at = d.attendance || {}, obs = d.observations || [], cases = d.cases || [];
+  const schoolName = cfg.school_name || 'Institución Educativa';
+  const schoolLoc  = cfg.location || '';
+  const schoolLogo = cfg.logo_url
+    ? `<img src="${cfg.logo_url}" style="height:55px;object-fit:contain;" alt="logo">`
+    : `<div style="font-size:2.2rem;">🏫</div>`;
+  const raiceLogo = `<img src="${window.location.origin}/favicon.png" style="height:40px;object-fit:contain;" alt="RAICE" onerror="this.style.display='none'">`;
+  const now = new Date().toLocaleDateString('es-CO', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  const curso = s.grade ? `${s.grade}°${s.number || ''}` : (s.course || '—');
+
+  const typeLabel = { positive: 'Positiva', neutral: 'Neutra', negative: 'Negativa' };
+  const typeColor = { positive: '#16a34a', neutral: '#64748b', negative: '#dc2626' };
+  const statusLbl = { open: 'Abierto', tracking: 'En seguimiento', closed: 'Cerrado' };
+
+  const obsRows = obs.map(o => {
+    const fecha = new Date(o.created_at).toLocaleDateString('es-CO', { day:'numeric', month:'short', year:'numeric' });
+    return `<tr>
+      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${fecha}</td>
+      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;font-weight:600;color:${typeColor[o.type]||'#333'};">${typeLabel[o.type]||o.type}</td>
+      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${o.text || ''}</td>
+      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${o.teacher_name || '—'}</td>
+    </tr>`;
+  }).join('');
+
+  const casesRows = cases.map(c => {
+    const fecha = new Date(c.created_at).toLocaleDateString('es-CO', { day:'numeric', month:'short', year:'numeric' });
+    return `<tr>
+      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${fecha}</td>
+      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;text-align:center;">Tipo ${c.type}</td>
+      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${(c.description || '').substring(0, 120)}</td>
+      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;text-align:center;">${statusLbl[c.status]||c.status}</td>
+      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${c.teacher_name || '—'}</td>
+    </tr>`;
+  }).join('');
+
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html><head><title>Observador — ${s.first_name} ${s.last_name}</title>
+  <style>
+    @page{size:A4;margin:15mm}
+    body{font-family:Arial,sans-serif;font-size:10pt;color:#1e293b;line-height:1.5;}
+    table{width:100%;border-collapse:collapse;}
+    th{background:#f1f5f9;border:1px solid #ccc;padding:5px 8px;font-size:8.5pt;text-transform:uppercase;letter-spacing:.03em;text-align:left;}
+    tr:nth-child(even){background:#fafbfc;}
+    .header{display:flex;align-items:center;justify-content:space-between;border-bottom:2.5px solid #1e293b;padding-bottom:.8rem;margin-bottom:1.2rem;}
+    .header-center{text-align:center;flex:1;}
+    .header-center h1{margin:0;font-size:13pt;font-weight:800;}
+    .header-center .loc{font-size:8.5pt;color:#555;margin-top:2px;}
+    .section-title{font-size:11pt;font-weight:800;color:#1e293b;margin:1.2rem 0 .5rem;padding-bottom:.3rem;border-bottom:1.5px solid #e2e8f0;}
+    .student-info{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem .8rem;margin-bottom:1rem;background:#f8fafc;padding:.7rem 1rem;border-radius:6px;border:1px solid #e2e8f0;}
+    .si-label{font-size:8pt;color:#64748b;text-transform:uppercase;letter-spacing:.04em;}
+    .si-value{font-size:10pt;font-weight:700;color:#1e293b;}
+    .att-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:.5rem;margin-bottom:1rem;}
+    .att-box{text-align:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:.5rem .3rem;}
+    .att-val{font-size:14pt;font-weight:800;}
+    .att-lbl{font-size:7.5pt;color:#64748b;text-transform:uppercase;}
+    .footer{text-align:center;margin-top:2rem;font-size:8pt;color:#999;border-top:1px solid #e2e8f0;padding-top:.5rem;}
+  </style></head><body>
+  <div class="header">
+    ${schoolLogo}
+    <div class="header-center">
+      <h1>${schoolName}</h1>
+      ${schoolLoc ? `<div class="loc">${schoolLoc}</div>` : ''}
+      <div style="font-size:10pt;font-weight:600;margin-top:6px;color:#0b7a75;">OBSERVADOR DEL ESTUDIANTE</div>
+    </div>
+    ${raiceLogo}
+  </div>
+
+  <div class="student-info">
+    <div><div class="si-label">Nombre completo</div><div class="si-value">${s.first_name} ${s.last_name}</div></div>
+    <div><div class="si-label">Curso</div><div class="si-value">${curso}</div></div>
+    <div><div class="si-label">Estado</div><div class="si-value">${s.status === 'inactive' ? 'Retirado' : 'Activo'}</div></div>
+  </div>
+
+  <div class="section-title">Resumen de asistencia</div>
+  <div class="att-grid">
+    <div class="att-box"><div class="att-val" style="color:${at.pct !== null && at.pct < 80 ? '#dc2626' : '#16a34a'};">${at.pct ?? '—'}%</div><div class="att-lbl">Asistencia</div></div>
+    <div class="att-box"><div class="att-val" style="color:#16a34a;">${at.present || 0}</div><div class="att-lbl">Presencias</div></div>
+    <div class="att-box"><div class="att-val" style="color:#dc2626;">${at.absent || 0}</div><div class="att-lbl">Ausencias</div></div>
+    <div class="att-box"><div class="att-val" style="color:#f59e0b;">${at.late || 0}</div><div class="att-lbl">Tardanzas</div></div>
+    <div class="att-box"><div class="att-val" style="color:#7c3aed;">${at.permit || 0}</div><div class="att-lbl">Permisos</div></div>
+  </div>
+  <div style="font-size:7.5pt;color:#94a3b8;text-align:center;margin-top:-.5rem;margin-bottom:.8rem;">* Estadísticas en horas de clase</div>
+
+  <div class="section-title">Observaciones (${obs.length})</div>
+  ${obs.length ? `<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Observación</th><th>Docente</th></tr></thead><tbody>${obsRows}</tbody></table>`
+    : '<div style="text-align:center;padding:1rem;color:#94a3b8;font-size:9pt;">Sin observaciones registradas</div>'}
+
+  <div class="section-title">Casos RAICE (${cases.length})</div>
+  ${cases.length ? `<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Descripción</th><th>Estado</th><th>Reportado por</th></tr></thead><tbody>${casesRows}</tbody></table>`
+    : '<div style="text-align:center;padding:1rem;color:#94a3b8;font-size:9pt;">Sin casos RAICE registrados</div>'}
+
+  <div class="footer">Generado el ${now} — Sistema RAICE</div>
+  </body></html>`);
+  w.document.close();
+  setTimeout(() => w.print(), 500);
+}
+
+function renderCaseCard(c) {
+  const pt = c.type===3?'pill-t3':c.type===2?'pill-t2':'pill-t1';
+  const sc = c.status==='open'?'pill-open': c.status==='tracking'?'pill-open':'pill-closed';
+  const stLabel = c.status==='open'?'Abierto':c.status==='tracking'?'En seguimiento':'Cerrado';
+  const fecha = new Date(c.created_at).toLocaleDateString('es-CO',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+
+  let html = `<div class="case-card">
+    <div class="case-top">
+      <span class="${pt}">Tipo ${c.type}</span>
+      <span class="${sc}">${stLabel}</span>
+      ${c.course_label ? `<span style="background:#f1f5f9;color:var(--navy);border-radius:6px;padding:.1rem .4rem;font-size:.65rem;font-weight:700;">${esc(c.course_label)}</span>` : ''}
+    </div>
+    <div class="case-meta">${fecha} &middot; Reportado por: <strong>${esc(c.teacher_name||'—')}</strong></div>`;
+
+  // Falta
+  if (c.falta_descripcion) {
+    html += `<div style="background:#fff7ed;border-radius:8px;padding:.4rem .65rem;margin-bottom:.35rem;font-size:.78rem;">
+      <strong style="color:#c2410c;">Falta:</strong> ${esc(c.falta_descripcion)}
+      ${c.falta_categoria ? ` <span style="color:var(--gray);">(${esc(c.falta_categoria)})</span>` : ''}
+      ${c.falta_numeral ? ` <span style="font-size:.68rem;color:var(--gray);">Art. ${esc(c.falta_numeral)}</span>` : ''}
+    </div>`;
+  }
+
+  html += `<div class="case-desc">${esc(c.description||'Sin descripcion')}</div>`;
+
+  if (c.actions_taken) {
+    html += `<div style="font-size:.78rem;color:var(--navy);margin-bottom:.3rem;"><strong>Acciones tomadas:</strong> ${esc(c.actions_taken)}</div>`;
+  }
+  if (c.notes) {
+    html += `<div style="font-size:.78rem;color:var(--gray);margin-bottom:.3rem;"><strong>Notas:</strong> ${esc(c.notes)}</div>`;
+  }
+  if (c.otros_involucrados) {
+    html += `<div style="font-size:.78rem;color:var(--gray);margin-bottom:.3rem;"><strong>Otros involucrados:</strong> ${esc(c.otros_involucrados)}</div>`;
+  }
+
+  // Escalones (Tipo 1)
+  if (c.escalones && c.escalones.length) {
+    html += `<div class="case-section"><div class="case-section-title">Escalones</div>`;
+    c.escalones.forEach(e => {
+      const labels = {'llamado_verbal':'Llamado verbal','amonestacion_escrita':'Amonestacion escrita','citacion_acudiente':'Citacion acudiente','remision_coordinacion':'Remision a coordinacion'};
+      html += `<div class="case-sub-item">${labels[e.tipo_llamado]||esc(e.tipo_llamado)} <span class="case-sub-meta">&middot; Escalon ${e.numero_escalon}</span></div>`;
+    });
+    html += `</div>`;
+  }
+
+  // Seguimientos
+  if (c.followups && c.followups.length) {
+    html += `<div class="case-section"><div class="case-section-title">Seguimientos (${c.followups.length})</div>`;
+    c.followups.forEach(f => {
+      const fdate = new Date(f.created_at).toLocaleDateString('es-CO',{day:'numeric',month:'short'});
+      html += `<div class="case-sub-item">${esc(f.actions)}
+        <div class="case-sub-meta">${fdate} &middot; ${esc(f.coordinator_name||'—')}${f.descargos ? ' &middot; Descargo: '+esc(f.descargos) : ''}</div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  // Citaciones
+  if (c.citaciones && c.citaciones.length) {
+    html += `<div class="case-section"><div class="case-section-title">Citaciones (${c.citaciones.length})</div>`;
+    c.citaciones.forEach(ci => {
+      const cdate = ci.date_time ? new Date(ci.date_time).toLocaleDateString('es-CO',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : 'Sin fecha';
+      const att = ci.attended === true ? '<span style="color:#16a34a;font-weight:700;">Asistio</span>' : ci.attended === false ? '<span style="color:#dc2626;font-weight:700;">No asistio</span>' : '<span style="color:var(--gray);">Pendiente</span>';
+      html += `<div class="case-sub-item">${esc(ci.reason||'Citacion')} <span class="case-sub-meta">&middot; ${cdate} &middot; ${att}</span></div>`;
+    });
+    html += `</div>`;
+  }
+
+  // Compromisos del caso
+  if (c.commitments && c.commitments.length) {
+    html += `<div class="case-section"><div class="case-section-title">Compromisos (${c.commitments.length})</div>`;
+    c.commitments.forEach(cm => {
+      const icon = cm.fulfilled ? '<span style="color:#16a34a;">&#10003;</span>' : '<span style="color:#dc2626;">&#10007;</span>';
+      html += `<div class="case-sub-item">${icon} ${esc(cm.description)} ${cm.due_date ? `<span class="case-sub-meta">&middot; Vence: ${cm.due_date}</span>` : ''}</div>`;
+    });
+    html += `</div>`;
+  }
+
+  // Closed info
+  if (c.status === 'closed' && c.closed_at) {
+    const closedDate = new Date(c.closed_at).toLocaleDateString('es-CO',{day:'numeric',month:'short',year:'numeric'});
+    html += `<div style="margin-top:.4rem;font-size:.73rem;color:var(--gray);border-top:1px solid var(--border);padding-top:.35rem;">Cerrado el ${closedDate}${c.closed_by_name ? ' por '+esc(c.closed_by_name) : ''}</div>`;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+// ── SCHEDULES ──
+function switchSchedView(view, btn) {
+  document.getElementById('sched-grade-view').style.display = view === 'grade' ? '' : 'none';
+  document.getElementById('sched-teacher-view').style.display = view === 'teacher' ? '' : 'none';
+  document.querySelectorAll('.sched-tab').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+}
+
+async function loadScheduleOverview() {
+  const { ok, data } = await api('/raice/schedules/overview');
+  if (!ok) return;
+  _schedData = data.schedules || [];
+  _bellSchedule = data.bell_schedule || [];
+
+  // Populate grade selector
+  const grades = {};
+  _schedData.filter(s => s.type !== 'subgroup').forEach(s => {
+    const key = s.grade + '°' + (s.number || '');
+    if (!grades[key]) grades[key] = { grade: s.grade, number: s.number, course_id: s.course_id };
+  });
+  const sorted = Object.entries(grades).sort((a, b) => a[1].grade - b[1].grade || (a[1].number||0) - (b[1].number||0));
+  const gradeSel = document.getElementById('sched-grade-select');
+  gradeSel.innerHTML = '<option value="">-- Seleccionar --</option>'
+    + sorted.map(([key]) => `<option value="${key}">${key}</option>`).join('');
+
+  // Populate teacher selector
+  const teachers = {};
+  _schedData.forEach(s => {
+    if (s.teacher_id && s.teacher_name !== '—') teachers[s.teacher_id] = s.teacher_name;
+  });
+  const teacherSorted = Object.entries(teachers).sort((a, b) => a[1].localeCompare(b[1]));
+  const teacherSel = document.getElementById('sched-teacher-select');
+  teacherSel.innerHTML = '<option value="">-- Seleccionar --</option>' +
+    teacherSorted.map(([id, name]) => `<option value="${id}">${esc(name)}</option>`).join('');
+
+  renderGradeSchedule();
+  renderRectorAhora();
+
+  // Auto-refresco "Ahora mismo" cada 2 minutos
+  if (window._rectorAhoraTimer) clearInterval(window._rectorAhoraTimer);
+  window._rectorAhoraTimer = setInterval(async () => {
+    const r = await api('/raice/schedules/overview');
+    if (r.ok) {
+      _schedData    = r.data.schedules    || [];
+      _bellSchedule = r.data.bell_schedule || [];
+      renderRectorAhora();
+    }
+  }, 120000);
+}
+
+// ── AHORA MISMO ──────────────────────────────────────
+function rectorCurrentBell() {
+  if (!_bellSchedule?.length) return null;
+  const now = new Intl.DateTimeFormat('es-CO', {
+    timeZone:'America/Bogota', hour:'2-digit', minute:'2-digit', hour12:false
+  }).format(new Date());
+  return _bellSchedule.find(b =>
+    b.start_time && b.end_time &&
+    now >= b.start_time.slice(0,5) &&
+    now <= b.end_time.slice(0,5)
+  ) || null;
+}
+
+function renderRectorAhora() {
+  const headerEl = document.getElementById('rector-ahora-header');
+  const gridEl   = document.getElementById('rector-ahora-grid');
+  const badgeEl  = document.getElementById('rector-ahora-badge');
+  if (!headerEl || !gridEl) return;
+
+  const ORD  = ['','1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª','10ª'];
+  const DAYS = {1:'Lunes',2:'Martes',3:'Miércoles',4:'Jueves',5:'Viernes',6:'Sábado',7:'Domingo'};
+
+  // Día actual Colombia
+  const jsDay   = new Date().getDay();
+  const todayDow = jsDay === 0 ? 7 : jsDay;
+
+  if (todayDow >= 6) {
+    headerEl.innerHTML = '<div style="color:var(--gray);font-size:.85rem;">📅 Hoy es fin de semana.</div>';
+    gridEl.innerHTML = ''; if (badgeEl) badgeEl.textContent = ''; return;
+  }
+  if (!_bellSchedule?.length) {
+    headerEl.innerHTML = '<div style="color:var(--gray);font-size:.85rem;">⚠️ Sin horario de timbres configurado.</div>';
+    gridEl.innerHTML = ''; return;
+  }
+
+  const bell = rectorCurrentBell();
+  const nowStr = new Intl.DateTimeFormat('es-CO',{timeZone:'America/Bogota',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date());
+
+  if (!bell) {
+    const first = _bellSchedule[0]?.start_time?.slice(0,5);
+    const last  = _bellSchedule[_bellSchedule.length-1]?.end_time?.slice(0,5);
+    let msg = '⏸ Receso entre clases';
+    if (first && nowStr < first) msg = `🌅 Antes de clases — primera hora a las ${first}`;
+    else if (last  && nowStr > last)  msg = '🌇 Jornada escolar finalizada';
+    headerEl.innerHTML = `<div style="color:var(--gray);font-size:.85rem;">${msg}</div>`;
+    gridEl.innerHTML = '';
+    if (badgeEl) badgeEl.textContent = '';
+    return;
+  }
+
+  // Slots activos esta hora
+  const slots = (_schedData || []).filter(s => s.day_of_week === todayDow && s.class_hour === bell.class_hour);
+  slots.sort((a, b) => a.teacher_name.localeCompare(b.teacher_name));
+
+  const taken = slots.filter(s => s.attendance_taken).length;
+  const total = slots.length;
+
+  // Header: hora actual + resumen
+  const pctClr = total ? (taken === total ? '#16a34a' : taken > 0 ? '#d97706' : '#dc2626') : 'var(--gray)';
+  headerEl.innerHTML = `
+    <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+      <div style="background:var(--navy);color:white;border-radius:10px;padding:.45rem .9rem;font-family:'Fraunces',serif;font-size:1.2rem;font-weight:900;white-space:nowrap;">
+        ${ORD[bell.class_hour] || bell.class_hour+'ª'} hora
+      </div>
+      <div>
+        <div style="font-weight:700;font-size:.9rem;">${bell.start_time?.slice(0,5)||''} – ${bell.end_time?.slice(0,5)||''}</div>
+        <div style="font-size:.78rem;color:var(--gray);">${DAYS[todayDow]}</div>
+      </div>
+      <div style="margin-left:auto;font-size:.82rem;font-weight:700;color:${pctClr};">
+        ${taken} de ${total} docente${total!==1?'s':''} ${taken===1&&total===1?'pasó':'pasaron'} lista
+      </div>
+    </div>`;
+
+  if (badgeEl) badgeEl.textContent = `↻ ${new Date().toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'})}`;
+
+  if (!slots.length) {
+    gridEl.innerHTML = '<div style="color:var(--gray);font-size:.85rem;">Sin clases programadas en esta hora.</div>';
+    return;
+  }
+
+  gridEl.innerHTML = slots.map(s => {
+    const cardCls = s.attendance_taken ? 'ahora-card ahora-card-ok' : 'ahora-card ahora-card-pend';
+    const pillCls = s.attendance_taken ? 'ahora-pill ahora-pill-ok' : 'ahora-pill ahora-pill-pend';
+    const pillTxt = s.attendance_taken ? 'Lista tomada' : 'Pendiente';
+    const courseLbl = s.course_name
+      ? `${s.course_name} ${s.grade}°`
+      : `${s.grade}°${s.number || ''}`;
+    return `<div class="${cardCls}">
+      <div class="ahora-teacher">${esc(s.teacher_name)}</div>
+      <div class="ahora-sub">${esc(s.course_name || s.subject || '—')}</div>
+      <div class="ahora-course">${courseLbl}</div>
+      <div style="margin-top:.45rem;"><span class="${pillCls}">${pillTxt}</span></div>
+    </div>`;
+  }).join('');
+}
+
+function renderGradeSchedule() {
+  const sel = document.getElementById('sched-grade-select');
+  const key = sel.value;
+  const el = document.getElementById('sched-grade-table');
+  if (!key || !_schedData) { el.innerHTML = '<div class="empty">Selecciona un grado</div>'; return; }
+
+  // Filter schedules for this grade
+  const gradeScheds = _schedData.filter(s => {
+    const k = s.grade + '°' + (s.number || '');
+    return k === key && s.type !== 'subgroup';
+  });
+
+  if (!gradeScheds.length) { el.innerHTML = '<div class="empty">Sin horario configurado para este grado.</div>'; return; }
+
+  // Build grid: rows = hours, cols = days (Lun-Vie)
+  const days = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie'];
+  const hours = [...new Set(gradeScheds.map(s => s.class_hour))].sort((a, b) => a - b);
+  const bellMap = {};
+  _bellSchedule.forEach(b => bellMap[b.class_hour] = b);
+
+  const grid = {};
+  gradeScheds.forEach(s => {
+    const k = `${s.day_of_week}_${s.class_hour}`;
+    grid[k] = s;
+  });
+
+  let html = '<table class="sched-table"><thead><tr><th>Hora</th>';
+  days.forEach((d, i) => html += `<th>${d}</th>`);
+  html += '</tr></thead><tbody>';
+
+  hours.forEach(h => {
+    const bell = bellMap[h];
+    const timeLabel = bell ? `${(bell.start_time||'').slice(0,5)} - ${(bell.end_time||'').slice(0,5)}` : '';
+    html += `<tr><td class="sched-hour-label">H${h}<div style="font-size:.6rem;color:var(--gray);font-weight:400;">${timeLabel}</div></td>`;
+    for (let d = 1; d <= 5; d++) {
+      const s = grid[`${d}_${h}`];
+      if (s) {
+        const cls = s.attendance_taken ? 'sched-taken' : '';
+        html += `<td class="${cls}"><div class="sched-cell"><div class="sched-subj">${esc(s.subject)}</div><div class="sched-teacher">${esc(s.teacher_name)}</div></div></td>`;
+      } else {
+        html += '<td style="color:#cbd5e1;text-align:center;font-size:.7rem;">—</td>';
+      }
+    }
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+function loadTeacherSchedule() {
+  const sel      = document.getElementById('sched-teacher-select');
+  const teacherId = sel.value;
+  const el       = document.getElementById('sched-teacher-table');
+  if (!teacherId) { el.innerHTML = '<div class="empty"><div class="ei">📅</div>Selecciona un docente</div>'; return; }
+  if (!_schedData || !_schedData.length) { el.innerHTML = '<div class="empty">Cargando datos…</div>'; return; }
+
+  // Filter from already-loaded overview data (same source as coordinator)
+  const scheds = _schedData.filter(s => s.teacher_id === teacherId);
+  if (!scheds.length) { el.innerHTML = '<div class="empty">Este docente no tiene horario configurado.</div>'; return; }
+
+  const bellMap = {};
+  (_bellSchedule || []).forEach(b => bellMap[b.class_hour] = b);
+
+  // Current day of week (1=Mon … 5=Fri; weekend → 6/7 = no "today" column)
+  const jsDay  = new Date().getDay(); // 0=Sun
+  const todayDow = jsDay === 0 ? 7 : jsDay; // 1=Mon … 7=Sun
+
+  const DAYS = [
+    { dow:1, label:'Lunes'     },
+    { dow:2, label:'Martes'    },
+    { dow:3, label:'Miércoles' },
+    { dow:4, label:'Jueves'    },
+    { dow:5, label:'Viernes'   },
+  ];
+
+  const hours = [...new Set(scheds.map(s => s.class_hour))].sort((a, b) => a - b);
+  const grid  = {};
+  scheds.forEach(s => { grid[`${s.day_of_week}_${s.class_hour}`] = s; });
+
+  // ── Header ──
+  let html = '<div style="overflow-x:auto;"><table class="sched-v2"><thead><tr>';
+  html += '<th class="v2-hour-th">Hora</th>';
+  DAYS.forEach(({ dow, label }) => {
+    const isToday  = dow === todayDow;
+    const isFuture = dow > todayDow;
+    const cls = isToday ? 'v2-day-today' : isFuture ? 'v2-day-future' : 'v2-day-past';
+    const badge = isToday ? ' <span style="font-size:.58rem;background:rgba(255,255,255,.2);padding:.05rem .3rem;border-radius:4px;vertical-align:middle;">HOY</span>' : '';
+    html += `<th class="${cls}">${label}${badge}</th>`;
+  });
+  html += '</tr></thead><tbody>';
+
+  // ── Rows ──
+  hours.forEach(h => {
+    const bell      = bellMap[h];
+    const startTime = bell ? bell.start_time.slice(0,5) : '';
+    html += '<tr>';
+    html += `<td class="v2-hour-td"><div class="v2-hour-num">${h}ª</div><div class="v2-hour-time">${startTime}</div></td>`;
+
+    DAYS.forEach(({ dow }) => {
+      const s       = grid[`${dow}_${h}`];
+      const isToday = dow === todayDow;
+      const isPast  = dow < todayDow;
+
+      if (s) {
+        let cardCls = 'v2-card-neutral';
+        if (isToday || isPast) {
+          if (s.attendance_taken)     cardCls = 'v2-card-taken';
+          else if (isToday)           cardCls = 'v2-card-pending';
+          else                        cardCls = 'v2-card-missed';
+        }
+        const displayName = s.course_name || s.subject || '—';
+        const courseLbl   = `${s.grade}°${s.number || ''}`;
+        html += `<td><div class="v2-card ${cardCls}">
+          <div class="v2-subj">${esc(displayName)}</div>
+          <div class="v2-course">${courseLbl}</div>
+        </div></td>`;
+      } else {
+        html += '<td class="v2-empty">—</td>';
+      }
+    });
+
+    html += '</tr>';
+  });
+
+  html += '</tbody></table></div>';
+  el.innerHTML = html;
+}
 
 async function changeMyPassword() {
   const current = document.getElementById('p-pwd-current').value;
   const newPwd  = document.getElementById('p-pwd-new').value;
-  const confirm = document.getElementById('p-pwd-confirm').value;
+  const confirmPwd = document.getElementById('p-pwd-confirm').value;
   if (!current || !newPwd) { toast('Completa todos los campos', 'warning'); return; }
-  if (newPwd !== confirm)  { toast('Las contraseñas no coinciden', 'error'); return; }
-  if (newPwd.length < 6)   { toast('Mínimo 6 caracteres', 'warning'); return; }
+  if (newPwd !== confirmPwd) { toast('Las contrasenas no coinciden', 'error'); return; }
+  if (newPwd.length < 6)   { toast('Minimo 6 caracteres', 'warning'); return; }
   const btn = document.getElementById('p-pwd-btn');
-  btn.disabled = true; btn.textContent = 'Guardando…';
+  btn.disabled = true; btn.textContent = 'Guardando...';
   const { ok, data } = await api('/raice/change-password', {
     method: 'POST',
     body: JSON.stringify({ current_password: current, new_password: newPwd })
   });
+  btn.disabled = false; btn.textContent = 'Actualizar contrasena';
   if (ok) {
-    toast('Contraseña actualizada ✅', 'info');
+    toast('Contrasena actualizada', 'info');
     ['p-pwd-current','p-pwd-new','p-pwd-confirm'].forEach(id => document.getElementById(id).value = '');
   } else {
-    toast(data?.error || 'Contraseña actual incorrecta', 'error');
+    toast(data?.error || 'Contrasena actual incorrecta', 'error');
   }
 }
 
@@ -765,17 +1725,12 @@ async function initRealtime() {
   try {
     const { ok, data } = await api('/raice/realtime-config');
     if (!ok || !data.supabase_url || !data.supabase_anon_key) return;
-
     const script = document.createElement('script');
     script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
     script.onload = () => {
       const { createClient } = window.supabase;
       const sb = createClient(data.supabase_url, data.supabase_anon_key);
-
-      console.log('🔗 Suscribiendo a eventos en tiempo real (Rector)...');
-      
-      const reload = () => loadDashboard();
-
+      const reload = () => { loadDashboard(); loadInsights(); };
       sb.channel('realtime:rector')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'raice_excusas' }, reload)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'raice_cases' }, reload)
@@ -789,10 +1744,13 @@ async function initRealtime() {
 
 // INIT
 initSession();
+loadSedes();
 loadDashboard();
 loadStudents();
+loadInsights();
+loadScheduleOverview();
 window.addEventListener('load', () => { setTimeout(initRealtime, 2000); });
 </script>
-<script>if('serviceWorker'in navigator){navigator.serviceWorker.register('/sw.js').catch(()=>{});}</script>
+<script>if('serviceWorker'in navigator){navigator.serviceWorker.register('/sw.js').then(reg => { reg.update(); }).catch(()=>{});}</script>
 </body>
 </html>

@@ -235,6 +235,7 @@
   .pill-blue { background:#dbeafe; color:#1e40af; }
   .pill-teal { background:#ccfbf1; color:#0f766e; }
   .pill-gold { background:#fef3c7; color:#92400e; }
+  .pill-orange { background:#fed7aa; color:#9a3412; }
 
   /* === FORM === */
   .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
@@ -469,6 +470,21 @@
 <script src="/js/xlsx.full.min.js"></script>
 </head>
 <body>
+
+<div id="sw-update-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#1d4ed8;color:#fff;padding:.6rem 1rem;display:none;align-items:center;justify-content:center;gap:1rem;font-size:.85rem;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.2);">
+  🔄 Hay una versión nueva disponible
+  <button onclick="location.reload()" style="background:#fff;color:#1d4ed8;border:none;border-radius:6px;padding:.3rem .8rem;font-weight:700;cursor:pointer;">Actualizar ahora</button>
+</div>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', e => {
+      if (e.data?.type === 'NEW_VERSION') document.getElementById('sw-update-banner').style.display = 'flex';
+    });
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      document.getElementById('sw-update-banner').style.display = 'flex';
+    });
+  }
+</script>
 
 <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
 
@@ -812,6 +828,12 @@
             </select>
             <select id="filter-course" onchange="filterStudents()" style="padding:.55rem .8rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.875rem;color:var(--navy);background:var(--white);outline:none;">
               <option value="">Todos los cursos</option>
+            </select>
+            <select id="filter-status" onchange="filterStudents()" style="padding:.55rem .8rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.875rem;color:var(--navy);background:var(--white);outline:none;">
+              <option value="">Cualquier estado</option>
+              <option value="active">✅ Activos</option>
+              <option value="desertor">🏃 Desertores</option>
+              <option value="retired">🚪 Retirados</option>
             </select>
             <button class="btn btn-primary" onclick="openNewStudent()">➕ Nuevo estudiante</button>
             <button class="btn btn-ghost btn-sm" onclick="exportStudentsExcel()">📥 Exportar</button>
@@ -1809,7 +1831,7 @@
           <label>Estado</label>
           <select id="es-status">
             <option value="active">✅ Activo</option>
-            <option value="transferred">📦 Trasladado</option>
+            <option value="desertor">🏃 Desertor</option>
             <option value="retired">🚪 Retirado</option>
           </select>
         </div>
@@ -1867,9 +1889,19 @@
           <label>Grado de referencia (opcional)</label>
           <select id="ns-grade">
             <option value="">— Sin especificar —</option>
-            <option value="6">6°</option><option value="7">7°</option>
-            <option value="8">8°</option><option value="9">9°</option>
-            <option value="10">10°</option><option value="11">11°</option>
+            <option value="0">Transición</option>
+            <option value="1">1°</option><option value="2">2°</option>
+            <option value="3">3°</option><option value="4">4°</option>
+            <option value="5">5°</option><option value="6">6°</option>
+            <option value="7">7°</option><option value="8">8°</option>
+            <option value="9">9°</option><option value="10">10°</option>
+            <option value="11">11°</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Sede *</label>
+          <select id="ns-sede">
+            <option value="">— Seleccionar sede —</option>
           </select>
         </div>
       </div>
@@ -1907,9 +1939,6 @@
         <select id="sm-grade-filter" onchange="smOnGradeChange()"
           style="padding:.42rem .6rem;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:.82rem;">
           <option value="">Todos</option>
-          <option value="6">6°</option><option value="7">7°</option>
-          <option value="8">8°</option><option value="9">9°</option>
-          <option value="10">10°</option><option value="11">11°</option>
         </select>
         <select id="sm-course-filter" onchange="smFilterChecklist()"
           style="padding:.42rem .6rem;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:.82rem;">
@@ -2375,6 +2404,18 @@
     return new Date(iso).toLocaleDateString('es-CO', { day:'2-digit', month:'short', year:'numeric' });
   }
 
+  function timeAgo(iso) {
+    if (!iso) return '';
+    const diff = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1)  return 'Ahora mismo';
+    if (mins < 60) return `Hace ${mins} min`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24)  return `Hace ${hrs}h`;
+    const days = Math.floor(hrs / 24);
+    return `Hace ${days} día${days > 1 ? 's' : ''}`;
+  }
+
   async function fetchAPI(path, opts = {}) {
     const token = sessionStorage.getItem('raice_token');
     try {
@@ -2411,21 +2452,54 @@
       const todayAlerts = data.alerts.filter(a => a.type !== 'attendance_omission' || !a._date || a._date === todayColombia());
       
       if (todayAlerts.length > 0) {
-        alertsList.innerHTML = todayAlerts.map(a => `
-          <div style="display:flex;align-items:flex-start;flex-wrap:wrap;gap:.75rem;padding:.65rem .5rem;border-bottom:1px solid var(--border);font-size:.85rem;">
-            <span>${a.type==='attendance_omission'?'🚨':a.type==='absence'?'📋':a.type==='case'?'⚠️':a.type==='tardanza'?'⏰':'🔔'}</span>
-            <div>
-              <strong style="color:var(--navy);">${a.title}</strong>
-              <div style="color:var(--gray);font-size:.8rem;">${a.description}</div>
+        document.getElementById('alert-count').textContent = todayAlerts.length + ' alertas';
+        alertsList.innerHTML = todayAlerts.map(a => {
+          const borderColor   = a.severity === 'high' ? '#dc2626' : a.severity === 'medium' ? '#d97706' : '#2563eb';
+          const pillClass     = a.severity === 'high' ? 'pill-red' : 'pill-yellow';
+          const severityLabel = a.severity === 'high' ? 'Alta' : a.severity === 'medium' ? 'Media' : 'Baja';
+          const icon = a.ico || (a.type === 'attendance_omission' ? '🚨' : a.type === 'absence' ? '📋' : a.type === 'case' ? '⚠️' : a.type === 'tardanza' ? '⏰' : a.type === 'commitment' ? '🗓️' : a.type === 'evasion' ? '🏃' : '🔔');
+          return `<div style="display:flex;align-items:flex-start;gap:.65rem;padding:.6rem .75rem;border-bottom:1px solid var(--border);border-left:3px solid ${borderColor};font-size:.85rem;">
+            <span style="font-size:1rem;flex-shrink:0;line-height:1.5;">${icon}</span>
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
+                <strong style="color:var(--navy);flex:1;min-width:0;">${a.title}</strong>
+                <span class="pill ${pillClass}" style="flex-shrink:0;">${severityLabel}</span>
+              </div>
+              ${a.description ? `<div style="color:var(--gray);font-size:.78rem;margin-top:.15rem;">${a.description}</div>` : ''}
             </div>
-            <span class="pill ${a.severity === 'high' ? 'pill-red' : 'pill-yellow'}" style="margin-left:auto;flex-shrink:0;">${a.severity === 'high' ? 'Alta' : 'Media'}</span>
-          </div>
-        `).join('');
+          </div>`;
+        }).join('');
       } else {
         alertsList.innerHTML = '<div class="empty-state"><div class="empty-ico">🔔</div>Sin alertas activas</div>';
       }
     } else {
       alertsList.innerHTML = '<div class="empty-state"><div class="empty-ico">🔔</div>Sin alertas activas</div>';
+    }
+
+    // ---- Actividad reciente ----
+    const activityList  = document.getElementById('activity-list');
+    const recentCases   = data.recent_cases || [];
+    if (recentCases.length > 0) {
+      activityList.innerHTML = recentCases.map(c => {
+        const icon        = c.type >= 3 ? '🚨' : c.type >= 2 ? '⚠️' : '📋';
+        const borderColor = c.type >= 3 ? '#dc2626' : c.type >= 2 ? '#d97706' : '#2563eb';
+        const isOpen      = c.status === 'open';
+        const statusClr   = isOpen ? '#dc2626' : '#16a34a';
+        const statusLbl   = isOpen ? 'Abierto' : 'Cerrado';
+        const ago         = timeAgo(c.created_at);
+        return `<div style="display:flex;align-items:flex-start;gap:.65rem;padding:.6rem .75rem;border-bottom:1px solid var(--border);border-left:3px solid ${borderColor};font-size:.85rem;">
+          <span style="font-size:1rem;flex-shrink:0;line-height:1.5;">${icon}</span>
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;">
+              <strong style="color:var(--navy);flex:1;min-width:0;">Tipo ${c.type} — ${c.student_name}</strong>
+              <span style="font-size:.72rem;background:${statusClr}20;color:${statusClr};border-radius:999px;padding:.1rem .45rem;flex-shrink:0;font-weight:600;">${statusLbl}</span>
+            </div>
+            <div style="color:var(--gray);font-size:.78rem;margin-top:.1rem;">${ago}</div>
+          </div>
+        </div>`;
+      }).join('');
+    } else {
+      activityList.innerHTML = '<div class="empty-state"><div class="empty-ico">📋</div>Sin actividad reciente</div>';
     }
   }
 
@@ -2462,6 +2536,8 @@
       const initials = ((s.first_name||'?')[0] + (s.last_name||'?')[0]).toUpperCase();
       const statusPill = s.status === 'active'
         ? '<span class="pill pill-green">✅ Activo</span>'
+        : s.status === 'desertor'
+        ? '<span class="pill pill-orange">🏃 Desertor</span>'
         : s.status === 'transferred'
         ? '<span class="pill pill-yellow">📦 Trasladado</span>'
         : '<span class="pill pill-red">🚪 Retirado</span>';
@@ -2497,11 +2573,13 @@
     const grade  = document.getElementById('filter-grade').value;
     const course = document.getElementById('filter-course').value;
     const sede   = document.getElementById('filter-sede').value;
+    const status = document.getElementById('filter-status')?.value || '';
     let list = allStudents;
     if (query)  list = list.filter(s => `${s.first_name} ${s.last_name}`.toLowerCase().includes(query));
     if (grade)  list = list.filter(s => String(s.grade) === grade);
     if (course) list = list.filter(s => String(s.course) === course);
     if (sede)   list = list.filter(s => String(s.sede_id) === sede);
+    if (status) list = list.filter(s => s.status === status);
     const countEl = document.getElementById('students-count');
     if (countEl) {
       countEl.textContent = list.length === allStudents.length
@@ -3571,7 +3649,7 @@
         html += '<div style="font-size:.8rem;color:var(--gray);margin-bottom:.3rem;">' + (c.students_count||0) + ' estudiantes</div>';
         html += '<div style="font-size:.78rem;color:var(--teal);margin-bottom:.35rem;">' + director + '</div>';
         html += '<div style="font-size:.78rem;color:var(--gray);margin-bottom:.6rem;">' + teacherList + '</div>';
-        html += '<button class="btn btn-ghost btn-sm" style="width:100%;font-size:.78rem;margin-bottom:.3rem;" onclick="openAssignTeacher(\'' + c.id + '\',\'' + gradeLbl(c.grade) + c.number + '\')">➕ Asignar docente</button>';
+        html += '<button class="btn btn-ghost btn-sm" style="width:100%;font-size:.78rem;margin-bottom:.3rem;" onclick="openAssignTeacher(\'' + c.id + '\',\'' + gradeLbl(c.grade) + c.number + '\',\'' + (c.sede_id||'') + '\')">➕ Asignar docente</button>';
         html += '<button class="btn btn-teal btn-sm" style="width:100%;font-size:.78rem;margin-bottom:.3rem;" onclick="openCourseSchedule(\'' + c.id + '\',\'' + gradeLbl(c.grade) + c.number + '\')">🕐 Horario</button>';
         html += '<div style="display:flex;gap:.3rem;">';
         html += '<button class="btn btn-ghost btn-sm" style="flex:1;font-size:.78rem;" onclick="editCourse(\'' + c.id + '\',' + c.grade + ',' + c.number + ',\'' + (c.director_id||'') + '\',\'' + (c.sede_id||'') + '\')">✏️ Editar</button>';
@@ -3595,13 +3673,13 @@
         html += '<span style="background:#dcfce7;color:#166534;font-size:.72rem;font-weight:700;padding:.1rem .45rem;border-radius:999px;border:1px solid #86efac;">SUBGRUPO</span>';
         html += '</div>';
         html += '<div style="font-weight:700;color:var(--navy);margin-bottom:.25rem;">' + (c.name || 'Sin nombre') + '</div>';
-        html += '<div style="font-size:.78rem;color:var(--gray);margin-bottom:.25rem;">' + gradeRef + (c.students_count||0) + ' miembros</div>';
+        html += '<div style="font-size:.78rem;color:var(--gray);margin-bottom:.25rem;" data-subgroup-count="' + c.id + '">' + gradeRef + (c.students_count||0) + ' miembros</div>';
         html += '<div style="font-size:.78rem;color:var(--gray);margin-bottom:.6rem;">' + teacherList + '</div>';
-        html += '<button class="btn btn-ghost btn-sm" style="width:100%;font-size:.78rem;margin-bottom:.3rem;" onclick="openAssignTeacher(\'' + c.id + '\',\'' + (c.name||'Subgrupo') + '\')">➕ Asignar docente</button>';
+        html += '<button class="btn btn-ghost btn-sm" style="width:100%;font-size:.78rem;margin-bottom:.3rem;" onclick="openAssignTeacher(\'' + c.id + '\',\'' + (c.name||'Subgrupo') + '\',\'' + (c.sede_id||'') + '\')">➕ Asignar docente</button>';
         html += '<button class="btn btn-teal btn-sm" style="width:100%;font-size:.78rem;margin-bottom:.3rem;" onclick="openCourseSchedule(\'' + c.id + '\',\'' + (c.name||'Subgrupo') + '\')">🕐 Horario</button>';
         html += '<button class="btn btn-ghost btn-sm" style="width:100%;font-size:.78rem;margin-bottom:.3rem;" onclick="openSubgroupMembers(\'' + c.id + '\',\'' + (c.name||'Subgrupo').replace(/\'/g,"\\\'") + '\')">👥 Miembros</button>';
         html += '<div style="display:flex;gap:.3rem;">';
-        html += '<button class="btn btn-ghost btn-sm" style="flex:1;font-size:.78rem;" onclick="editSubgroup(\'' + c.id + '\',\'' + (c.name||'').replace(/\'/g,"\\\'") + '\',' + (c.grade||'') + ')">✏️ Editar</button>';
+        html += '<button class="btn btn-ghost btn-sm" style="flex:1;font-size:.78rem;" onclick="editSubgroup(\'' + c.id + '\',\'' + (c.name||'').replace(/\'/g,"\\\'") + '\',' + (c.grade||'null') + ',\'' + (c.sede_id||'') + '\')">✏️ Editar</button>';
         html += '<button class="btn btn-danger btn-sm" style="font-size:.78rem;" onclick="deleteSubgroup(\'' + c.id + '\',\'' + (c.name||'Subgrupo').replace(/\'/g,"\\\'") + '\')">🗑️</button>';
         html += '</div></div>';
       });
@@ -4220,7 +4298,7 @@
 
   async function saveFaltaText(id, btn) {
     const container = btn.closest('div').previousElementSibling;
-    const ta = container?.querySelector('textarea');
+    const ta = container?.tagName === 'TEXTAREA' ? container : container?.querySelector('textarea');
     if (!ta) return;
     const nuevaDesc = ta.value.trim();
     if (!nuevaDesc) { showToast('El texto no puede estar vacío', 'warning'); return; }
@@ -4376,7 +4454,7 @@
     }
   }
 
-  async function openAssignTeacher(courseId, courseName) {
+  async function openAssignTeacher(courseId, courseName, sedeId) {
     document.getElementById('assign-course-id').value         = courseId;
     document.getElementById('assign-course-name').textContent = courseName;
     document.getElementById('assign-subject').value           = '';
@@ -4385,8 +4463,11 @@
     const { ok, data } = await fetchAPI('/raice/teachers');
     const sel = document.getElementById('assign-teacher-id');
     if (ok && data.teachers?.length) {
+      const filtered = sedeId
+        ? data.teachers.filter(t => t.sede_id === sedeId)
+        : data.teachers;
       sel.innerHTML = '<option value="">— Selecciona el docente —</option>' +
-        data.teachers.map(t => `<option value="${t.id}">${t.first_name} ${t.last_name}${t.subject ? ' · ' + t.subject : ''}</option>`).join('');
+        filtered.map(t => `<option value="${t.id}">${t.first_name} ${t.last_name}${t.subject ? ' · ' + t.subject : ''}</option>`).join('');
     }
     await renderAssignedTeachers(courseId);
     openModal('modal-assign-teacher');
@@ -4553,39 +4634,51 @@
   let _smOccupiedIds     = new Set();
   let _smMemberIds       = new Set();
 
+  function _populateNsSede(selectedSedeId) {
+    const sel = document.getElementById('ns-sede');
+    const activeSedes = (allSedes || []).filter(s => s.active !== false);
+    sel.innerHTML = '<option value="">— Seleccionar sede —</option>' +
+      activeSedes.map(s => `<option value="${s.id}" ${s.id === selectedSedeId ? 'selected' : ''}>${s.name}</option>`).join('');
+  }
+
   function openNewSubgroup() {
     document.getElementById('ns-id').value = '';
     document.getElementById('ns-name').value = '';
     document.getElementById('ns-grade').value = '';
+    _populateNsSede('');
     document.getElementById('ns-modal-title').textContent = '🔀 Nuevo subgrupo';
     document.getElementById('ns-modal-btn').textContent = 'Crear subgrupo';
     openModal('modal-new-subgroup');
   }
 
-  function editSubgroup(id, name, grade) {
+  function editSubgroup(id, name, grade, sedeId) {
     document.getElementById('ns-id').value = id;
     document.getElementById('ns-name').value = name;
     document.getElementById('ns-grade').value = grade || '';
+    _populateNsSede(sedeId || '');
     document.getElementById('ns-modal-title').textContent = '✏️ Editar subgrupo';
     document.getElementById('ns-modal-btn').textContent = '💾 Guardar';
     openModal('modal-new-subgroup');
   }
 
   async function saveSubgroup() {
-    const id    = document.getElementById('ns-id').value;
-    const name  = document.getElementById('ns-name').value.trim();
-    const grade = document.getElementById('ns-grade').value;
+    const id     = document.getElementById('ns-id').value;
+    const name   = document.getElementById('ns-name').value.trim();
+    const grade  = document.getElementById('ns-grade').value;
+    const sedeId = document.getElementById('ns-sede').value;
     if (!name) { showToast('El nombre es requerido', 'warning'); return; }
+    if (!sedeId) { showToast('Selecciona la sede', 'warning'); return; }
     const isEdit = !!id;
     const body = isEdit
-      ? { id, name, type: 'subgroup' }
-      : { name, grade: grade || undefined, type: 'subgroup' };
+      ? { id, name, grade: grade ? parseInt(grade) : null, type: 'subgroup', sede_id: sedeId }
+      : { name, grade: grade || undefined, type: 'subgroup', sede_id: sedeId };
     const { ok, data } = await fetchAPI('/raice/courses', {
       method: isEdit ? 'PUT' : 'POST',
       body: JSON.stringify(body)
     });
     if (ok) {
-      showToast(isEdit ? 'Subgrupo actualizado' : 'Subgrupo creado', 'success');
+      const gradeConfirm = data?.course?.grade != null ? ` (grado ${data.course.grade}°)` : '';
+      showToast((isEdit ? 'Subgrupo actualizado' : 'Subgrupo creado') + gradeConfirm, 'success');
       closeModal('modal-new-subgroup');
       loadCourses();
     } else {
@@ -4639,6 +4732,14 @@
     }
     if (studentsRes.ok) _smAllStudents = (studentsRes.data.students || []).filter(s => s.status === 'active');
     if (occupiedRes.ok) _smOccupiedIds = new Set(occupiedRes.data.occupied_ids || []);
+    // Populate grade filter dynamically from active students
+    const gradeEl = document.getElementById('sm-grade-filter');
+    if (gradeEl) {
+      const grades = [...new Set(_smAllStudents.map(s => s.grade).filter(g => g != null))]
+        .sort((a, b) => Number(a) - Number(b));
+      gradeEl.innerHTML = '<option value="">Todos</option>'
+        + grades.map(g => `<option value="${g}">${gradeLbl(g)}</option>`).join('');
+    }
     smFilterChecklist();
   }
 
@@ -4674,15 +4775,13 @@
       smUpdateCount(); return;
     }
     el.innerHTML = list.map(s => {
-      const occ   = _smOccupiedIds.has(s.id);
-      const lbl   = s.last_name + ', ' + s.first_name + ' <span style="color:var(--gray);font-size:.72rem;">— ' + gradeLbl(s.grade) + s.course + '</span>';
-      const style = 'display:flex;align-items:center;gap:.5rem;padding:.38rem .65rem;border-bottom:1px solid var(--border);';
-      if (occ) return '<label style="' + style + 'opacity:.45;cursor:not-allowed;">'
-        + '<input type="checkbox" disabled>'
-        + '<span style="font-size:.81rem;">' + lbl + ' <span style="background:#fef9c3;color:#92400e;font-size:.63rem;font-weight:700;padding:.1rem .3rem;border-radius:999px;">ya en subgrupo</span></span></label>';
-      return '<label style="' + style + 'cursor:pointer;" onmouseover="this.style.background=\'var(--light)\'" onmouseout="this.style.background=\'\'">'
+      const inOther = _smOccupiedIds.has(s.id);
+      const lbl     = s.last_name + ', ' + s.first_name + ' <span style="color:var(--gray);font-size:.72rem;">— ' + gradeLbl(s.grade) + s.course + '</span>';
+      const style   = 'display:flex;align-items:center;gap:.5rem;padding:.38rem .65rem;border-bottom:1px solid var(--border);cursor:pointer;';
+      const tag     = inOther ? ' <span style="background:#e0f2fe;color:#0369a1;font-size:.63rem;font-weight:700;padding:.1rem .3rem;border-radius:999px;">🔀 En otro subgrupo</span>' : '';
+      return '<label style="' + style + '" onmouseover="this.style.background=\'var(--light)\'" onmouseout="this.style.background=\'\'">'
         + '<input type="checkbox" value="' + s.id + '" onchange="smUpdateCount()">'
-        + '<span style="font-size:.81rem;">' + lbl + '</span></label>';
+        + '<span style="font-size:.81rem;">' + lbl + tag + '</span></label>';
     }).join('');
     if (selAll) selAll.checked = false;
     smUpdateCount();
@@ -4715,7 +4814,10 @@
       document.getElementById('sm-grade-filter').value = '';
       document.getElementById('sm-course-filter').value = '';
       document.getElementById('sm-course-filter').innerHTML = '<option value="">Todos</option>';
-      smLoadAll();
+      await smLoadAll();
+      // Actualizar contador en la tarjeta del subgrupo sin recargar la página
+      const countEl = document.querySelector(`[data-subgroup-count="${_currentSubgroupId}"]`);
+      if (countEl) countEl.textContent = countEl.textContent.replace(/\d+ miembros/, _smMemberIds.size + ' miembro' + (_smMemberIds.size !== 1 ? 's' : ''));
     } else showToast(data?.error || 'Error al agregar', 'error');
   }
 
@@ -4724,8 +4826,12 @@
       method: 'DELETE',
       body: JSON.stringify({ subgroup_id: _currentSubgroupId, student_id: studentId })
     });
-    if (ok) { showToast('Miembro eliminado', 'success'); smLoadAll(); }
-    else showToast(data?.error || 'Error', 'error');
+    if (ok) {
+      showToast('Miembro eliminado', 'success');
+      await smLoadAll();
+      const countEl = document.querySelector(`[data-subgroup-count="${_currentSubgroupId}"]`);
+      if (countEl) countEl.textContent = countEl.textContent.replace(/\d+ miembros?/, _smMemberIds.size + ' miembro' + (_smMemberIds.size !== 1 ? 's' : ''));
+    } else showToast(data?.error || 'Error', 'error');
   }
 
   // ---- DATE ----
@@ -6175,6 +6281,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
       const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      reg.update();
       // Detectar nueva versión disponible
       reg.addEventListener('updatefound', () => {
         const newSW = reg.installing;
