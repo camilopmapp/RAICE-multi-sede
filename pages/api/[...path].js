@@ -1,3 +1,4 @@
+import { UserRepository } from '../../src/data/repositories/UserRepository.js';
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
