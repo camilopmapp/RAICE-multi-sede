@@ -1,0 +1,2410 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="RAICE">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="icon" href="/favicon.png">
+  <meta name="theme-color" content="#0f1f3d">
+<title>RAICE — Superadministrador</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,700;9..144,900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy:#0f1f3d; --teal:#0b7a75; --teal2:#14b8b0;
+    --gold:#e8a020; --rose:#c0392b; --cream:#f4f1eb;
+    --white:#fff; --gray:#64748b; --light:#f8fafc;
+    --border:#e2e8f0;
+    --shadow:0 2px 12px rgba(15,31,61,.09);
+    --sidebar:240px;
+  }
+  *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+  html, body { height:100%; }
+  body { font-family:'DM Sans',sans-serif; background:var(--cream); color:var(--navy); display:flex; }
+
+  /* === SIDEBAR === */
+  .sidebar {
+    width:var(--sidebar);
+    background:var(--navy);
+    display:flex; flex-direction:column;
+    position:fixed; top:0; left:0; bottom:0;
+    z-index:100;
+    transition:transform .3s;
+  }
+  .sidebar-brand {
+    padding:1.5rem 1.25rem 1.25rem;
+    border-bottom:1px solid rgba(255,255,255,.08);
+    display:flex; align-items:center; gap:.75rem;
+  }
+  .sb-mark {
+    width:36px; height:36px;
+    background:var(--teal2);
+    border-radius:9px;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Fraunces',serif; font-weight:900; font-size:1rem;
+    color:var(--navy); flex-shrink:0;
+  }
+  .sb-logo {
+    width:36px; height:36px; object-fit:contain;
+    border-radius:9px; background:var(--white);
+    flex-shrink:0; display:none;
+  }
+  .sb-name { font-family:'Fraunces',serif; font-weight:900; color:var(--white); font-size:1.05rem; }
+  .sb-role { font-size:.7rem; color:rgba(255,255,255,.4); text-transform:uppercase; letter-spacing:.06em; }
+  .sidebar-nav {
+    flex:1; padding:1rem .75rem; overflow-y:auto;
+    display:flex; flex-direction:column; gap:.15rem;
+  }
+  .nav-group-title {
+    font-size:.68rem; font-weight:700; letter-spacing:.1em;
+    text-transform:uppercase; color:rgba(255,255,255,.3);
+    padding:.75rem .5rem .4rem;
+    margin-top:.5rem;
+  }
+  .nav-item {
+    display:flex; align-items:center; gap:.7rem;
+    padding:.62rem .75rem;
+    border-radius:10px;
+    cursor:pointer;
+    transition:background .15s;
+    font-size:.875rem;
+    color:rgba(255,255,255,.6);
+    text-decoration:none;
+    border:none; background:none; width:100%; text-align:left;
+    font-family:'DM Sans',sans-serif;
+  }
+  .nav-item:hover { background:rgba(255,255,255,.07); color:rgba(255,255,255,.9); }
+  .nav-item.active { background:rgba(20,184,176,.18); color:var(--teal2); font-weight:600; }
+  .nav-item .nav-ico { font-size:1rem; flex-shrink:0; width:20px; text-align:center; }
+  .sidebar-footer {
+    padding:1rem .75rem;
+    border-top:1px solid rgba(255,255,255,.08);
+  }
+  .user-chip {
+    display:flex; align-items:center; gap:.65rem;
+    padding:.6rem .75rem;
+    background:rgba(255,255,255,.06);
+    border-radius:10px;
+    margin-bottom:.5rem;
+  }
+  .user-avatar {
+    width:32px; height:32px; border-radius:50%;
+    background:var(--gold); display:flex; align-items:center;
+    justify-content:center; font-weight:700; font-size:.8rem;
+    color:var(--navy); flex-shrink:0;
+  }
+  .user-info { flex:1; min-width:0; }
+  .user-name { font-size:.82rem; font-weight:600; color:var(--white); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .user-role { font-size:.7rem; color:var(--gold); }
+  .btn-logout {
+    width:100%; padding:.55rem; border:none; border-radius:8px;
+    background:rgba(220,38,38,.15); color:#fca5a5;
+    font-family:'DM Sans',sans-serif; font-size:.82rem; font-weight:600;
+    cursor:pointer; transition:background .2s;
+  }
+  .btn-logout:hover { background:rgba(220,38,38,.3); }
+
+  /* === MAIN === */
+  .main {
+    margin-left:var(--sidebar);
+    flex:1; display:flex; flex-direction:column;
+    min-height:100vh;
+  }
+  .topbar {
+    background:var(--white);
+    border-bottom:1px solid var(--border);
+    padding:.85rem 2rem;
+    display:flex; align-items:center; justify-content:space-between;
+    position:sticky; top:0; z-index:50;
+  }
+  .page-title {
+    font-family:'Fraunces',serif;
+    font-size:1.2rem; font-weight:700; color:var(--navy);
+  }
+  .topbar-right { display:flex; align-items:center; gap:.75rem; }
+  .topbar-badge {
+    background:rgba(232,160,32,.15);
+    color:var(--gold); border:1px solid rgba(232,160,32,.3);
+    border-radius:999px; padding:.25rem .8rem;
+    font-size:.75rem; font-weight:700;
+    letter-spacing:.04em; text-transform:uppercase;
+  }
+  .content { padding:2rem; flex:1; }
+
+  /* === SECTIONS === */
+  .section { display:none; }
+  .section.active { display:block; animation:fadeIn .25s ease; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+
+  /* === STATS GRID === */
+  .stats-grid {
+    display:grid; grid-template-columns:repeat(4,1fr);
+    gap:1rem; margin-bottom:2rem;
+  }
+  .stat-card {
+    background:var(--white); border-radius:16px;
+    padding:1.4rem 1.25rem; box-shadow:var(--shadow);
+    position:relative; overflow:hidden;
+  }
+  .stat-card::after {
+    content:''; position:absolute; top:0; right:0;
+    width:80px; height:80px;
+    border-radius:0 0 0 80px;
+    opacity:.07;
+  }
+  .stat-card.c1::after { background:var(--teal2); }
+  .stat-card.c2::after { background:var(--gold); }
+  .stat-card.c3::after { background:var(--rose); }
+  .stat-card.c4::after { background:#3b82f6; }
+  .stat-ico { font-size:1.5rem; margin-bottom:.6rem; }
+  .stat-n {
+    font-family:'Fraunces',serif; font-size:2.4rem;
+    font-weight:900; line-height:1; margin-bottom:.25rem;
+    color:var(--navy);
+  }
+  .stat-n.loading { background:#e8e8e8; border-radius:6px; width:60%; height:2rem; animation:shimmer 1.2s infinite; }
+  .stat-label { font-size:.82rem; color:var(--gray); font-weight:500; }
+  @keyframes shimmer { 0%,100%{opacity:.6} 50%{opacity:1} }
+
+  /* === CARD === */
+  .card {
+    background:var(--white); border-radius:16px;
+    box-shadow:var(--shadow); margin-bottom:1.5rem;
+  }
+  .card-header {
+    padding:1.25rem 1.5rem .9rem;
+    border-bottom:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.75rem;
+  }
+  .card-header h3 {
+    font-family:'Fraunces',serif; font-size:1.05rem;
+    font-weight:700; color:var(--navy);
+  }
+  .card-body { padding:1.5rem; }
+  .card-actions { display:flex; gap:.5rem; flex-wrap:wrap; }
+
+  /* === BUTTONS === */
+  .btn {
+    display:inline-flex; align-items:center; gap:.4rem;
+    padding:.6rem 1.1rem; border:none; border-radius:10px;
+    font-family:'DM Sans',sans-serif; font-size:.875rem;
+    font-weight:600; cursor:pointer; transition:all .2s;
+  }
+  .btn-primary { background:var(--navy); color:var(--white); }
+  .btn-primary:hover { background:var(--teal); transform:translateY(-1px); box-shadow:0 4px 14px rgba(11,122,117,.3); }
+  .btn-teal { background:var(--teal2); color:var(--white); }
+  .btn-teal:hover { background:var(--teal); }
+  .btn-gold { background:var(--gold); color:var(--navy); }
+  .btn-gold:hover { background:#d4921b; }
+  .btn-danger { background:#fef2f2; color:var(--rose); border:1.5px solid #fecaca; }
+  .btn-danger:hover { background:var(--rose); color:var(--white); }
+  .btn-ghost { background:var(--light); color:var(--navy); border:1.5px solid var(--border); }
+  .btn-ghost:hover { background:var(--border); }
+  .btn-sm { padding:.4rem .75rem; font-size:.8rem; }
+
+  /* === TABLE === */
+  .table-wrap {
+    overflow-x:auto; -webkit-overflow-scrolling:touch;
+  }
+  table { width:100%; border-collapse:collapse; }
+  thead th {
+    text-align:left; padding:.75rem 1rem;
+    font-size:.75rem; font-weight:700;
+    letter-spacing:.06em; text-transform:uppercase;
+    color:var(--gray); background:var(--light);
+    border-bottom:1px solid var(--border);
+  }
+  tbody tr { border-bottom:1px solid #f1f5f9; transition:background .15s; }
+  tbody tr:hover { background:#f8fafc; }
+  tbody td { padding:.75rem 1rem; font-size:.875rem; color:var(--navy); }
+  .td-muted { color:var(--gray); font-size:.82rem; }
+
+  /* === PILL === */
+  .pill {
+    display:inline-flex; align-items:center; gap:.3rem;
+    padding:.2rem .65rem; border-radius:999px;
+    font-size:.75rem; font-weight:600; white-space:nowrap;
+  }
+  .pill-green { background:#dcfce7; color:#166534; }
+  .pill-yellow { background:#fef9c3; color:#854d0e; }
+  .pill-red { background:#fee2e2; color:#991b1b; }
+  .pill-blue { background:#dbeafe; color:#1e40af; }
+  .pill-teal { background:#ccfbf1; color:#0f766e; }
+  .pill-gold { background:#fef3c7; color:#92400e; }
+  .pill-orange { background:#fed7aa; color:#9a3412; }
+
+  /* === FORM === */
+  .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+  .form-grid.cols3 { grid-template-columns:1fr 1fr 1fr; }
+  .form-group { display:flex; flex-direction:column; gap:.4rem; }
+  .form-group.full { grid-column:1/-1; }
+  .form-group label { font-size:.82rem; font-weight:600; color:var(--navy); }
+  .form-group input, .form-group select, .form-group textarea {
+    padding:.7rem .9rem;
+    border:1.5px solid var(--border); border-radius:10px;
+    font-family:'DM Sans',sans-serif; font-size:.9rem;
+    color:var(--navy); background:var(--white); outline:none;
+    transition:border-color .2s, box-shadow .2s;
+  }
+  .form-group input:focus, .form-group select:focus {
+    border-color:var(--teal2);
+    box-shadow:0 0 0 3px rgba(20,184,176,.12);
+  }
+  .form-hint { font-size:.76rem; color:var(--gray); }
+
+  /* === UPLOAD AREA === */
+  .upload-area {
+    border:2px dashed var(--border); border-radius:12px;
+    padding:2rem; text-align:center; cursor:pointer;
+    transition:border-color .2s, background .2s;
+  }
+  .upload-area:hover { border-color:var(--teal2); background:#f0fdfa; }
+  .upload-area.dragover { border-color:var(--teal2); background:#f0fdfa; }
+  .upload-ico { font-size:2.5rem; margin-bottom:.75rem; }
+  .upload-text { font-weight:600; color:var(--navy); margin-bottom:.25rem; }
+  .upload-hint { font-size:.82rem; color:var(--gray); }
+
+  /* === IMPORT PREVIEW === */
+  .import-preview {
+    background:var(--light); border-radius:12px;
+    padding:1rem; margin-top:1rem; display:none;
+  }
+  .import-preview.show { display:block; }
+  .import-count {
+    font-size:.85rem; font-weight:600; color:var(--navy);
+    margin-bottom:.75rem;
+    display:flex; align-items:center; gap:.5rem;
+  }
+
+  /* === MODAL === */
+  .modal-overlay {
+    position:fixed; inset:0; background:rgba(15,31,61,.6);
+    z-index:500; display:none; align-items:center; justify-content:center;
+    padding:1rem; backdrop-filter:blur(4px);
+  }
+  .modal-overlay.open { display:flex; }
+  .modal {
+    background:var(--white); border-radius:20px;
+    width:100%; max-width:520px;
+    box-shadow:0 20px 60px rgba(15,31,61,.25);
+    animation:modalIn .25s ease;
+    max-height:90vh; display:flex; flex-direction:column;
+  }
+  @keyframes modalIn { from{opacity:0;transform:scale(.95) translateY(10px)} to{opacity:1;transform:scale(1) translateY(0)} }
+  .modal-header {
+    padding:1.4rem 1.5rem 1rem;
+    border-bottom:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .modal-header h3 {
+    font-family:'Fraunces',serif; font-size:1.1rem;
+    font-weight:700; color:var(--navy);
+  }
+  .modal-close {
+    background:none; border:none; font-size:1.3rem;
+    color:var(--gray); cursor:pointer; padding:.25rem;
+    border-radius:6px; transition:background .2s;
+  }
+  .modal-close:hover { background:var(--light); }
+  .modal-body { padding:1.5rem; overflow-y:auto;flex:1;min-height:0;}
+  .modal-footer {
+    padding:.9rem 1.5rem 1.4rem;
+    display:flex; justify-content:flex-end; gap:.6rem;
+  flex-shrink:0;position:sticky;bottom:0;background:var(--white);border-top:1px solid var(--border);z-index:2;}
+
+  /* === TOAST === */
+  #toast-container {
+    position:fixed; bottom:1.5rem; right:1.5rem;
+    z-index:9999; display:flex; flex-direction:column; gap:.5rem;
+  }
+  .toast {
+    background:var(--navy); color:var(--white);
+    border-radius:12px; padding:.75rem 1.1rem;
+    font-size:.875rem; font-weight:500;
+    box-shadow:0 8px 24px rgba(15,31,61,.25);
+    animation:toastIn .3s ease;
+    display:flex; align-items:center; gap:.5rem;
+    max-width:340px;
+  }
+  .toast.success { background:var(--teal); }
+  .toast.error { background:var(--rose); }
+  .toast.warning { background:var(--gold); color:var(--navy); }
+  @keyframes toastIn { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:translateX(0)} }
+
+  /* === AVATAR === */
+  .avatar {
+    width:34px; height:34px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:.8rem; font-weight:700; color:var(--white);
+    flex-shrink:0;
+  }
+
+  /* === SEARCH BAR === */
+  .search-bar {
+    display:flex; align-items:center; gap:.5rem;
+    background:var(--light); border:1.5px solid var(--border);
+    border-radius:10px; padding:.55rem .9rem;
+    flex:1; max-width:320px;
+  }
+  .search-bar input {
+    border:none; background:none; outline:none;
+    font-family:'DM Sans',sans-serif; font-size:.875rem;
+    color:var(--navy); flex:1;
+  }
+
+  /* === EMPTY === */
+  .empty-state {
+    text-align:center; padding:3rem 1rem;
+    color:var(--gray); font-size:.9rem;
+  }
+  .empty-state .empty-ico { font-size:3rem; margin-bottom:.75rem; }
+
+  /* === TABS === */
+  .tabs { display:flex; gap:.25rem; margin-bottom:1.5rem; }
+  .tab {
+    padding:.5rem 1.1rem; border:none; border-radius:10px;
+    font-family:'DM Sans',sans-serif; font-size:.875rem;
+    font-weight:600; cursor:pointer; transition:all .2s;
+    background:var(--white); color:var(--gray);
+    border:1.5px solid var(--border);
+  }
+  .tab.active { background:var(--navy); color:var(--white); border-color:var(--navy); }
+  .tab-content { display:none; }
+  .tab-content.active { display:block; }
+
+  /* === RESPONSIVE === */
+  @media (max-width:960px) {
+    .stats-grid { grid-template-columns:repeat(2,1fr); }
+    .form-grid { grid-template-columns:1fr; }
+    .form-grid.cols3 { grid-template-columns:1fr 1fr; }
+  }
+
+  /* NUEVO AÑO ESCOLAR — wizard stepper */
+  .aye-dot { width:32px;height:32px;border-radius:50%;background:var(--light);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;color:var(--gray);flex-shrink:0; }
+  .aye-dot-active { background:var(--navy);border-color:var(--navy);color:var(--white); }
+  .aye-dot-done { background:var(--teal);border-color:var(--teal);color:var(--white); }
+  .aye-line { flex:1;height:2px;background:var(--border);min-width:20px; }
+
+  /* RESPONSIVE MOBILE */
+  @media (max-width:768px) {
+    :root { --sidebar:0px; }
+    .sidebar { transform:translateX(-100%); transition:transform .28s ease; width:260px; z-index:300; }
+    .sidebar.open { transform:translateX(0); }
+    .sidebar-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:299; }
+    .sidebar-overlay.open { display:block; }
+    .main { margin-left:0; }
+    .topbar { padding:.65rem 1rem; gap:.5rem; }
+    #sa-search-wrap { display:none; }
+    .topbar-badge { display:none; }
+    .hamburger { display:flex !important; }
+    .content { padding:.85rem; }
+    .stats-grid { grid-template-columns:repeat(2,1fr); gap:.6rem; }
+    .stat-card { padding:1rem .85rem; }
+    .card-header { flex-wrap:wrap; gap:.5rem; }
+    .card-actions { flex-wrap:wrap; gap:.4rem; }
+    .card-body { padding:.85rem; }
+    .form-grid, .form-grid.cols3 { grid-template-columns:1fr; }
+    table { font-size:.78rem; }
+    th, td { padding:.45rem .5rem; }
+    .modal-overlay { align-items:flex-end; padding:0; }
+    .modal, .modal.modal-lg { max-width:100%; border-radius:20px 20px 0 0; max-height:92vh; max-height:92dvh; display:flex;flex-direction:column;}
+    .btn { padding:.55rem .9rem; font-size:.82rem; }
+    .btn-sm { padding:.4rem .65rem; font-size:.76rem; }
+
+    /* ── Mobile / PWA fixes ── */
+    /* Tables: always scrollable horizontally */
+    .modal-body table, .card-body table, .section table {
+      width: 100%;
+      min-width: 0;
+    }
+    .modal-body > table, .card-body > table, .section > table {
+      display: block;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    /* Form controls: always full width */
+    .modal-body input, .modal-body select, .modal-body textarea,
+    .modal-body .form-group input, .modal-body .form-group select {
+      width: 100%;
+      box-sizing: border-box;
+    }
+    /* Modal footer: wrap buttons on very small screens */
+    .modal-footer {
+      flex-wrap: wrap;
+    }
+    .modal-footer .btn {
+      flex: 1 1 auto;
+      min-width: 100px;
+      text-align: center;
+    }
+    /* Prevent horizontal overflow on the whole page */
+    body { overflow-x: hidden; }
+
+    /* ── Mobile safety net ── */
+    .card-body > table, .modal-body > table, .section > table {
+      display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; width:100%;
+    }
+    .card-header { flex-wrap:wrap; }
+  }
+
+  /* RESPONSIVE SMALL MOBILE */
+  @media (max-width:480px) {
+    .stats-grid { grid-template-columns:1fr; }
+  }
+
+  .hamburger { display:none; flex-direction:column; gap:5px; background:none; border:none;
+    cursor:pointer; padding:.4rem; border-radius:8px; }
+  .hamburger span { width:22px; height:2.5px; background:var(--navy); border-radius:2px; transition:all .25s; }
+  .hamburger:hover span { background:var(--teal); }
+
+  @media(max-width:480px){
+    .card-header .btn { font-size:.76rem; padding:.35rem .6rem; }
+    .section-header h2 { font-size:1rem; }
+    .section-header { flex-wrap:wrap; gap:.4rem; }
+  }
+</style>
+<script src="/js/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+<!-- ===== SIDEBAR ===== -->
+<aside class="sidebar" id="main-sidebar">
+  <div class="sidebar-brand">
+    <img class="sb-logo" id="sb-logo-img" src="" alt="Logo">
+    <div class="sb-mark" id="sb-mark-fallback" style="background:#fff;padding:2px;"><img src="/icons/icon-96.png" alt="RAICE" style="width:100%;height:100%;object-fit:contain;"></div>
+    <div>
+      <div class="sb-name">RAICE</div>
+      <div class="sb-role">Superadmin</div>
+    </div>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-group-title">Principal</div>
+    <button class="nav-item active" onclick="showSection('dashboard',this)">
+      <span class="nav-ico">📊</span> Dashboard
+    </button>
+    <button class="nav-item" onclick="showSection('usuarios',this)">
+      <span class="nav-ico">👤</span> Usuarios del sistema
+    </button>
+
+    <div class="nav-group-title">Institución</div>
+    <button class="nav-item" onclick="showSection('sedes',this)">
+      <span class="nav-ico">🏢</span> Sedes
+    </button>
+    <button class="nav-item" onclick="showSection('estudiantes',this)">
+      <span class="nav-ico">👥</span> Estudiantes
+    </button>
+    <button class="nav-item" onclick="showSection('docentes',this)">
+      <span class="nav-ico">🎓</span> Docentes
+    </button>
+    <button class="nav-item" onclick="showSection('cursos',this)">
+      <span class="nav-ico">🏫</span> Grados y cursos
+    </button>
+
+    <div class="nav-group-title">Convivencia</div>
+    <button class="nav-item" onclick="showSection('casos',this)">
+      <span class="nav-ico">⚠️</span> Casos RAICE
+    </button>
+    <button class="nav-item" onclick="showSection('asistencia',this)">
+      <span class="nav-ico">📋</span> Asistencia general
+    </button>
+
+    <div class="nav-group-title">Sistema</div>
+    <button class="nav-item" onclick="showSection('config',this)">
+      <span class="nav-ico">⚙️</span> Configuración
+    </button>
+    <button class="nav-item" onclick="showSection('backup',this)">
+      <span class="nav-ico">💾</span> Backup
+    </button>
+    <button class="nav-item" onclick="showSection('faltas',this)">
+      <span class="nav-ico">📋</span> Catálogo de faltas
+    </button>
+    <button class="nav-item" onclick="showSection('nuevo-anio',this)">
+      <span class="nav-ico">🎓</span> Nuevo año escolar
+    </button>
+    <button class="nav-item" onclick="showSection('mantenimiento',this)">
+      <span class="nav-ico">🗑️</span> Mantenimiento de datos
+    </button>
+    <button class="nav-item" onclick="showSection('logs',this)">
+      <span class="nav-ico">📜</span> Registros del sistema
+    </button>
+
+    <div class="nav-group-title">Mi cuenta</div>
+    <button class="nav-item" onclick="showSection('perfil',this)">
+      <span class="nav-ico">👤</span> Mi perfil
+    </button>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-chip">
+      <div class="user-avatar" id="user-avatar-sb">SA</div>
+      <div class="user-info">
+        <div class="user-name" id="user-name-sb">Superadmin</div>
+        <div class="user-role">⭐ Nivel máximo</div>
+      </div>
+    </div>
+    <button class="btn-logout" onclick="logout()">🚪 Cerrar sesión</button>
+  </div>
+</aside>
+
+<!-- ===== MAIN ===== -->
+<main class="main">
+  <!-- Topbar -->
+  <div class="topbar">
+    <button class="hamburger" id="hamburger-btn" onclick="toggleSidebar()" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="page-title" id="page-title">Dashboard</div>
+    <div class="topbar-right">
+      <!-- Global Search -->
+      <div style="position:relative;" id="sa-search-wrap">
+        <input type="text" id="sa-search-input" placeholder="🔍 Buscar estudiante, caso, docente…"
+          style="padding:.45rem .85rem;border:1.5px solid var(--border);border-radius:20px;font-family:'DM Sans',sans-serif;font-size:.82rem;width:260px;outline:none;transition:border-color .2s;"
+          oninput="onSASearch(this.value)" onfocus="this.style.borderColor='var(--teal2)'" onblur="this.style.borderColor='var(--border)'">
+        <div id="sa-search-results" style="display:none;position:absolute;top:calc(100% + 6px);right:0;width:340px;background:var(--white);border:1.5px solid var(--border);border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:200;overflow:hidden;"></div>
+      </div>
+      <div class="topbar-badge">⭐ Superadmin</div>
+      <span style="font-size:.82rem;color:var(--gray);" id="topbar-date"></span>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ===== DASHBOARD ===== -->
+    <section class="section active" id="sec-dashboard">
+      <div class="stats-grid">
+        <div class="stat-card c1">
+          <div class="stat-ico">👥</div>
+          <div class="stat-n" id="stat-students">—</div>
+          <div class="stat-label">Estudiantes activos</div>
+        </div>
+        <div class="stat-card c2">
+          <div class="stat-ico">🎓</div>
+          <div class="stat-n" id="stat-teachers">—</div>
+          <div class="stat-label">Docentes registrados</div>
+        </div>
+        <div class="stat-card c3">
+          <div class="stat-ico">⚠️</div>
+          <div class="stat-n" id="stat-cases">—</div>
+          <div class="stat-label">Casos abiertos</div>
+        </div>
+        <div class="stat-card c4">
+          <div class="stat-ico">📋</div>
+          <div class="stat-n" id="stat-attendance">—%</div>
+          <div class="stat-label">Asistencia hoy</div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+        <div class="card">
+          <div class="card-header">
+            <h3>⚠️ Alertas recientes</h3>
+            <span class="pill pill-red" id="alert-count">cargando…</span>
+          </div>
+          <div class="card-body" id="alerts-list">
+            <div class="empty-state"><div class="empty-ico">🔔</div>Sin alertas activas</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3>🕐 Actividad reciente</h3>
+          </div>
+          <div class="card-body" id="activity-list">
+            <div class="empty-state"><div class="empty-ico">📋</div>Sin actividad reciente</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== USUARIOS ===== -->
+    <!-- ===== SEDES ===== -->
+    <section class="section" id="sec-sedes">
+      <div class="card">
+        <div class="card-header">
+          <h3>🏢 Sedes de la institución</h3>
+          <button class="btn btn-primary" onclick="openNewSede()">➕ Nueva sede</button>
+        </div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Tipo</th>
+                  <th>Dirección</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="sedes-tbody">
+                <tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--gray);">Cargando…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="sec-usuarios">
+      <div class="card">
+        <div class="card-header">
+          <h3>👤 Usuarios del sistema</h3>
+          <div class="card-actions">
+            <div class="search-bar">
+              <span>🔍</span>
+              <input type="text" placeholder="Buscar usuario…" oninput="filterUsers(this.value)" id="search-users">
+            </div>
+            <button class="btn btn-primary" onclick="openModal('modal-new-user'); toggleCourseField();">
+              ➕ Nuevo usuario
+            </button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="tabs">
+            <button class="tab active" onclick="filterUserRole('all',this)">Todos</button>
+            <button class="tab" onclick="filterUserRole('admin',this)">Coordinadores</button>
+            <button class="tab" onclick="filterUserRole('rector',this)">Rectores</button>
+            <button class="tab" onclick="filterUserRole('teacher',this)">Docentes</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Usuario</th>
+                  <th>Nombre completo</th>
+                  <th>Rol</th>
+                  <th>Sede</th>
+                  <th>Cursos asignados</th>
+                  <th>Último acceso</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="users-tbody">
+                <tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--gray);">Cargando…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== ESTUDIANTES ===== -->
+    <section class="section" id="sec-estudiantes">
+      <div class="card" style="margin-bottom:1.5rem;">
+        <div class="card-header">
+          <h3>📤 Importar estudiantes (Excel)</h3>
+          <button class="btn btn-ghost btn-sm" onclick="downloadImportTemplate()">📥 Descargar formato guía</button>
+        </div>
+        <div class="card-body">
+          <div class="upload-area" id="upload-area"
+               onclick="document.getElementById('file-excel').click()"
+               ondragover="handleDragOver(event)" ondrop="handleDrop(event)" ondragleave="handleDragLeave(event)">
+            <div class="upload-ico">📊</div>
+            <div class="upload-text">Arrastra tu archivo Excel aquí o haz clic para seleccionarlo</div>
+            <div class="upload-hint" style="margin-top:.4rem;">
+              <strong>Obligatorias:</strong> Nombres · Apellidos · Grado &nbsp;|&nbsp;
+              <strong>Opcionales:</strong> Curso · Tipo Doc · Documento · Fecha Nacimiento · Teléfono
+            </div>
+            <div style="margin-top:.6rem;font-size:.78rem;color:var(--gray);">Solo archivos .xlsx / .xls · Máx. 1000 filas</div>
+          </div>
+          <input type="file" id="file-excel" accept=".xlsx,.xls" style="display:none" onchange="handleFileSelect(event)">
+          <div class="import-preview" id="import-preview">
+            <div class="import-count" id="import-count"></div>
+            <div id="import-table-wrap"></div>
+            <div id="sa-import-progress" style="display:none;margin-top:.75rem;">
+              <div style="font-size:.8rem;color:var(--gray);margin-bottom:.35rem;" id="sa-import-progress-label">Enviando datos…</div>
+              <div style="background:var(--border);border-radius:999px;height:7px;overflow:hidden;">
+                <div id="sa-import-bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--teal),var(--teal2));border-radius:999px;transition:width .25s ease;"></div>
+              </div>
+            </div>
+            <!-- Selector de sede (se muestra al cargar el archivo) -->
+            <div id="sa-import-sede-wrap" style="display:none;margin:.85rem 0 .25rem;">
+              <label style="font-size:.78rem;font-weight:700;color:var(--navy);display:block;margin-bottom:.35rem;">🏢 Sede de destino <span style="color:var(--rose);">*</span></label>
+              <select id="sa-import-sede"
+                style="width:100%;max-width:320px;padding:.45rem .7rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.85rem;background:var(--white);">
+                <option value="">— Seleccionar sede —</option>
+              </select>
+              <div style="font-size:.73rem;color:var(--gray);margin-top:.3rem;">Todos los estudiantes de este archivo se asignarán a esta sede.</div>
+            </div>
+            <div style="display:flex;gap:.6rem;margin-top:1rem;" id="import-actions">
+              <button class="btn btn-teal" id="sa-import-btn" onclick="confirmImport()">✅ Importar estudiantes</button>
+              <button class="btn btn-ghost" id="sa-cancel-btn" onclick="cancelImport()">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== SIMAT IMPORT ===== -->
+      <div class="card" style="margin-bottom:1.5rem;" id="simat-card">
+        <div class="card-header">
+          <h3>🏫 Importar / Actualizar desde SIMAT</h3>
+          <button class="btn btn-ghost btn-sm" onclick="simatReset()">↺ Reiniciar</button>
+        </div>
+        <div class="card-body">
+          <!-- PASO 1: selección de archivo -->
+          <div id="simat-s1">
+            <div style="display:flex;flex-wrap:wrap;gap:1rem;align-items:flex-end;margin-bottom:1rem;">
+              <div style="flex:1;min-width:220px;">
+                <label style="font-size:.75rem;font-weight:600;color:var(--gray);display:block;margin-bottom:.3rem;">1. ARCHIVO SIMAT (.xlsx)</label>
+                <input type="file" id="simat-file" accept=".xlsx,.xls"
+                  style="width:100%;padding:.45rem .7rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.83rem;background:var(--white);"
+                  onchange="simatLoadFile(event)">
+              </div>
+              <div style="min-width:180px;">
+                <label style="font-size:.75rem;font-weight:600;color:var(--gray);display:block;margin-bottom:.3rem;">2. SEDE / HOJA</label>
+                <select id="simat-sheet" disabled
+                  style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.83rem;background:var(--white);">
+                  <option value="">— Selecciona archivo primero —</option>
+                </select>
+              </div>
+            </div>
+            <div style="margin-bottom:1rem;">
+              <label style="font-size:.75rem;font-weight:600;color:var(--gray);display:block;margin-bottom:.5rem;">3. ¿QUÉ DESEAS HACER?</label>
+              <div style="display:flex;gap:1.25rem;flex-wrap:wrap;">
+                <label style="display:flex;align-items:flex-start;gap:.55rem;cursor:pointer;padding:.6rem .9rem;border:1.5px solid var(--border);border-radius:12px;flex:1;min-width:200px;" id="simat-mode-initial-lbl">
+                  <input type="radio" name="simat-mode" value="initial" checked onchange="simatModeChange()" style="margin-top:.15rem;accent-color:var(--teal);">
+                  <div>
+                    <div style="font-weight:700;font-size:.88rem;color:var(--navy);">Importación inicial</div>
+                    <div style="font-size:.78rem;color:var(--gray);margin-top:.1rem;">Institución sin datos. Crea grados, cursos y estudiantes.</div>
+                  </div>
+                </label>
+                <label style="display:flex;align-items:flex-start;gap:.55rem;cursor:pointer;padding:.6rem .9rem;border:1.5px solid var(--border);border-radius:12px;flex:1;min-width:200px;" id="simat-mode-update-lbl">
+                  <input type="radio" name="simat-mode" value="update" onchange="simatModeChange()" style="margin-top:.15rem;accent-color:var(--teal);">
+                  <div>
+                    <div style="font-weight:700;font-size:.88rem;color:var(--navy);">Actualizar existentes</div>
+                    <div style="font-size:.78rem;color:var(--gray);margin-top:.1rem;">Ya hay estudiantes. Agrega doc., teléfono y fecha de nacimiento.</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+            <button class="btn btn-primary" onclick="simatRunPreview()" id="simat-preview-btn" disabled>🔍 Vista previa</button>
+          </div>
+
+          <!-- PASO 2: vista previa -->
+          <div id="simat-s2" style="display:none;"></div>
+
+          <!-- PASO 3: resultado -->
+          <div id="simat-s3" style="display:none;"></div>
+        </div>
+      </div>
+      <!-- /SIMAT IMPORT -->
+
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h3>👥 Listado de estudiantes</h3>
+            <p id="students-count" style="font-size:.82rem;color:var(--gray);margin:.2rem 0 .5rem 0;"></p>
+          </div>
+          <div class="card-actions">
+            <div class="search-bar">
+              <span>🔍</span>
+              <input type="text" placeholder="Buscar estudiante…" oninput="filterStudents(this.value)">
+            </div>
+            <select id="filter-sede" onchange="filterStudents()" style="padding:.55rem .8rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.875rem;color:var(--navy);background:var(--white);outline:none;">
+              <option value="">Todas las sedes</option>
+            </select>
+            <select id="filter-grade" onchange="onGradeFilterChange()" style="padding:.55rem .8rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.875rem;color:var(--navy);background:var(--white);outline:none;">
+              <option value="">Todos los grados</option>
+            </select>
+            <select id="filter-course" onchange="filterStudents()" style="padding:.55rem .8rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.875rem;color:var(--navy);background:var(--white);outline:none;">
+              <option value="">Todos los cursos</option>
+            </select>
+            <select id="filter-status" onchange="filterStudents()" style="padding:.55rem .8rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.875rem;color:var(--navy);background:var(--white);outline:none;">
+              <option value="">Cualquier estado</option>
+              <option value="active">✅ Activos</option>
+              <option value="desertor">🏃 Desertores</option>
+              <option value="retired">🚪 Retirados</option>
+            </select>
+            <button class="btn btn-primary" onclick="openNewStudent()">➕ Nuevo estudiante</button>
+            <button class="btn btn-ghost btn-sm" onclick="exportStudentsExcel()">📥 Exportar</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nombre completo</th>
+                  <th>Grado · Curso</th>
+                  <th>Sede</th>
+                  <th>Documento</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="students-tbody">
+                <tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--gray);">Cargando…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== DOCENTES ===== -->
+    <section class="section" id="sec-docentes">
+      <div class="card">
+        <div class="card-header">
+          <h3>🎓 Docentes</h3>
+          <div class="card-actions">
+            <div class="search-bar">
+              <span>🔍</span>
+              <input type="text" placeholder="Buscar docente…" oninput="filterTeachers(this.value)">
+            </div>
+            <button class="btn btn-primary" onclick="openNewTeacher()">
+              ➕ Nuevo docente
+            </button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Docente</th>
+                  <th>Área / Asignatura</th>
+                  <th>Cursos asignados</th>
+                  <th>Reportes este mes</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="teachers-tbody">
+                <tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--gray);">Cargando…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== CURSOS ===== -->
+    <section class="section" id="sec-cursos">
+      <div class="card">
+        <div class="card-header">
+          <h3>🏫 Grados y cursos</h3>
+          <div class="card-actions">
+            <button class="btn btn-ghost btn-sm" onclick="openNewSubgroup()">🔀 Nuevo subgrupo</button>
+            <button class="btn btn-primary" onclick="openNewCourse()">
+              ➕ Nuevo curso
+            </button>
+          </div>
+        </div>
+        <div class="card-body" id="courses-grid">
+          <div class="empty-state"><div class="empty-ico">🏫</div>Cargando cursos…</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== CASOS ===== -->
+    <section class="section" id="sec-casos">
+      <div class="card">
+        <div class="card-header">
+          <h3>⚠️ Casos RAICE</h3>
+          <div class="card-actions">
+            <select style="padding:.55rem .8rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.875rem;background:var(--white);" onchange="filterCases(this.value)">
+              <option value="">Todos los tipos</option>
+              <option value="1">Tipo I — Conflicto leve</option>
+              <option value="2">Tipo II — Agresión</option>
+              <option value="3">Tipo III — Presunto delito</option>
+            </select>
+            <button class="btn btn-ghost btn-sm" onclick="exportCases()">📥 Exportar PDF</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Estudiante</th>
+                  <th>Tipo</th>
+                  <th>Descripción</th>
+                  <th>Docente</th>
+                  <th>Fecha</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="cases-tbody">
+                <tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--gray);">Sin casos registrados</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== ASISTENCIA ===== -->
+    <section class="section" id="sec-asistencia">
+      <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);">
+        <div class="stat-card c1">
+          <div class="stat-ico">✅</div>
+          <div class="stat-n" id="att-present">—</div>
+          <div class="stat-label">Presentes hoy</div>
+        </div>
+        <div class="stat-card c3">
+          <div class="stat-ico">❌</div>
+          <div class="stat-n" id="att-absent">—</div>
+          <div class="stat-label">Ausentes hoy</div>
+        </div>
+        <div class="stat-card c2">
+          <div class="stat-ico">🟡</div>
+          <div class="stat-n" id="att-permit">—</div>
+          <div class="stat-label">Con permiso hoy</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <h3>📋 Asistencia por curso</h3>
+          <div class="card-actions">
+            <input type="date" id="att-date" style="padding:.55rem .8rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.875rem;" onchange="loadAttendance()">
+            <button class="btn btn-ghost btn-sm" onclick="exportAttendance()">📥 Exportar</button>
+          </div>
+        </div>
+        <div class="card-body" id="attendance-body">
+          <div class="empty-state"><div class="empty-ico">📋</div>Selecciona una fecha</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== CONFIG ===== -->
+    <section class="section" id="sec-config">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem;">
+        <div class="card">
+          <div class="card-header"><h3>🏫 Datos de la institución</h3></div>
+          <div class="card-body">
+            <div class="form-grid" style="grid-template-columns:1fr;">
+              <div class="form-group">
+                <label>Nombre del colegio</label>
+                <input type="text" id="cfg-school-name" placeholder="Institución Educativa…">
+              </div>
+              <div class="form-group">
+                <label>Municipio / Departamento</label>
+                <input type="text" id="cfg-location" placeholder="Bogotá, Cundinamarca">
+              </div>
+              <div class="form-group">
+                <label>Código DANE</label>
+                <input type="text" id="cfg-dane" placeholder="Ej: 11001102890">
+              </div>
+              <div class="form-group">
+                <label>Año lectivo</label>
+                <input type="text" id="cfg-year" placeholder="2025">
+              </div>
+              <div class="form-group">
+                <label>Clases por día</label>
+                <input type="number" id="cfg-classes-per-day" min="1" max="12" placeholder="6">
+                <div class="form-hint">Número de períodos de clase diarios (ej: 6, 7, 8…)</div>
+              </div>
+
+              <!-- Ventana de corrección de asistencia -->
+              <div class="form-group">
+                <label>⏱️ Ventana de corrección de lista</label>
+                <select id="cfg-correction-window" onchange="toggleCorrectionWindowFields()" style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem;background:#fff;">
+                  <option value="class_duration">Durante la clase (N minutos desde que se tomó)</option>
+                  <option value="same_day_hour">Hasta cierta hora del mismo día</option>
+                  <option value="same_day_end" selected>Hasta las 11:59 PM del día de la lista</option>
+                  <option value="next_day_end">Hasta las 11:59 PM del día siguiente</option>
+                </select>
+                <div class="form-hint">¿Hasta cuándo puede un docente corregir una lista ya guardada?</div>
+              </div>
+
+              <div id="cfg-cw-minutes-wrap" class="form-group" style="display:none;">
+                <label>Duración de la clase (minutos)</label>
+                <input type="number" id="cfg-correction-window-minutes" min="10" max="180" placeholder="55" value="55">
+                <div class="form-hint">Minutos desde que se tomó la lista. Ej: 55 para clases de 55 min.</div>
+              </div>
+
+              <div id="cfg-cw-hour-wrap" class="form-group" style="display:none;">
+                <label>Hora límite de corrección</label>
+                <input type="time" id="cfg-correction-window-hour" value="17:00" style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem;">
+                <div class="form-hint">Los docentes podrán corregir hasta esta hora del mismo día. Ej: 17:00</div>
+              </div>
+            </div>
+            <button class="btn btn-primary" style="margin-top:1rem;" onclick="saveSchoolConfig()">💾 Guardar datos</button>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:1.5rem;">
+          <!-- Logo del colegio -->
+          <div class="card">
+            <div class="card-header"><h3>🖼️ Logo / Escudo del colegio</h3></div>
+            <div class="card-body">
+              <div style="display:flex;align-items:center;gap:1.25rem;margin-bottom:1rem;">
+                <div id="logo-preview-wrap" style="width:80px;height:80px;border:2px dashed var(--border);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;background:var(--light);">
+                  <span id="logo-placeholder" style="font-size:2rem;">🏫</span>
+                  <img id="logo-preview-img" style="display:none;width:100%;height:100%;object-fit:contain;" alt="Logo colegio">
+                </div>
+                <div style="flex:1;">
+                  <div style="font-size:.85rem;font-weight:600;color:var(--navy);margin-bottom:.4rem;">Escudo o logo institucional</div>
+                  <div style="font-size:.78rem;color:var(--gray);margin-bottom:.75rem;">Se mostrará en informes imprimibles, citaciones, fichas y encabezados. Recomendado: PNG transparente, máx. 200 KB.</div>
+                  <label class="btn btn-ghost btn-sm" style="cursor:pointer;display:inline-flex;align-items:center;gap:.4rem;">
+                    📁 Seleccionar imagen
+                    <input type="file" id="logo-file-input" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" style="display:none;" onchange="previewLogo(this)">
+                  </label>
+                </div>
+              </div>
+              <div id="logo-size-warn" style="display:none;color:var(--rose);font-size:.78rem;margin-bottom:.5rem;">⚠️ La imagen supera 200 KB. Se recomienda comprimirla antes de subir.</div>
+              <div style="display:flex;gap:.6rem;flex-wrap:wrap;">
+                <button class="btn btn-primary btn-sm" onclick="saveLogoConfig()">💾 Guardar logo</button>
+                <button class="btn btn-ghost btn-sm" style="color:var(--rose);" onclick="clearLogo()">🗑️ Quitar logo</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Seguridad -->
+          <div class="card">
+            <div class="card-header"><h3>🔐 Seguridad del sistema</h3></div>
+            <div class="card-body">
+              <div class="form-grid" style="grid-template-columns:1fr;">
+                <div class="form-group">
+                  <label>Cambiar contraseña de acceso</label>
+                  <input type="password" id="cfg-new-password" placeholder="Nueva contraseña">
+                  <input type="password" id="cfg-confirm-password" placeholder="Confirmar contraseña" style="margin-top:.5rem;">
+                  <div class="form-hint">Deja vacío si no deseas cambiar la contraseña.</div>
+                </div>
+                <div class="form-group">
+                  <label>Timeout de sesión (minutos)</label>
+                  <input type="number" id="cfg-timeout" placeholder="60" value="60">
+                  <div class="form-hint">Tiempo de inactividad antes de cerrar sesión automáticamente.</div>
+                </div>
+              </div>
+              <button class="btn btn-primary" style="margin-top:1rem;" onclick="saveSecurityConfig()">💾 Guardar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Períodos académicos -->
+      <div class="card">
+        <div class="card-header"><h3>📅 Períodos académicos</h3></div>
+        <div class="card-body">
+          <div style="margin-bottom:1rem;font-size:.875rem;color:var(--gray);">
+            Define cuántos períodos tiene el año lectivo en tu institución y sus fechas. Cada colegio puede tener 2, 3 o 4 períodos.
+          </div>
+          <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;">
+            <label style="font-weight:600;font-size:.875rem;">Número de períodos del año:</label>
+            <select id="cfg-num-periods" style="padding:.5rem .8rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;" onchange="renderPeriodFields()">
+              <option value="2">2 períodos</option>
+              <option value="3">3 períodos</option>
+              <option value="4" selected>4 períodos</option>
+            </select>
+          </div>
+          <div id="period-fields-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem;margin-bottom:1.5rem;"></div>
+          <button class="btn btn-primary" onclick="savePeriodConfig()">💾 Guardar períodos</button>
+        </div>
+      </div>
+
+      <!-- Horario de timbres -->
+      <div class="card" style="margin-top:1.5rem;">
+        <div class="card-header">
+          <h3>⏰ Horario de timbres</h3>
+          <span style="font-size:.8rem;color:var(--gray);">Define las horas de clase con su inicio y fin</span>
+        </div>
+        <div class="card-body">
+          <div style="margin-bottom:1rem;font-size:.875rem;color:var(--gray);">
+            Cada fila corresponde a un período de clase del día. El sistema usa estos horarios para los reemplazos, la asistencia y los reportes.
+          </div>
+
+          <!-- Tabla horas existentes -->
+          <div id="bell-table-wrap" style="margin-bottom:1.25rem;">
+            <div style="text-align:center;padding:1.5rem;color:var(--gray);">⏳ Cargando…</div>
+          </div>
+
+          <!-- Formulario agregar / editar -->
+          <div style="background:#f8fafc;border:1.5px solid var(--border);border-radius:12px;padding:1rem 1.25rem;">
+            <div style="font-size:.82rem;font-weight:700;color:var(--navy);margin-bottom:.75rem;" id="bell-form-title">➕ Agregar hora</div>
+            <div style="display:grid;grid-template-columns:80px 1fr 130px 130px auto;gap:.75rem;align-items:end;flex-wrap:wrap;">
+              <div class="form-group" style="margin:0;">
+                <label style="font-size:.78rem;">N° hora</label>
+                <input type="number" id="bell-hour-num" min="1" max="12" placeholder="1" class="status-select" style="width:100%;">
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label style="font-size:.78rem;">Etiqueta <span style="font-weight:400;color:var(--gray);">(opcional)</span></label>
+                <input type="text" id="bell-label" placeholder="Ej: Descanso, Orientación…" class="status-select" style="width:100%;">
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label style="font-size:.78rem;">Inicio</label>
+                <input type="time" id="bell-start" class="status-select" style="width:100%;">
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label style="font-size:.78rem;">Fin</label>
+                <input type="time" id="bell-end" class="status-select" style="width:100%;">
+              </div>
+              <div style="display:flex;gap:.5rem;">
+                <button class="btn btn-primary btn-sm" id="btn-bell-save" onclick="saveBellHour()">💾 Guardar</button>
+                <button class="btn btn-ghost btn-sm" id="btn-bell-cancel" style="display:none;" onclick="cancelBellEdit()">✕</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== MANTENIMIENTO ===== -->
+    <!-- ===== BACKUP ===== -->
+    <section class="section" id="sec-backup">
+      <div style="max-width:700px;display:flex;flex-direction:column;gap:1.25rem;">
+
+        <!-- JSON completo -->
+        <div class="card">
+          <div class="card-header"><h3>📦 Backup completo (JSON)</h3></div>
+          <div class="card-body">
+            <p style="font-size:.88rem;color:var(--gray);margin-bottom:1rem;">
+              Descarga un archivo <strong>.json</strong> con <em>todos</em> los datos:
+              estudiantes, asistencia, casos, citaciones, docentes, cursos y horarios.
+              Ideal para guardar en un lugar seguro antes de hacer cambios importantes.
+            </p>
+            <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;">
+              <button class="btn btn-primary" onclick="downloadFullBackup()" id="btn-backup-json">
+                ⬇️ Descargar backup completo
+              </button>
+              <span id="backup-json-status" style="font-size:.82rem;color:var(--gray);"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- IMPORTAR backup desde PC -->
+        <div class="card" style="border:2px solid #f59e0b;">
+          <div class="card-header" style="background:#fffbeb;">
+            <h3>📂 Restaurar backup desde archivo</h3>
+            <span style="font-size:.75rem;background:#f59e0b;color:white;border-radius:6px;padding:.2rem .5rem;font-weight:700;">IMPORTAR</span>
+          </div>
+          <div class="card-body">
+            <div style="background:#fef3c7;border:1.5px solid #fde68a;border-radius:10px;padding:.75rem 1rem;font-size:.83rem;color:#92400e;margin-bottom:1rem;">
+              ⚠️ <strong>Precaución:</strong> Esta operación sobrescribe datos existentes con los del archivo. Descarga un backup actual antes de continuar.
+            </div>
+            <p style="font-size:.88rem;color:var(--gray);margin-bottom:1rem;">
+              Selecciona un archivo <code>.json</code> previamente descargado con "Descargar backup completo" para restaurar los datos en el sistema.
+            </p>
+            <div style="display:flex;flex-direction:column;gap:.85rem;max-width:480px;">
+              <div>
+                <label style="font-size:.82rem;font-weight:600;color:var(--navy);display:block;margin-bottom:.35rem;">Archivo de backup (.json)</label>
+                <input type="file" id="backup-import-file" accept=".json" style="font-family:'DM Sans',sans-serif;font-size:.85rem;width:100%;" onchange="previewBackupFile()">
+              </div>
+              <div id="backup-import-preview" style="display:none;background:var(--light);border-radius:10px;padding:.65rem .9rem;font-size:.82rem;color:var(--navy);"></div>
+              <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+                <button class="btn btn-primary" id="btn-import-backup" onclick="openBackupConfirmModal()" disabled style="background:#f59e0b;border-color:#f59e0b;">
+                  📂 Restaurar datos
+                </button>
+                <button class="btn btn-ghost" onclick="clearImportFile()">✖ Cancelar</button>
+              </div>
+              <div id="backup-import-status" style="font-size:.82rem;color:var(--gray);"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Excel / CSV -->
+        <div class="card">
+          <div class="card-header"><h3>📊 Exportar a Excel</h3></div>
+          <div class="card-body">
+            <p style="font-size:.88rem;color:var(--gray);margin-bottom:1rem;">
+              Genera archivos <strong>.xlsx</strong> descargables por categoría.
+            </p>
+            <div style="display:flex;gap:.75rem;flex-wrap:wrap;">
+              <button class="btn btn-ghost" onclick="downloadExcel('students')">👥 Estudiantes</button>
+              <button class="btn btn-ghost" onclick="downloadExcel('cases')">⚠️ Casos RAICE</button>
+              <button class="btn btn-ghost" onclick="downloadExcel('attendance')">📋 Asistencia</button>
+              <button class="btn btn-ghost" onclick="downloadExcel('teachers')">👨‍🏫 Docentes</button>
+              <button class="btn btn-primary" onclick="downloadExcel('full')">📦 Todo en uno</button>
+            </div>
+            <div id="backup-excel-status" style="font-size:.82rem;color:var(--gray);margin-top:.75rem;"></div>
+          </div>
+        </div>
+
+        <!-- Backup semanal por correo -->
+        <div class="card">
+          <div class="card-header"><h3>📧 Backup automático semanal</h3></div>
+          <div class="card-body">
+            <p style="font-size:.88rem;color:var(--gray);margin-bottom:1rem;">
+              Cada viernes a las 11 PM se genera el reporte semanal. Si configuras un correo
+              y una clave de <a href="https://resend.com" target="_blank" style="color:var(--teal2);">Resend</a>
+              (gratis hasta 3.000/mes), también recibirás el backup JSON adjunto automáticamente.
+            </p>
+            <div style="display:flex;flex-direction:column;gap:.75rem;max-width:480px;">
+              <div class="form-group" style="margin:0;">
+                <label>Correo destino del backup</label>
+                <input type="email" id="backup-email" placeholder="coordinacion@colegio.edu.co">
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label>Resend API Key <span style="font-weight:400;color:var(--gray);">(o env: RESEND_API_KEY)</span></label>
+                <input type="text" id="backup-resend-key" placeholder="re_xxxxxxxxxxxx" autocomplete="off">
+                <div class="form-hint">Crea tu clave gratis en resend.com</div>
+              </div>
+              <div style="display:flex;gap:.5rem;">
+                <button class="btn btn-primary" onclick="saveBackupEmailConfig()">💾 Guardar configuración</button>
+                <button class="btn btn-ghost" onclick="sendTestBackup()">🧪 Enviar prueba ahora</button>
+              </div>
+              <div id="backup-email-status" style="font-size:.82rem;color:var(--gray);"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Historial -->
+        <div class="card">
+          <div class="card-header"><h3>🕐 Historial de backups</h3></div>
+          <div class="card-body">
+            <div id="backup-history-list" style="font-size:.88rem;color:var(--gray);">Cargando…</div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <section class="section" id="sec-faltas">
+      <div class="section-header"><h2>📋 Catálogo de faltas — Manual de Convivencia</h2></div>
+      <div class="card">
+        <div class="card-header" style="gap:.5rem;flex-wrap:wrap;">
+          <h3>Faltas registradas</h3>
+          <div style="display:flex;gap:.5rem;align-items:center;margin-left:auto;flex-wrap:wrap;">
+            <select id="faltas-filter-tipo" onchange="loadFaltasCatalogAdmin()" style="padding:.4rem .7rem;border:1.5px solid var(--border);border-radius:9px;font-family:inherit;font-size:.82rem;background:var(--white);">
+              <option value="1">🟡 Tipo I — Leves</option>
+              <option value="2">🟣 Tipo II — Graves</option>
+              <option value="3">🔴 Tipo III — Gravísimas</option>
+            </select>
+            <select id="faltas-filter-cat" onchange="renderFaltasAdmin()" style="padding:.4rem .7rem;border:1.5px solid var(--border);border-radius:9px;font-family:inherit;font-size:.82rem;background:var(--white);">
+              <option value="">Todas las categorías</option>
+              <option value="academica">Académicas</option>
+              <option value="convivencia">Convivencia escolar</option>
+              <option value="bullying">Bullying / Ciberbullying</option>
+            </select>
+            <button class="btn btn-teal btn-sm" onclick="openNuevaFaltaModal()" style="white-space:nowrap;flex-shrink:0;">➕ Nueva falta</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div id="faltas-list">
+            <div style="text-align:center;padding:2rem;color:var(--gray);">Cargando catálogo…</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="sec-mantenimiento">
+      <div style="max-width:680px;display:flex;flex-direction:column;gap:1.25rem;">
+
+        <div style="background:#fef9c3;border:2px solid #fbbf24;border-radius:14px;padding:1rem 1.25rem;font-size:.88rem;color:#92400e;">
+          ⚠️ <strong>Zona de peligro.</strong> Estas acciones eliminan datos permanentemente y no se pueden deshacer. Para confirmar cada acción deberás escribir la palabra <strong>CONFIRMAR</strong>.
+        </div>
+
+        <!-- Asistencia -->
+        <div class="card">
+          <div class="card-header"><h3>📋 Registros de asistencia</h3></div>
+          <div class="card-body">
+            <p style="font-size:.88rem;color:var(--gray);margin-bottom:1rem;">Elimina todos los registros de asistencia de un rango de fechas. No afecta estudiantes, cursos ni horarios.</p>
+            <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:flex-end;">
+              <div>
+                <label style="font-size:.78rem;font-weight:600;color:var(--navy);display:block;margin-bottom:.3rem;">Desde</label>
+                <input type="date" id="purge-att-from" style="padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:9px;font-size:.88rem;">
+              </div>
+              <div>
+                <label style="font-size:.78rem;font-weight:600;color:var(--navy);display:block;margin-bottom:.3rem;">Hasta</label>
+                <input type="date" id="purge-att-to" style="padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:9px;font-size:.88rem;">
+              </div>
+              <button class="btn btn-sm" style="background:#dc2626;color:#fff;" onclick="purgeData('attendance')">🗑️ Eliminar asistencia</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Asistencias sin registrar -->
+        <div class="card" style="border: 2px dashed var(--border);">
+          <div class="card-header"><h3>⚪ Asistencias sin registrar</h3></div>
+          <div class="card-body">
+            <p style="font-size:.88rem;color:var(--gray);margin-bottom:1rem;">Elimina todos los registros de asistencia que quedaron en estado nulo o "Sin registrar" en un rango de fechas. Ocurre comúnmente como residuo de permisos o errores de red.</p>
+            <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:flex-end;">
+              <div>
+                <label style="font-size:.78rem;font-weight:600;color:var(--navy);display:block;margin-bottom:.3rem;">Desde</label>
+                <input type="date" id="purge-att-nr-from" style="padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:9px;font-size:.88rem;">
+              </div>
+              <div>
+                <label style="font-size:.78rem;font-weight:600;color:var(--navy);display:block;margin-bottom:.3rem;">Hasta</label>
+                <input type="date" id="purge-att-nr-to" style="padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:9px;font-size:.88rem;">
+              </div>
+              <button class="btn btn-sm" style="background:#dc2626;color:#fff;" onclick="purgeData('attendance_nr')">🗑️ Eliminar asistencia NR</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Casos -->
+        <div class="card">
+          <div class="card-header"><h3>⚠️ Casos RAICE</h3></div>
+          <div class="card-body">
+            <p style="font-size:.88rem;color:var(--gray);margin-bottom:1rem;">Elimina casos por estado. Útil para limpiar casos cerrados de años anteriores.</p>
+            <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:flex-end;">
+              <select id="purge-cases-status" style="padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:9px;font-size:.88rem;">
+                <option value="closed">✅ Solo casos cerrados</option>
+                <option value="all">Todos los casos</option>
+              </select>
+              <button class="btn btn-sm" style="background:#dc2626;color:#fff;" onclick="purgeData('cases')">🗑️ Eliminar casos</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Citaciones -->
+        <div class="card">
+          <div class="card-header"><h3>📨 Citaciones</h3></div>
+          <div class="card-body">
+            <p style="font-size:.88rem;color:var(--gray);margin-bottom:1rem;">Elimina el historial de citaciones a padres de familia.</p>
+            <button class="btn btn-sm" style="background:#dc2626;color:#fff;" onclick="purgeData('citations')">🗑️ Eliminar citaciones</button>
+          </div>
+        </div>
+
+        <!-- Retiros de clase -->
+        <div class="card">
+          <div class="card-header"><h3>⛔ Retiros de clase</h3></div>
+          <div class="card-body">
+            <p style="font-size:.88rem;color:var(--gray);margin-bottom:1rem;">
+              Elimina registros de retiro de clase en un rango de fechas. Si algún estudiante afectado tiene casos RAICE abiertos, se mostrará una advertencia antes de confirmar.
+            </p>
+            <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:flex-end;">
+              <div>
+                <label style="font-size:.78rem;font-weight:600;color:var(--navy);display:block;margin-bottom:.3rem;">Desde</label>
+                <input type="date" id="purge-removals-from" style="padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:9px;font-size:.88rem;">
+              </div>
+              <div>
+                <label style="font-size:.78rem;font-weight:600;color:var(--navy);display:block;margin-bottom:.3rem;">Hasta</label>
+                <input type="date" id="purge-removals-to" style="padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:9px;font-size:.88rem;">
+              </div>
+              <button class="btn btn-sm" style="background:#dc2626;color:#fff;" onclick="purgeData('removals')">🗑️ Eliminar retiros</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Evasiones -->
+        <div class="card">
+          <div class="card-header"><h3>🏃 Evasiones</h3></div>
+          <div class="card-body">
+            <p style="font-size:.88rem;color:var(--gray);margin-bottom:1rem;">
+              Elimina registros de evasión en un rango de fechas. Puedes eliminar solo las ya revisadas por el coordinador, o todas.
+            </p>
+            <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:flex-end;">
+              <div>
+                <label style="font-size:.78rem;font-weight:600;color:var(--navy);display:block;margin-bottom:.3rem;">Desde</label>
+                <input type="date" id="purge-evasions-from" style="padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:9px;font-size:.88rem;">
+              </div>
+              <div>
+                <label style="font-size:.78rem;font-weight:600;color:var(--navy);display:block;margin-bottom:.3rem;">Hasta</label>
+                <input type="date" id="purge-evasions-to" style="padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:9px;font-size:.88rem;">
+              </div>
+              <select id="purge-evasions-mode" style="padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:9px;font-size:.88rem;">
+                <option value="read">Solo las revisadas (leídas)</option>
+                <option value="all">Todas en el rango</option>
+              </select>
+              <button class="btn btn-sm" style="background:#dc2626;color:#fff;" onclick="purgeData('evasions')">🗑️ Eliminar evasiones</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Registros del sistema -->
+        <div class="card">
+          <div class="card-header"><h3>📜 Registros del sistema (logs)</h3></div>
+          <div class="card-body">
+            <p style="font-size:.88rem;color:var(--gray);margin-bottom:1rem;">Elimina los registros de actividad del sistema. No afecta datos académicos.</p>
+            <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:flex-end;">
+              <div>
+                <label style="font-size:.78rem;font-weight:600;color:var(--navy);display:block;margin-bottom:.3rem;">Eliminar logs anteriores a</label>
+                <input type="date" id="purge-logs-before" style="padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:9px;font-size:.88rem;">
+              </div>
+              <button class="btn btn-sm" style="background:#dc2626;color:#fff;" onclick="purgeData('logs')">🗑️ Eliminar logs</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Notificaciones y alertas del sistema -->
+        <div class="card">
+          <div class="card-header"><h3>🔔 Notificaciones almacenadas</h3></div>
+          <div class="card-body">
+            <p style="font-size:.88rem;color:var(--gray);margin-bottom:1rem;">Elimina notificaciones de la bandeja del coordinador: nuevos casos, evasiones, tardanzas. <strong>No afecta las alertas "sin llamar lista"</strong> — esas son calculadas en tiempo real y se eliminan con la card de Omisiones.</p>
+            <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:flex-end;">
+              <div>
+                <label style="font-size:.78rem;font-weight:600;color:var(--navy);display:block;margin-bottom:.3rem;">Tipo</label>
+                <select id="purge-notif-type" style="padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:9px;font-size:.88rem;font-family:'DM Sans',sans-serif;">
+                  <option value="all">Todas las notificaciones</option>
+                  <option value="read">Solo las ya leídas</option>
+                  <option value="new_case">Nuevos casos</option>
+                  <option value="evasion">Evasiones</option>
+                  <option value="absence">Inasistencias</option>
+                  <option value="commitment">Compromisos</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size:.78rem;font-weight:600;color:var(--navy);display:block;margin-bottom:.3rem;">Anteriores a (opcional)</label>
+                <input type="date" id="purge-notif-before" style="padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:9px;font-size:.88rem;">
+              </div>
+              <button class="btn btn-sm" style="background:#dc2626;color:#fff;" onclick="purgeData('notifications')">🗑️ Eliminar notificaciones</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Omisiones de asistencia -->
+        <div class="card">
+          <div class="card-header"><h3>🚨 Omisiones de asistencia (sin llamar lista)</h3></div>
+          <div class="card-body">
+            <p style="font-size:.88rem;color:var(--gray);margin-bottom:1rem;">Registra como <strong>NR (Sin Registro)</strong> todas las horas que un docente no llamó lista en la fecha seleccionada. Elimina las alertas del coordinador sin asignar presencia ni ausencia a los estudiantes.</p>
+            <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:flex-end;">
+              <div>
+                <label style="font-size:.78rem;font-weight:600;color:var(--navy);display:block;margin-bottom:.3rem;">Fecha</label>
+                <input type="date" id="purge-omissions-date" style="padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:9px;font-size:.88rem;">
+              </div>
+              <button class="btn btn-sm" style="background:#dc2626;color:#fff;" onclick="purgeData('omissions')">🗑️ Registrar omisiones como NR</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ===== LOGS ===== -->
+    <section class="section" id="sec-logs">
+      <div class="card">
+        <div class="card-header">
+          <h3>📜 Registros del sistema</h3>
+          <div class="card-actions" style="display:flex;gap:.5rem;align-items:center;">
+            <select id="log-type-filter" style="padding:.55rem .8rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.875rem;background:var(--white);" onchange="filterLogs(this.value)">
+              <option value="">Todos los eventos</option>
+              <option value="login">🔑 Inicios de sesión</option>
+              <option value="attendance">📋 Asistencia</option>
+              <option value="tardanza">⏰ Tardanzas</option>
+              <option value="import_students">📥 Importaciones</option>
+              <option value="new_case">⚠️ Casos registrados</option>
+              <option value="sync_periods">📅 Períodos</option>
+              <option value="assign_teacher">👨‍🏫 Docentes</option>
+              <option value="create_student">👤 Estudiantes</option>
+            </select>
+            <button class="btn btn-ghost btn-sm" onclick="loadLogs()">🔄 Actualizar</button>
+            <button class="btn btn-primary btn-sm" id="btn-weekly-report" onclick="triggerWeeklyReport()">📊 Generar reporte semanal</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Fecha / Hora</th><th>Usuario</th><th>Evento</th><th>Detalles</th></tr>
+              </thead>
+              <tbody id="logs-tbody">
+                <tr><td colspan="4" style="text-align:center;padding:2rem;color:var(--gray);">Cargando…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== PERFIL ===== -->
+    <section class="section" id="sec-perfil">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;max-width:800px;">
+        <div class="card">
+          <div class="card-header"><h3>👤 Mis datos</h3></div>
+          <div class="card-body">
+            <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;">
+              <div class="avatar" id="profile-avatar-big" style="width:52px;height:52px;font-size:1.2rem;background:var(--gold);color:var(--navy);">SA</div>
+              <div>
+                <div style="font-family:'Fraunces',serif;font-size:1.1rem;font-weight:700;color:var(--navy);" id="profile-fullname">Superadmin</div>
+                <div style="font-size:.82rem;color:var(--gray);" id="profile-username-disp">@superadmin</div>
+                <span class="pill pill-gold" style="margin-top:.3rem;">⭐ Superadministrador</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h3>🔑 Cambiar contraseña</h3></div>
+          <div class="card-body">
+            <div class="form-group">
+              <label>Contraseña actual</label>
+              <input type="password" id="pwd-current" placeholder="••••••••">
+            </div>
+            <div class="form-group">
+              <label>Nueva contraseña</label>
+              <input type="password" id="pwd-new" placeholder="••••••••">
+            </div>
+            <div class="form-group">
+              <label>Confirmar nueva contraseña</label>
+              <input type="password" id="pwd-confirm" placeholder="••••••••">
+            </div>
+            <button class="btn btn-primary" onclick="changeMyPassword()" style="width:100%;margin-top:.25rem;">💾 Actualizar contraseña</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== NUEVO AÑO ESCOLAR ===== -->
+    <section class="section" id="sec-nuevo-anio">
+      <div class="section-header"><h2>🎓 Nuevo Año Escolar</h2></div>
+
+      <!-- Stepper -->
+      <div style="display:flex;align-items:center;gap:0;margin-bottom:2rem;max-width:560px;">
+        <div id="aye-dot-1" class="aye-dot aye-dot-active">1</div>
+        <div class="aye-line"></div>
+        <div id="aye-dot-2" class="aye-dot">2</div>
+        <div class="aye-line"></div>
+        <div id="aye-dot-3" class="aye-dot">3</div>
+        <div class="aye-line"></div>
+        <div id="aye-dot-4" class="aye-dot">4</div>
+      </div>
+
+      <!-- Paso 1: Configurar año -->
+      <div id="aye-panel-1">
+        <div class="card" style="max-width:500px;">
+          <div class="card-header"><h3>📅 Configurar nuevo año</h3></div>
+          <div class="card-body">
+            <p style="color:var(--gray);font-size:.9rem;margin-bottom:1.25rem;">
+              Año actual: <strong id="aye-current-year">—</strong> &nbsp;·&nbsp;
+              Estudiantes activos: <strong id="aye-active-count">—</strong>
+            </p>
+            <div class="form-group">
+              <label>Nuevo año escolar</label>
+              <input type="number" id="aye-new-year" min="2020" max="2050" style="max-width:150px;">
+            </div>
+            <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:.85rem 1rem;margin-bottom:1.5rem;font-size:.85rem;color:#1e40af;">
+              <strong>¿Qué hace este asistente?</strong><br>
+              Mueve a todos los estudiantes activos al grado siguiente, registra el historial de promoción y actualiza el año en la configuración del sistema. Puedes marcar excepciones (repitentes, egresados, retirados) de forma individual antes de confirmar.
+            </div>
+            <button class="btn btn-primary" onclick="ayeStep1Next()">Continuar → Revisar estudiantes</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Paso 2: Tabla de estudiantes -->
+      <div id="aye-panel-2" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem;">
+          <span style="font-size:.88rem;color:var(--gray);">Revisa la acción para cada estudiante. Usa los botones por grado para asignaciones masivas.</span>
+          <button class="btn btn-primary" onclick="ayeStep2Next()">Ver resumen →</button>
+        </div>
+        <div id="aye-table-wrap"></div>
+        <div style="margin-top:1rem;display:flex;gap:.75rem;justify-content:flex-end;">
+          <button class="btn btn-ghost" onclick="ayeGoStep(1)">← Volver</button>
+          <button class="btn btn-primary" onclick="ayeStep2Next()">Ver resumen →</button>
+        </div>
+      </div>
+
+      <!-- Paso 3: Confirmar -->
+      <div id="aye-panel-3" style="display:none;">
+        <div class="card" style="max-width:500px;">
+          <div class="card-header"><h3>✅ Confirmar promoción masiva</h3></div>
+          <div class="card-body">
+            <p style="font-size:.9rem;color:var(--gray);margin-bottom:1.25rem;">Año escolar que se activará: <strong id="aye-sum-year">—</strong></p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1.5rem;">
+              <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:.85rem 1rem;text-align:center;">
+                <div style="font-size:1.6rem;font-weight:700;color:#15803d;" id="aye-sum-promoted">0</div>
+                <div style="font-size:.8rem;color:#15803d;margin-top:.2rem;">✅ Promovidos</div>
+              </div>
+              <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:.85rem 1rem;text-align:center;">
+                <div style="font-size:1.6rem;font-weight:700;color:#b45309;" id="aye-sum-retained">0</div>
+                <div style="font-size:.8rem;color:#b45309;margin-top:.2rem;">🔄 Repitentes</div>
+              </div>
+              <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:.85rem 1rem;text-align:center;">
+                <div style="font-size:1.6rem;font-weight:700;color:#1d4ed8;" id="aye-sum-graduated">0</div>
+                <div style="font-size:.8rem;color:#1d4ed8;margin-top:.2rem;">🎓 Egresados</div>
+              </div>
+              <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.85rem 1rem;text-align:center;">
+                <div style="font-size:1.6rem;font-weight:700;color:#b91c1c;" id="aye-sum-retired">0</div>
+                <div style="font-size:.8rem;color:#b91c1c;margin-top:.2rem;">❌ Retirados</div>
+              </div>
+            </div>
+            <p style="font-size:.82rem;color:var(--gray);margin-bottom:1.5rem;">Total: <strong id="aye-sum-total">0</strong> estudiantes procesados</p>
+            <div style="display:flex;gap:.75rem;">
+              <button class="btn btn-ghost" onclick="ayeGoStep(2)">← Volver a editar</button>
+              <button class="btn btn-primary" id="aye-exec-btn" onclick="ayeExecute()">🚀 Ejecutar promoción masiva</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Paso 4: Resultado -->
+      <div id="aye-panel-4" style="display:none;">
+        <div class="card" style="max-width:500px;">
+          <div class="card-header"><h3>🎉 ¡Año <span id="aye-res-year">—</span> iniciado!</h3></div>
+          <div class="card-body">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1.25rem;">
+              <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:.85rem 1rem;text-align:center;">
+                <div style="font-size:1.6rem;font-weight:700;color:#15803d;" id="aye-res-promoted">0</div>
+                <div style="font-size:.8rem;color:#15803d;margin-top:.2rem;">Promovidos</div>
+              </div>
+              <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:.85rem 1rem;text-align:center;">
+                <div style="font-size:1.6rem;font-weight:700;color:#b45309;" id="aye-res-retained">0</div>
+                <div style="font-size:.8rem;color:#b45309;margin-top:.2rem;">Repitentes</div>
+              </div>
+              <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:.85rem 1rem;text-align:center;">
+                <div style="font-size:1.6rem;font-weight:700;color:#1d4ed8;" id="aye-res-graduated">0</div>
+                <div style="font-size:.8rem;color:#1d4ed8;margin-top:.2rem;">Egresados</div>
+              </div>
+              <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.85rem 1rem;text-align:center;">
+                <div style="font-size:1.6rem;font-weight:700;color:#b91c1c;" id="aye-res-retired">0</div>
+                <div style="font-size:.8rem;color:#b91c1c;margin-top:.2rem;">Retirados</div>
+              </div>
+            </div>
+            <div id="aye-res-errors" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.75rem 1rem;margin-bottom:1rem;font-size:.82rem;color:#b91c1c;"></div>
+            <p style="font-size:.85rem;color:var(--gray);margin-bottom:1.5rem;">El año escolar ha sido actualizado. Recuerda configurar los períodos académicos para el nuevo año.</p>
+            <div style="display:flex;gap:.75rem;flex-wrap:wrap;">
+              <button class="btn btn-ghost" onclick="showSection('config',document.querySelector('[onclick*=\'config\']'))">⚙️ Ir a Configuración</button>
+              <button class="btn btn-primary" onclick="showSection('dashboard',document.querySelector('[onclick*=\'dashboard\']'))">📊 Ir al Dashboard</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div><!-- /content -->
+</main>
+
+<!-- ===== MODALS ===== -->
+
+<!-- Modal: Nuevo usuario -->
+<div class="modal-overlay" id="modal-new-user">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>➕ Nuevo usuario</h3>
+      <button class="modal-close" onclick="closeModal('modal-new-user')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Nombres</label>
+          <input type="text" id="nu-firstname" placeholder="María">
+        </div>
+        <div class="form-group">
+          <label>Apellidos</label>
+          <input type="text" id="nu-lastname" placeholder="García López">
+        </div>
+        <div class="form-group">
+          <label>Nombre de usuario</label>
+          <input type="text" id="nu-username" placeholder="m.garcia">
+        </div>
+        <div class="form-group">
+          <label>Correo electrónico</label>
+          <input type="email" id="nu-email" placeholder="m.garcia@colegio.edu.co">
+        </div>
+        <div class="form-group">
+          <label>Rol</label>
+          <select id="nu-role" onchange="toggleCourseField(); renderSedeField('nu-sede-wrap','nu-role')">
+            <option value="admin">🗂️ Coordinador</option>
+            <option value="rector">🏫 Rector</option>
+            <option value="teacher">👨‍🏫 Docente</option>
+          </select>
+        </div>
+        <div class="form-group" id="nu-sede-wrap">
+          <!-- Se rellena dinámicamente por renderSedeField() según el rol -->
+        </div>
+        <div class="form-group">
+          <label>Contraseña inicial</label>
+          <input type="text" id="nu-password" placeholder="raice2025">
+        </div>
+        <div class="form-group full" id="nu-courses-field">
+          <label>Asignar cursos (docente)</label>
+          <input type="text" id="nu-courses" placeholder="Ej: 7°1, 8°2, 9°1">
+          <div class="form-hint">Separados por coma. También se puede asignar después.</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-new-user')">Cancelar</button>
+      <button class="btn btn-primary" onclick="createUser()">Crear usuario</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Editar usuario -->
+<div class="modal-overlay" id="modal-edit-user">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>✏️ Editar usuario</h3>
+      <button class="modal-close" onclick="closeModal('modal-edit-user')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="eu-id">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Nombres</label>
+          <input type="text" id="eu-firstname" placeholder="María">
+        </div>
+        <div class="form-group">
+          <label>Apellidos</label>
+          <input type="text" id="eu-lastname" placeholder="García López">
+        </div>
+        <div class="form-group">
+          <label>Nombre de usuario</label>
+          <input type="text" id="eu-username" placeholder="m.garcia">
+        </div>
+        <div class="form-group">
+          <label>Correo electrónico</label>
+          <input type="email" id="eu-email" placeholder="m.garcia@colegio.edu.co">
+        </div>
+        <div class="form-group">
+          <label>Rol</label>
+          <select id="eu-role" onchange="renderSedeField('eu-sede-wrap','eu-role')">
+            <option value="admin">🗂️ Coordinador</option>
+            <option value="rector">🏫 Rector</option>
+            <option value="teacher">👨‍🏫 Docente</option>
+            <option value="superadmin">🛡️ Superadministrador</option>
+          </select>
+        </div>
+        <div class="form-group" id="eu-sede-wrap">
+          <!-- Se rellena dinámicamente por renderSedeField() según el rol -->
+        </div>
+        <div class="form-group">
+          <label>Estado</label>
+          <select id="eu-active">
+            <option value="true">✅ Activo</option>
+            <option value="false">❌ Inactivo</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-edit-user')">Cancelar</button>
+      <button class="btn btn-primary" onclick="updateUser()">💾 Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Crear / Editar estudiante -->
+<div class="modal-overlay" id="modal-edit-student">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="student-modal-title">✏️ Editar estudiante</h3>
+      <button class="modal-close" onclick="closeModal('modal-edit-student')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="es-id">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Nombres *</label>
+          <input type="text" id="es-firstname" placeholder="Carlos Andrés">
+        </div>
+        <div class="form-group">
+          <label>Apellidos *</label>
+          <input type="text" id="es-lastname" placeholder="Parra Gómez">
+        </div>
+        <div class="form-group">
+          <label>Tipo de documento</label>
+          <select id="es-doctype">
+            <option value="TI">TI — Tarjeta de Identidad</option>
+            <option value="RC">RC — Registro Civil</option>
+            <option value="CC">CC — Cédula de Ciudadanía</option>
+            <option value="PA">PA — Pasaporte</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Número de documento</label>
+          <input type="text" id="es-docnum" placeholder="1234567890">
+        </div>
+        <div class="form-group">
+          <label>Sede *</label>
+          <select id="es-sede" onchange="loadGradesForSede()"><option value="">— Sede —</option></select>
+        </div>
+        <div class="form-group">
+          <label>Grado *</label>
+          <select id="es-grade" onchange="loadCoursesForGrade()"></select>
+        </div>
+        <div class="form-group">
+          <label>Curso *</label>
+          <select id="es-course"></select>
+        </div>
+        <div class="form-group">
+          <label>Fecha de nacimiento</label>
+          <input type="date" id="es-birthdate">
+        </div>
+        <div class="form-group">
+          <label>Teléfono</label>
+          <input type="text" id="es-phone" placeholder="3217371437">
+        </div>
+        <div class="form-group">
+          <label>Estado</label>
+          <select id="es-status">
+            <option value="active">✅ Activo</option>
+            <option value="desertor">🏃 Desertor</option>
+            <option value="retired">🚪 Retirado</option>
+          </select>
+        </div>
+        <div class="form-group full">
+          <label>Observaciones iniciales (opcional)</label>
+          <textarea id="es-notes" rows="2" placeholder="Alguna nota relevante sobre el estudiante…"></textarea>
+        </div>
+        <!-- Campos de motivo — solo visibles en modo cambio de grado -->
+        <div class="form-group" id="grade-reason-group" style="display:none;">
+          <label>Motivo del cambio *</label>
+          <select id="es-grade-reason">
+            <option value="promotion">🎓 Promoción anticipada</option>
+            <option value="coexistence">🤝 Cambio por convivencia</option>
+            <option value="correction">📋 Corrección de matrícula</option>
+            <option value="other">📌 Otro motivo</option>
+          </select>
+        </div>
+        <div class="form-group full" id="grade-notes-group" style="display:none;">
+          <label>Detalle del cambio (opcional)</label>
+          <textarea id="es-grade-notes" rows="2" placeholder="Ej: Promovido por rendimiento académico sobresaliente…"></textarea>
+        </div>
+      </div>
+
+      <!-- Sección Acudientes -->
+      <div style="margin-top:1.2rem;border-top:1px solid var(--border);padding-top:1rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.7rem;">
+          <label style="font-size:.85rem;font-weight:700;color:var(--navy);margin:0;">👨‍👩‍👧 Acudientes <span style="font-weight:400;color:var(--gray);font-size:.78rem;">(opcional)</span></label>
+          <button type="button" class="btn btn-sm" style="background:var(--teal);color:#fff;border:none;" onclick="addAcudienteRow()">➕ Agregar</button>
+        </div>
+        <div id="es-acudientes-list"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-edit-student')">Cancelar</button>
+      <button class="btn btn-teal" id="student-modal-btn" onclick="saveStudent()">💾 Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Nuevo/Editar Subgrupo -->
+<div class="modal-overlay" id="modal-new-subgroup">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="ns-modal-title">🔀 Nuevo subgrupo</h3>
+      <button class="modal-close" onclick="closeModal('modal-new-subgroup')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="ns-id">
+      <div class="form-grid">
+        <div class="form-group full">
+          <label>Nombre del subgrupo *</label>
+          <input type="text" id="ns-name" placeholder="Ej: 11A, 11B, Biología Avanzada">
+        </div>
+        <div class="form-group">
+          <label>Grado de referencia (opcional)</label>
+          <select id="ns-grade">
+            <option value="">— Sin especificar —</option>
+            <option value="0">Transición</option>
+            <option value="1">1°</option><option value="2">2°</option>
+            <option value="3">3°</option><option value="4">4°</option>
+            <option value="5">5°</option><option value="6">6°</option>
+            <option value="7">7°</option><option value="8">8°</option>
+            <option value="9">9°</option><option value="10">10°</option>
+            <option value="11">11°</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Sede *</label>
+          <select id="ns-sede">
+            <option value="">— Seleccionar sede —</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-new-subgroup')">Cancelar</button>
+      <button class="btn btn-primary" id="ns-modal-btn" onclick="saveSubgroup()">Crear subgrupo</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Miembros del Subgrupo -->
+<div class="modal-overlay" id="modal-subgroup-members">
+  <div class="modal" style="max-width:620px;">
+    <div class="modal-header">
+      <h3 id="sm-modal-title">👥 Miembros del subgrupo</h3>
+      <button class="modal-close" onclick="closeModal('modal-subgroup-members')">✕</button>
+    </div>
+    <div class="modal-body">
+      <!-- Miembros actuales -->
+      <div style="font-weight:600;font-size:.83rem;color:var(--navy);margin-bottom:.4rem;">Miembros actuales</div>
+      <div id="sm-members-list" style="margin-bottom:1rem;min-height:40px;">Cargando…</div>
+      <hr style="margin:.75rem 0;border:none;border-top:1.5px solid var(--border);">
+      <!-- Agregar estudiantes -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">
+        <span style="font-weight:600;font-size:.83rem;color:var(--navy);">Agregar estudiantes</span>
+        <span id="sm-sel-count" style="font-size:.78rem;color:var(--teal);font-weight:600;display:none;"></span>
+      </div>
+      <div style="display:flex;gap:.5rem;margin-bottom:.5rem;">
+        <div style="position:relative;flex:1;">
+          <span style="position:absolute;left:.55rem;top:50%;transform:translateY(-50%);font-size:.78rem;pointer-events:none;">🔍</span>
+          <input type="text" id="sm-search" placeholder="Buscar por nombre…" oninput="smFilterChecklist()"
+            style="width:100%;padding:.42rem .65rem .42rem 1.8rem;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:.82rem;box-sizing:border-box;">
+        </div>
+        <select id="sm-grade-filter" onchange="smOnGradeChange()"
+          style="padding:.42rem .6rem;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:.82rem;">
+          <option value="">Todos</option>
+        </select>
+        <select id="sm-course-filter" onchange="smFilterChecklist()"
+          style="padding:.42rem .6rem;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:.82rem;">
+          <option value="">Todos</option>
+        </select>
+      </div>
+      <div style="border:1.5px solid var(--border);border-radius:8px;overflow:hidden;">
+        <div style="padding:.32rem .65rem;background:var(--light);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.5rem;">
+          <input type="checkbox" id="sm-select-all" onchange="smToggleAll(this.checked)">
+          <label for="sm-select-all" style="font-size:.78rem;font-weight:600;cursor:pointer;user-select:none;">Seleccionar todos los visibles</label>
+        </div>
+        <div id="sm-checklist" style="max-height:190px;overflow-y:auto;"></div>
+      </div>
+      <button class="btn btn-teal btn-sm" style="width:100%;margin-top:.5rem;" onclick="smAddSelected()">➕ Agregar seleccionados</button>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-subgroup-members')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Nuevo curso -->
+<div class="modal-overlay" id="modal-new-course">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="course-modal-title">🏫 Nuevo curso</h3>
+      <button class="modal-close" onclick="closeModal('modal-new-course')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="nc-id">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Grado</label>
+          <select id="nc-grade">
+            <option value="0">Transición (0°)</option>
+            <option value="1">Primero (1°)</option>
+            <option value="2">Segundo (2°)</option>
+            <option value="3">Tercero (3°)</option>
+            <option value="4">Cuarto (4°)</option>
+            <option value="5">Quinto (5°)</option>
+            <option value="6">Sexto (6°)</option>
+            <option value="7">Séptimo (7°)</option>
+            <option value="8">Octavo (8°)</option>
+            <option value="9">Noveno (9°)</option>
+            <option value="10">Décimo (10°)</option>
+            <option value="11">Undécimo (11°)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Número de curso</label>
+          <input type="number" id="nc-number" min="1" max="10" placeholder="1">
+        </div>
+        <div class="form-group">
+          <label>Sede</label>
+          <select id="nc-sede" onchange="loadDirectorsSelect()">
+            <option value="">— Sin sede —</option>
+          </select>
+        </div>
+        <div class="form-group full">
+          <label>Director(a) de grupo (opcional)</label>
+          <select id="nc-director">
+            <option value="">— Sin asignar —</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-new-course')">Cancelar</button>
+      <button class="btn btn-primary" id="course-modal-btn" onclick="createCourse()">Crear curso</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Crear / Editar docente -->
+<div class="modal-overlay" id="modal-teacher">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="teacher-modal-title">👨‍🏫 Nuevo docente</h3>
+      <button class="modal-close" onclick="closeModal('modal-teacher')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="mt-id">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Nombres *</label>
+          <input type="text" id="mt-firstname" placeholder="Carlos">
+        </div>
+        <div class="form-group">
+          <label>Apellidos *</label>
+          <input type="text" id="mt-lastname" placeholder="García López">
+        </div>
+        <div class="form-group">
+          <label>Usuario *</label>
+          <input type="text" id="mt-username" placeholder="c.garcia">
+        </div>
+        <div class="form-group">
+          <label>Contraseña <span id="mt-pwd-hint" style="font-weight:400;color:var(--gray);">(requerida)</span></label>
+          <input type="password" id="mt-password" placeholder="••••••••">
+        </div>
+        <div class="form-group full">
+          <label>Materia principal (opcional)</label>
+          <input type="text" id="mt-subject" placeholder="Ej: Matemáticas">
+        </div>
+        <div class="form-group full">
+          <label>Sede</label>
+          <select id="mt-sede">
+            <option value="">— Sin sede —</option>
+          </select>
+        </div>
+        <div class="form-group full">
+          <label>Estado</label>
+          <select id="mt-active">
+            <option value="true">✅ Activo</option>
+            <option value="false">❌ Inactivo</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-teacher')">Cancelar</button>
+      <button class="btn btn-primary" id="teacher-modal-btn" onclick="saveTeacher()">✅ Crear docente</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Nueva / Editar sede -->
+<div class="modal-overlay" id="modal-sede" onclick="if(event.target===this)closeModal('modal-sede')">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-header">
+      <h3 id="sede-modal-title">🏢 Nueva sede</h3>
+      <button class="modal-close" onclick="closeModal('modal-sede')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="sede-id">
+      <div class="form-grid">
+        <div class="form-group full">
+          <label>Nombre de la sede *</label>
+          <input type="text" id="sede-name" placeholder="Sede Bachillerato">
+        </div>
+        <div class="form-group">
+          <label>Tipo</label>
+          <select id="sede-type">
+            <option value="mixta">Mixta (todos los grados)</option>
+            <option value="primaria">Primaria</option>
+            <option value="bachillerato">Bachillerato</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Estado</label>
+          <select id="sede-active">
+            <option value="true">✅ Activa</option>
+            <option value="false">❌ Inactiva</option>
+          </select>
+        </div>
+        <div class="form-group full">
+          <label>Dirección (opcional)</label>
+          <input type="text" id="sede-address" placeholder="Calle 10 # 5-20, Municipio">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-sede')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveSede()">Guardar sede</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<!-- MODAL: Asignar docente a curso -->
+<div class="modal-overlay" id="modal-assign-teacher">
+  <div class="modal" style="max-width:560px;">
+    <div class="modal-header">
+      <h3>👨‍🏫 Docentes del curso <span id="assign-course-name" style="color:var(--teal);"></span></h3>
+      <button class="modal-close" onclick="closeModal('modal-assign-teacher')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="assign-course-id">
+
+      <!-- Docentes actualmente asignados -->
+      <div style="margin-bottom:1.25rem;">
+        <div style="font-weight:700;font-size:.875rem;color:var(--navy);margin-bottom:.6rem;">Asignaciones actuales</div>
+        <div id="assigned-teachers-list">
+          <div style="color:var(--gray);font-size:.85rem;text-align:center;padding:.75rem;">Cargando…</div>
+        </div>
+      </div>
+
+      <hr style="border:none;border-top:1.5px solid var(--border);margin-bottom:1.25rem;">
+
+      <!-- Agregar nueva asignación docente+materia -->
+      <div style="font-weight:700;font-size:.875rem;color:var(--navy);margin-bottom:.75rem;">➕ Agregar docente / materia</div>
+      <p style="font-size:.78rem;color:var(--gray);margin-bottom:.75rem;">Un docente puede aparecer varias veces si dicta más de una materia en este curso.</p>
+      <div style="display:flex;flex-direction:column;gap:.75rem;">
+        <div class="form-group">
+          <label>Docente</label>
+          <select id="assign-teacher-id">
+            <option value="">— Selecciona —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Materia <span style="color:var(--rose);">*</span></label>
+          <input type="text" id="assign-subject" placeholder="Ej: Matemáticas, Ética, Lengua…" list="subjects-datalist">
+          <datalist id="subjects-datalist">
+            <option value="Matemáticas">
+            <option value="Lengua Castellana">
+            <option value="Ciencias Naturales">
+            <option value="Ciencias Sociales">
+            <option value="Ética y Valores">
+            <option value="Educación Física">
+            <option value="Educación Artística">
+            <option value="Inglés">
+            <option value="Religión">
+            <option value="Informática">
+            <option value="Química">
+            <option value="Física">
+            <option value="Biología">
+            <option value="Historia">
+            <option value="Geografía">
+            <option value="Filosofía">
+            <option value="Emprendimiento">
+          </datalist>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-assign-teacher')">Cerrar</button>
+      <button class="btn btn-primary" onclick="saveTeacherAssignment()">✅ Agregar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: CONFIRMACIÓN RESTAURAR BACKUP ===== -->
+<div class="modal-overlay" id="modal-backup-confirm">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-header" style="background:#fffbeb;border-bottom:1px solid #fde68a;">
+      <h3 style="color:#92400e;">⚠️ Confirmar restauración de backup</h3>
+      <button class="modal-close" onclick="closeBackupConfirmModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.85rem 1rem;margin-bottom:1.25rem;font-size:.85rem;color:#991b1b;line-height:1.55;">
+        <strong>⚠️ Esta acción es irreversible.</strong> Los datos existentes serán reemplazados por los del archivo de backup. Asegúrate de tener una copia reciente antes de continuar.
+      </div>
+
+      <div class="form-group">
+        <label style="font-size:.82rem;font-weight:700;color:var(--navy);">
+          Escribe <code style="background:#fee2e2;padding:.1rem .4rem;border-radius:4px;color:#b91c1c;font-weight:700;">RESTAURAR</code> para confirmar
+        </label>
+        <input type="text" id="bc-phrase" placeholder="RESTAURAR" autocomplete="off"
+          style="font-size:1rem;letter-spacing:.05em;text-transform:uppercase;"
+          oninput="bcValidate()">
+      </div>
+
+      <div class="form-group">
+        <label style="font-size:.82rem;font-weight:700;color:var(--navy);">Usuario superadministrador</label>
+        <input type="text" id="bc-username" placeholder="superadmin" autocomplete="off" oninput="bcValidate()">
+      </div>
+
+      <div class="form-group">
+        <label style="font-size:.82rem;font-weight:700;color:var(--navy);">Contraseña</label>
+        <input type="password" id="bc-password" placeholder="••••••••" autocomplete="new-password" oninput="bcValidate()">
+      </div>
+
+      <div id="bc-error" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:7px;padding:.6rem .85rem;font-size:.83rem;color:#b91c1c;margin-bottom:.85rem;"></div>
+
+      <div style="display:flex;gap:.75rem;justify-content:flex-end;margin-top:.5rem;">
+        <button class="btn btn-ghost" onclick="closeBackupConfirmModal()">Cancelar</button>
+        <button class="btn btn-primary" id="bc-submit-btn" onclick="executeBackupImport()" disabled
+          style="background:#dc2626;border-color:#dc2626;">
+          🔓 Confirmar y restaurar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: HORARIO DEL CURSO ===== -->
+<div class="modal-overlay" id="modal-schedule" style="display:none;align-items:flex-start;padding-top:2rem;">
+  <div class="modal" style="max-width:760px;max-height:90vh;overflow-y:auto;width:100%;">
+    <div class="modal-header">
+      <h3>🕐 Horario del curso <span id="sched-course-name" style="color:var(--teal);"></span></h3>
+      <button class="modal-close" onclick="document.getElementById('modal-schedule').style.display='none'">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="sched-course-id">
+
+      <!-- Weekly grid view -->
+      <div id="sched-grid" style="margin-bottom:1.5rem;overflow-x:auto;"></div>
+
+      <hr style="border:none;border-top:1.5px solid var(--border);margin-bottom:1.25rem;">
+
+      <!-- Add slot form -->
+      <div style="font-weight:700;font-size:.875rem;color:var(--navy);margin-bottom:.75rem;">➕ Agregar franja horaria</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:.65rem;margin-bottom:.75rem;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label>Docente / Materia</label>
+          <select id="sched-tc-id" style="font-size:.82rem;">
+            <option value="">— Selecciona —</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label>Día</label>
+          <select id="sched-day" style="font-size:.82rem;">
+            <option value="1">Lunes</option>
+            <option value="2">Martes</option>
+            <option value="3">Miércoles</option>
+            <option value="4">Jueves</option>
+            <option value="5">Viernes</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label>Hora de clase</label>
+          <select id="sched-hour" style="font-size:.82rem;">
+            <option value="1">1ª hora</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:flex-end;">
+          <button class="btn btn-primary" style="width:100%;" onclick="saveScheduleSlot()">✅ Agregar</button>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.65rem;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label>Hora inicio (opcional)</label>
+          <input type="time" id="sched-start" style="font-size:.82rem;">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label>Hora fin (opcional)</label>
+          <input type="time" id="sched-end" style="font-size:.82rem;">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('modal-schedule').style.display='none'">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCRIPT ===== -->
+<script src="/js/shared/core.js"></script>
+<script>
+  const API_URL = '/api';
+  let currentUser = null;
+
+  /** Formatea un número de grado: 0 → 'Transición', 1-11 → '1°'…'11°' */
+  function gradeLbl(g) { return (g === 0 || g === '0' || g === null) && g !== undefined ? 'Transición' : (g + '°'); }
+  let allStudents = [], allUsers = [], allTeachers = [], allSedes = [];
+  let importedData = [];
+  let activeUserRoleFilter = 'all';
+
+  // ---- AUTH ----
+  function initSession() {
+    const token = sessionStorage.getItem('raice_token');
+    const role  = sessionStorage.getItem('raice_role');
+    const user  = JSON.parse(sessionStorage.getItem('raice_user') || 'null');
+
+    if (!token || role !== 'superadmin') {
+      window.location.href = '/login.html';
+      return;
+    }
+
+    currentUser = user;
+    if (user) {
+      const initials = ((user.first_name||'S')[0] + (user.last_name||'A')[0]).toUpperCase();
+      document.getElementById('user-avatar-sb').textContent = initials;
+      document.getElementById('user-name-sb').textContent = user.name || 'Superadmin';
+    }
+  }
+
+  function logout() {
+    if (!confirm('¿Cerrar sesión?')) return;
+    sessionStorage.clear();
+    localStorage.removeItem('raice_token');
+    localStorage.removeItem('raice_role');
+    localStorage.removeItem('raice_user');
+    window.location.href = '/login.html';
+  }
+
+  // ---- NAV ----
+  function showSection(name, btn) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('sec-' + name).classList.add('active');
+    btn.classList.add('active');
+    const titles = {
+      dashboard: 'Dashboard', usuarios: 'Usuarios del sistema',
+      sedes: 'Sedes de la institución',
+      estudiantes: 'Estudiantes', docentes: 'Docentes',
+      cursos: 'Grados y cursos', casos: 'Casos RAICE',
+      asistencia: 'Asistencia general', config: 'Configuración',
+      faltas: 'Catálogo de faltas',
+      'nuevo-anio': 'Nuevo Año Escolar',
+      mantenimiento: 'Mantenimiento de datos',
+      backup: 'Backup y exportación',
+      logs: 'Registros del sistema', perfil: 'Mi perfil'
+    };
+    document.getElementById('page-title').textContent = titles[name] || name;
+
+    // Lazy load
+    if (name === 'sedes')       loadSedes();
+    if (name === 'estudiantes') loadStudents();
+    if (name === 'usuarios')    loadUsers();
+    if (name === 'docentes')    loadTeachers();
+    if (name === 'cursos')      loadCourses();
+    if (name === 'casos')       loadCases();
+    if (name === 'dashboard')   loadDashboard();
+    if (name === 'perfil')      loadProfile();
+    if (name === 'config')      loadConfig();
+    if (name === 'logs')        loadLogs();
+    if (name === 'backup')      loadBackupHistory();
+    if (name === 'faltas')       loadFaltasCatalogAdmin();
+    if (name === 'asistencia')   loadAttendance();
+    if (name === 'nuevo-anio')   loadNuevoAnio();
+  }
+
+  // Core UI Utils extracted to public/js/shared/core.js
+
+// Si ya estaba sin conexión al cargar
+if (!navigator.onLine) showOfflineBanner();
+</script>
+
+<!-- Modal: Nueva falta del catálogo -->
+<div class="modal-overlay" id="modal-nueva-falta">
+  <div class="modal" style="max-width:500px;">
+    <div class="modal-header">
+      <h3>➕ Agregar nueva falta al catálogo</h3>
+      <button class="modal-close" onclick="closeModal('modal-nueva-falta')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Tipo de situación *</label>
+        <select id="nf-tipo" style="width:100%;">
+          <option value="">— Selecciona —</option>
+          <option value="1">🟡 Tipo I — Falta leve</option>
+          <option value="2">🟣 Tipo II — Falta grave</option>
+          <option value="3">🔴 Tipo III — Falta gravísima</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Categoría *</label>
+        <select id="nf-categoria" style="width:100%;">
+          <option value="">— Selecciona —</option>
+          <option value="academica">📚 Conductas académicas</option>
+          <option value="convivencia">🏫 Conductas de convivencia escolar</option>
+          <option value="bullying">⚠️ Acoso escolar / Bullying y Ciberbullying</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Numeral * <span style="font-weight:400;color:var(--gray);font-size:.78rem;">— Ej: 2.15, 3.10</span></label>
+        <input type="text" id="nf-numeral" placeholder="Ej: 2.15" style="width:100%;">
+        <div id="nf-numeral-hint" style="font-size:.76rem;color:var(--gray);margin-top:.3rem;"></div>
+      </div>
+      <div class="form-group">
+        <label>Descripción de la falta *</label>
+        <textarea id="nf-descripcion" rows="4"
+          placeholder="Escribe el texto exacto de la falta tal como aparece en el manual de convivencia…"
+          style="width:100%;resize:vertical;"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-nueva-falta')">Cancelar</button>
+      <button class="btn btn-teal" onclick="saveNuevaFalta()">✅ Agregar al catálogo</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: resumen de importación ── -->
+<div class="modal-overlay" id="modal-import-summary" onclick="if(event.target===this)closeModal('modal-import-summary')">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-header">
+      <h3>📋 Resultado de la importación</h3>
+      <button class="modal-close" onclick="closeModal('modal-import-summary')">✕</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:1rem;">
+      <div id="sa-import-summary-cards" style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;"></div>
+      <div id="sa-import-summary-errors" style="display:none;background:#fff5f5;border:1px solid #fecaca;border-radius:10px;padding:.75rem;max-height:160px;overflow-y:auto;"></div>
+      <div style="display:flex;gap:.5rem;justify-content:flex-end;flex-wrap:wrap;">
+        <button class="btn btn-ghost" id="sa-summary-export-btn" style="display:none;" onclick="saDownloadErrorReport()">📥 Descargar errores</button>
+        <button class="btn btn-teal" onclick="closeModal('modal-import-summary')">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
