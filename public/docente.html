@@ -1165,7 +1165,6 @@
 <div id="toast-container"></div>
 
 <!-- ===== SCRIPT ===== -->
-<script src="/js/shared/core.js"></script>
 <script>
   const API_URL = '/api';
   let currentUser = null;
@@ -1209,6 +1208,10 @@
       : `${s.last_name}, ${s.first_name}`;
   }
 
+  // Returns today's date in Colombia timezone (UTC-5)
+  function todayColombia() {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date());
+  }
 
   let myCourses    = [];
   let activeCourse    = null;
@@ -1263,6 +1266,14 @@
     }
   }
 
+  function toggleSidebar() {
+    document.querySelector('.sidebar').classList.toggle('open');
+    document.getElementById('sidebar-overlay').classList.toggle('open');
+  }
+  function closeSidebar() {
+    document.querySelector('.sidebar').classList.remove('open');
+    document.getElementById('sidebar-overlay').classList.remove('open');
+  }
 
   function logout() {
     if (!confirm('¿Cerrar sesión?')) return;
@@ -1300,7 +1311,3449 @@
     if (name === 'historial-att') initAttHistory();
   }
 
-  // Core UI Utils extracted to public/js/shared/core.js
+  // ---- MODAL ----
+  function openModal(id)  { document.getElementById(id).classList.add('open'); }
+  function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+  document.addEventListener('click', e => {
+    if (e.target.classList.contains('modal-overlay')) e.target.classList.remove('open');
+  });
+
+  // ---- TOAST ----
+  function showToast(msg, type = 'success') {
+    const c = document.getElementById('toast-container');
+    const t = document.createElement('div');
+    t.className = 'toast ' + type;
+    const ico = { success:'✅', error:'❌', warning:'⚠️' }[type] || 'ℹ️';
+    t.innerHTML = `<span>${ico}</span><span>${msg}</span>`;
+    c.appendChild(t);
+    setTimeout(() => t.remove(), 3500);
+  }
+
+  // ---- HELPERS ----
+  function avatarColors(name) {
+    const c = ['#3b82f6','#10b981','#8b5cf6','#f59e0b','#ef4444','#0b7a75','#ec4899'];
+    return c[(name||'A').charCodeAt(0) % c.length];
+  }
+
+  async function fetchAPI(path, opts = {}) {
+    const token = sessionStorage.getItem('raice_token');
+    try {
+      const res = await fetch(API_URL + path, {
+        ...opts,
+        headers: {
+          'Content-Type':'application/json',
+          'Authorization': `Bearer ${token}`,
+          ...(opts.headers||{})
+        }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) { logout(); return { ok: false, status: 401, data: {} }; }
+      return { ok: res.ok, status: res.status, data };
+    } catch (err) {
+      console.error('fetchAPI error:', path, err);
+      return { ok: false, status: 0, data: { error: 'Error de conexión' } };
+    }
+  }
+
+  // ---- PASAR LISTA INTELIGENTE ----
+  // Bell schedule cache para comparar horas
+  let _bellCache = null;
+  async function getBellSchedule() {
+    if (_bellCache) return _bellCache;
+    const { ok, data } = await fetchAPI('/raice/bell-schedule');
+    _bellCache = ok ? (data.bell_schedule || []) : [];
+    return _bellCache;
+  }
+
+  async function pasarListaInteligente(btn) {
+    if (!myCourses.length) await loadMyCourses();
+
+    const now     = new Date();
+    const jsDay   = now.getDay();
+    const dayNum  = jsDay === 0 ? 7 : jsDay;
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+
+    // Construir entradas de hoy
+    const todayEntries = [];
+    myCourses.forEach(c => {
+      (c.today_slots || []).forEach(slot => todayEntries.push({ course: c, slot }));
+    });
+
+    if (!todayEntries.length) {
+      showToast('No tienes clases programadas para hoy.', 'info');
+      showSection('mis-cursos', document.querySelector('.nav-item'));
+      return;
+    }
+
+    // Traer bell schedule como respaldo si los slots no tienen tiempos
+    const bell = await getBellSchedule();
+    const bellMap = {};
+    bell.forEach(b => { bellMap[b.class_hour] = b; });
+
+    // Enriquecer slots con tiempos del bell schedule si les faltan
+    todayEntries.forEach(e => {
+      const s = e.slot;
+      if (!s.start_time || !s.end_time) {
+        const b = bellMap[s.class_hour] || {};
+        s.start_time = s.start_time || b.start_time || null;
+        s.end_time   = s.end_time   || b.end_time   || null;
+      }
+    });
+
+    // Buscar la clase activa ahora según el timbre
+    const match = todayEntries.find(e => {
+      const s = e.slot;
+      if (!s.start_time || !s.end_time) return false;
+      const [sh, sm] = s.start_time.split(':').map(Number);
+      const [eh, em] = s.end_time.split(':').map(Number);
+      return nowMins >= sh * 60 + sm && nowMins <= eh * 60 + em;
+    });
+
+    if (match) {
+      openCourseAttendance({ ...match.course, _slotHour: match.slot.class_hour });
+      return;
+    }
+
+    // No hay clase en este momento
+    const label = dayNum > 5 ? 'fin de semana' : 'este momento';
+    showToast('No tienes clase en ' + label + '. Selecciona un curso manualmente.', 'info');
+    showSection('mis-cursos', document.querySelector('.nav-item'));
+  }
+
+  // ---- FESTIVOS / CALENDARIO HOY ----
+  // Tipos que bloquean asistencia (sin estudiantes en aula)
+  const _BLOCKING_TYPES = new Set(['holiday', 'vacation', 'teacher_meeting', 'union_day', 'institutional_day']);
+
+  const _HOLIDAY_ICONS = {
+    holiday:          '🎌',
+    institutional_day:'🏛️',
+    vacation:         '🏖️',
+    teacher_meeting:  '👥',
+    union_day:        '✊',
+    event:            '🏫',
+    exam:             '📝',
+    other:            '📅',
+  };
+  const _HOLIDAY_LABELS = {
+    holiday:          'Festivo Nacional',
+    institutional_day:'Desarrollo Institucional',
+    vacation:         'Vacaciones',
+    teacher_meeting:  'Reunión de Docentes',
+    union_day:        'Jornada Sindical',
+    event:            'Evento Escolar',
+    exam:             'Período de Evaluaciones',
+    other:            'Día Especial',
+  };
+  // Gradientes del banner según si bloquea o solo informa
+  const _BANNER_GRADIENT = {
+    blocking:    'linear-gradient(135deg,#0f1f3d 0%,#7c3aed 100%)',  // navy→purple: sin clase
+    informative: 'linear-gradient(135deg,#0b7a75 0%,#0f1f3d 100%)', // teal→navy:   con clase
+  };
+
+  async function checkTodayHoliday() {
+    try {
+      const { ok, data } = await fetchAPI('/raice/calendar/today');
+      if (!ok || !data.events?.length) return;
+      _todayHolidayInfo = data;
+
+      const event    = data.event;
+      const typeKey  = event?.type || 'holiday';
+      const blocks   = data.blocks_attendance;
+      const icon     = _HOLIDAY_ICONS[typeKey]  || '📅';
+      const label    = _HOLIDAY_LABELS[typeKey] || 'Día Especial';
+      const name     = event?.name || 'Día especial';
+
+      // Banner premium — color diferente según bloqueo
+      const banner = document.getElementById('holiday-banner');
+      if (banner) {
+        banner.style.background = blocks ? _BANNER_GRADIENT.blocking : _BANNER_GRADIENT.informative;
+        document.getElementById('holiday-banner-icon').textContent  = icon;
+        document.getElementById('holiday-banner-title').textContent = name;
+        document.getElementById('holiday-banner-sub').textContent   = label;
+        // Etiqueta inferior diferente según tipo
+        const footerEl = banner.querySelector('.holiday-banner-footer');
+        if (footerEl) {
+          footerEl.textContent = blocks
+            ? 'El registro de asistencia está deshabilitado para este día.'
+            : 'Los estudiantes asisten — puedes registrar asistencia normalmente.';
+        }
+        // Chip derecho
+        const chipEl = banner.querySelector('.holiday-banner-chip');
+        if (chipEl) {
+          chipEl.textContent   = blocks ? 'CURSOS OCULTOS' : 'EVENTO ACTIVO';
+          chipEl.style.color   = blocks ? '#f87171' : '#34d399';
+        }
+        banner.style.display = 'block';
+      }
+
+      // Solo deshabilitar "Pasar lista" si bloquea asistencia
+      if (blocks) {
+        const btnLista = document.getElementById('nav-pasar-lista');
+        if (btnLista) {
+          btnLista.style.opacity       = '0.4';
+          btnLista.style.pointerEvents = 'none';
+          btnLista.title               = 'No disponible — ' + name;
+        }
+      }
+    } catch (e) {
+      console.warn('[RAICE] checkTodayHoliday:', e);
+    }
+  }
+
+  // ---- COURSES ----
+  async function loadMyCourses() {
+    // Solo bloquear si el evento impide que haya clases
+    if (_todayHolidayInfo?.blocks_attendance) {
+      const grid  = document.getElementById('courses-grid');
+      const event = _todayHolidayInfo.event;
+      const name  = event?.name || 'día no lectivo';
+      const icon  = _HOLIDAY_ICONS[event?.type || 'holiday'] || '🎌';
+      grid.innerHTML = `<div style="text-align:center;padding:3.5rem 1rem;color:var(--gray);grid-column:1/-1;">
+        <div style="font-size:2.5rem;margin-bottom:.75rem;">${icon}</div>
+        <div style="font-family:'Fraunces',serif;font-size:1.1rem;font-weight:700;color:var(--navy);margin-bottom:.5rem;">Cursos Ocultos</div>
+        <div style="font-size:.88rem;">Hoy es <strong>${name}</strong> — no hay clases programadas.</div>
+      </div>`;
+      return;
+    }
+
+    const { ok, data } = await fetchAPI('/raice/my-courses');
+    myCourses = data.courses || [];
+
+    // Adjust classesPerDay to the max hour in the teacher's actual schedule
+    let maxSlotHour = 0;
+    myCourses.forEach(c => (c.week_slots || []).forEach(s => { if (s.class_hour > maxSlotHour) maxSlotHour = s.class_hour; }));
+    if (maxSlotHour > classesPerDay) classesPerDay = maxSlotHour;
+
+    const grid = document.getElementById('courses-grid');
+    if (!myCourses.length) {
+      grid.innerHTML = `<div style="text-align:center;padding:3rem;color:var(--gray);">
+        <div style="font-size:2.5rem;margin-bottom:.75rem;">🏫</div>
+        No tienes cursos asignados aún.<br>Contacta al coordinador.
+      </div>`;
+      return;
+    }
+
+    const jsDay  = new Date().getDay();
+    const dayNum = jsDay === 0 ? 7 : jsDay;
+    const DAYS   = ['','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+    const dayLabel = DAYS[dayNum] || '';
+    const nowMins  = new Date().getHours() * 60 + new Date().getMinutes();
+    const ordinals = ['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª'];
+
+    // ---- Build one "card entry" per time slot today ----
+    // A teacher may have the same course at hour 1 and hour 3 → two separate entries
+    const todayEntries = [];
+    myCourses.forEach(c => {
+      if (!c.today_slots || !c.today_slots.length) return;
+      c.today_slots.forEach(slot => {
+        todayEntries.push({ course: c, slot });
+      });
+    });
+
+    // Sort by class_hour (then by start_time if available)
+    todayEntries.sort((a, b) => {
+      if (a.slot.class_hour !== b.slot.class_hour) return a.slot.class_hour - b.slot.class_hour;
+      if (a.slot.start_time && b.slot.start_time) return a.slot.start_time.localeCompare(b.slot.start_time);
+      return 0;
+    });
+
+    // Helper: is this slot happening right now?
+    function isActiveNow(slot) {
+      if (!slot.start_time || !slot.end_time) return false;
+      const [sh, sm] = slot.start_time.split(':').map(Number);
+      const [eh, em] = slot.end_time.split(':').map(Number);
+      return nowMins >= sh * 60 + sm && nowMins <= eh * 60 + em;
+    }
+
+    // Helper: has this slot already passed?
+    function isPast(slot) {
+      if (slot.end_time) {
+        const [eh, em] = slot.end_time.split(':').map(Number);
+        return nowMins > eh * 60 + em;
+      }
+      // No time info: consider past if class_hour already had attendance saved
+      return (slot.course?.saved_hours || []).includes(slot.class_hour);
+    }
+
+    if (!todayEntries.length) {
+      // No classes today — show a friendly message + link to full course list
+      const dayHasSchedule = myCourses.some(c => c.week_slots && c.week_slots.length > 0);
+      grid.innerHTML = `
+        <div class="no-classes-today">
+          <div style="font-size:2.8rem;margin-bottom:.75rem;">🗓️</div>
+          <div style="font-family:'Fraunces',serif;font-size:1.15rem;font-weight:700;color:var(--navy);margin-bottom:.4rem;">
+            Sin clases este ${dayLabel}
+          </div>
+          <div style="color:var(--gray);font-size:.88rem;max-width:280px;margin:0 auto .75rem;">
+            ${dayHasSchedule ? 'No tienes clases programadas para hoy según tu horario.' : 'Aún no tienes horario configurado. Contacta al coordinador.'}
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="openMySchedule()">📅 Ver mi horario semanal</button>
+        </div>`;
+      populateCaseCourses();
+      return;
+    }
+
+    // Separate pending vs done entries
+    const pending = todayEntries.filter(e => !(e.course.saved_hours || []).includes(e.slot.class_hour));
+    const done    = todayEntries.filter(e =>  (e.course.saved_hours || []).includes(e.slot.class_hour));
+
+    function buildCard(e) {
+      const { course: c, slot } = e;
+      const saved    = (c.saved_hours || []).includes(slot.class_hour);
+      const active   = isActiveNow(slot);
+      const past     = isPast(slot);
+      const hourLabel = ordinals[slot.class_hour - 1] || slot.class_hour + 'ª';
+      const timeStr  = slot.start_time
+        ? slot.start_time.substring(0,5) + (slot.end_time ? ' – ' + slot.end_time.substring(0,5) : '')
+        : hourLabel + ' hora';
+
+      const attColor = slot.attendance_pct >= 90 ? 'var(--teal2)'
+                     : slot.attendance_pct >= 75 ? 'var(--gold)'
+                     : slot.attendance_pct != null ? 'var(--rose)' : 'var(--gray)';
+
+      let pillHtml = '';
+      if (active && !saved)  pillHtml = '<span class="cc-pill now">⚡ Ahora</span>';
+      else if (saved)        pillHtml = '<span class="cc-pill done">✅ Lista guardada</span>';
+      else if (past)         pillHtml = '<span class="cc-pill pending">⚠️ Sin pasar</span>';
+      else                   pillHtml = '<span class="cc-pill pending">⏳ Pendiente</span>';
+
+      const cardClass = ['course-card', saved ? 'done' : '', active && !saved ? 'active-now' : ''].filter(Boolean).join(' ');
+
+      return `<div class="${cardClass}" onclick="openCourseAttendance(${JSON.stringify({...c, _slotHour: slot.class_hour}).replace(/"/g,'&quot;')})">
+        <div class="cc-time">
+          <div class="cc-hour">${slot.class_hour}</div>
+          <div class="cc-htime">${slot.start_time ? slot.start_time.substring(0,5) : 'hora'}</div>
+        </div>
+        <div class="cc-divider"></div>
+        <div class="cc-info">
+          <div class="cc-grade">
+            ${c.type === 'subgroup'
+              ? `<span style="background:#dcfce7;color:#166534;font-size:.65rem;font-weight:700;padding:.1rem .4rem;border-radius:999px;border:1px solid #86efac;margin-right:.35rem;vertical-align:middle;">SUBGRUPO</span>${c.name || c.section || c.number}`
+              : `${c.grade}°${c.section || c.number}`
+            }
+          </div>
+          <div class="cc-subject">${c.subject || 'Clase'}</div>
+          <div class="cc-stats">
+            <span class="cc-stat">👥 ${c.students_count || 0}</span>
+            ${slot.attendance_pct != null
+              ? `<span class="cc-stat" style="color:${attColor};">📊 ${slot.attendance_pct}% asistencia</span>`
+              : ''}
+            <span class="cc-stat">🕐 ${timeStr}</span>
+          </div>
+        </div>
+        <div class="cc-status">${pillHtml}</div>
+      </div>`;
+    }
+
+    let html = '';
+
+    // Section: pending / upcoming
+    if (pending.length) {
+      html += pending.map(buildCard).join('');
+    }
+
+    // Section: done (collapsed appearance)
+    if (done.length) {
+      if (pending.length) html += `<div class="grid-section-title">✅ Ya pasadas</div>`;
+      html += done.map(buildCard).join('');
+    }
+
+    // Footer: link to full weekly schedule
+    html += `<div style="text-align:center;padding:.75rem 0;">
+      <button class="btn btn-ghost btn-sm" onclick="openMySchedule()" style="font-size:.78rem;">
+        📅 Ver horario completo de la semana
+      </button>
+    </div>`;
+
+    grid.innerHTML = html;
+    populateCaseCourses();
+  }
+
+  async function openCourseAttendance(course) {
+    activeCourse = course;
+    _attDirty = false; // fresh course, no unsaved changes
+    _evasionHours.clear();
+    clearEvasionPanel();
+    document.getElementById('att-no-course').style.display = 'none';
+    document.getElementById('att-content').style.display   = 'block';
+    const courseLabel = course.type === 'subgroup' ? (course.name || 'Subgrupo') : `${course.grade}°${course.number}`;
+    document.getElementById('att-course-title').textContent = `${courseLabel} — ${course.subject || 'Clase'}`;
+    const today = todayColombia();
+    document.getElementById('att-date-picker').value = today;
+    document.getElementById('att-date-info').textContent =
+      new Date().toLocaleDateString('es-CO', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+    showSection('asistencia', document.querySelectorAll('.nav-item')[1]);
+
+    // Load classes per day from config, then expand if teacher's schedule has higher hours
+    const { ok, data } = await fetchAPI('/raice/config');
+    if (ok && data.classes_per_day) classesPerDay = data.classes_per_day;
+    let maxSlotHour = 0;
+    myCourses.forEach(c => (c.week_slots || []).forEach(s => { if (s.class_hour > maxSlotHour) maxSlotHour = s.class_hour; }));
+    if (maxSlotHour > classesPerDay) classesPerDay = maxSlotHour;
+
+    const hr      = new Date().getHours();
+    const nowMins = hr * 60 + new Date().getMinutes();
+
+    // If the card passed a specific slot hour (_slotHour), use it directly
+    if (course._slotHour) {
+      activeHour = course._slotHour;
+    } else if (course.today_slots && course.today_slots.length) {
+      const withTime = course.today_slots.filter(s => s.start_time);
+      if (withTime.length) {
+        const current = withTime.find(s => {
+          const [sh, sm] = s.start_time.split(':').map(Number);
+          const [eh, em] = (s.end_time || s.start_time).split(':').map(Number);
+          return nowMins >= sh * 60 + sm && nowMins <= eh * 60 + em;
+        });
+        if (current) {
+          activeHour = current.class_hour;
+        } else {
+          const next = withTime.find(s => {
+            const [sh, sm] = s.start_time.split(':').map(Number);
+            return (sh * 60 + sm) > nowMins;
+          });
+          activeHour = next ? next.class_hour : course.today_slots[0].class_hour;
+        }
+      } else {
+        const pending = (course.pending_hours || []);
+        activeHour = pending.length ? pending[0] : course.today_slots[0].class_hour;
+      }
+    } else {
+      activeHour = Math.min(Math.max(hr - 6, 1), classesPerDay);
+    }
+
+    buildHourSelector(course);
+    loadCourseStudents();
+  }
+
+  function buildHourSelector(course) {
+    course = course || activeCourse;
+    const container  = document.getElementById('hour-selector');
+    const ordinals   = ['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª','10ª'];
+    const historyMode = isHistoryMode();
+
+    // === LÓGICA GLOBAL DEL DÍA ===
+    const globalScheduledHours = new Set();
+    const globalSavedHours = new Set();
+    const globalCourseByHour = {};
+
+    if (!historyMode && typeof myCourses !== 'undefined') {
+      myCourses.forEach(c => {
+        (c.today_slots || []).forEach(s => {
+          globalScheduledHours.add(s.class_hour);
+          globalCourseByHour[s.class_hour] = c;
+        });
+        (c.saved_hours || []).forEach(h => {
+          globalSavedHours.add(h);
+        });
+      });
+    }
+
+    const scheduledHours = (course?.today_slots || []).map(s => s.class_hour);
+    const savedHours     = course?.saved_hours || [];
+
+    const hasAnySchedule = (course?.week_slots || []).length > 0;
+    const noScheduleAtAll = !hasAnySchedule;
+
+    // History mode banner
+    let histBanner = document.getElementById('att-history-banner');
+    if (!histBanner) {
+      histBanner = document.createElement('div');
+      histBanner.id = 'att-history-banner';
+      histBanner.style.cssText = 'background:#eff6ff;border:1.5px solid #93c5fd;border-radius:12px;padding:.6rem 1rem;margin-bottom:.75rem;font-size:.83rem;font-weight:600;color:#1d4ed8;display:none;';
+      histBanner.textContent = '📅 Modo historial — solo lectura. Selecciona la hora para ver la lista registrada.';
+      const content = document.getElementById('att-content');
+      if (content) content.insertBefore(histBanner, content.firstChild);
+    }
+    histBanner.style.display = historyMode ? 'block' : 'none';
+
+    // Save button and quick-mark: hidden in history mode
+    const saveBtn  = document.getElementById('btn-save-att');
+    const quickMark = document.querySelector('.quick-mark');
+    if (historyMode) {
+      if (saveBtn)    saveBtn.style.display    = 'none';
+      if (quickMark)  quickMark.style.display  = 'none';
+    }
+
+    container.innerHTML = Array.from({length: classesPerDay}, (_,i) => i+1).map(h => {
+      const isActive    = h === activeHour;
+      
+      const isScheduledGlobally = historyMode ? scheduledHours.includes(h) : globalScheduledHours.has(h);
+      const isSavedGlobally     = historyMode ? savedHours.includes(h) : globalSavedHours.has(h);
+      const isLocked            = historyMode ? false : (!isScheduledGlobally && !noScheduleAtAll);
+      
+      const targetCourse = globalCourseByHour[h];
+      const slot        = historyMode ? (course?.today_slots || []).find(s => s.class_hour === h) 
+                                      : (targetCourse?.today_slots || []).find(s => s.class_hour === h);
+      
+      const timeLabel   = slot?.start_time ? '<br><span style="font-size:.65rem;opacity:.8;">' + slot.start_time.substring(0,5) + '</span>' : '';
+      const hasEvasion  = _evasionHours.has(h);
+      const savedDot    = !historyMode && isSavedGlobally ? (hasEvasion ? ' 🏃' : ' ✅') : !historyMode && isScheduledGlobally ? ' ⏳' : '';
+
+      let bg, border, color, cursor, opacity;
+      if (isLocked) {
+        bg = '#f3f4f6'; border = '#e5e7eb'; color = '#9ca3af';
+        cursor = 'not-allowed'; opacity = '0.5';
+      } else if (isActive) {
+        bg = historyMode ? '#1d4ed8' : 'var(--teal2)';
+        border = historyMode ? '#1d4ed8' : 'var(--teal2)';
+        color = 'white'; cursor = 'pointer'; opacity = '1';
+      } else if (!historyMode && isSavedGlobally) {
+        bg = '#dcfce7'; border = '#86efac'; color = '#16a34a';
+        cursor = 'pointer'; opacity = '1';
+      } else if (!historyMode && isScheduledGlobally) {
+        bg = '#fff7ed'; border = '#fed7aa'; color = '#c2410c';
+        cursor = 'pointer'; opacity = '1';
+      } else {
+        bg = 'var(--white)'; border = 'var(--border)'; color = 'var(--navy)';
+        cursor = 'pointer'; opacity = historyMode ? '0.7' : '1';
+      }
+
+      const clickAttr = isLocked ? '' : `onclick="switchToHour(${h})"`;
+      let courseName = '';
+      if (targetCourse) {
+        courseName = targetCourse.section ? (targetCourse.grade ? targetCourse.grade+'°'+targetCourse.number : targetCourse.section) : '';
+        if (targetCourse.subject) courseName += ' — ' + targetCourse.subject;
+      }
+      const titleAttr = isLocked
+        ? (noScheduleAtAll ? 'title="Sin horario configurado"' : 'title="No tienes clase en esta hora"')
+        : (historyMode ? `title="${ordinals[h-1]||h+'ª'} hora — ver registro"` : `title="${ordinals[h-1]||h+'ª'} hora — ${courseName || 'Clase'}"`);
+
+      return `<button ${clickAttr} ${titleAttr} id="hour-btn-${h}"
+        style="padding:.35rem .6rem;border-radius:8px;font-size:.78rem;font-weight:600;
+               border:1.5px solid ${border};background:${bg};color:${color};
+               cursor:${cursor};opacity:${opacity};transition:all .15s;
+               text-align:center;line-height:1.3;
+               ${(!historyMode && isScheduledGlobally)?'box-shadow:0 2px 6px rgba(0,0,0,.1);':''}">
+        ${ordinals[h-1]||h+'ª'}${savedDot}${timeLabel}
+      </button>`;
+    }).join('');
+
+    const warnEl = document.getElementById('no-schedule-warn');
+    if (warnEl) warnEl.style.display = (!historyMode && noScheduleAtAll) ? 'block' : 'none';
+
+    document.getElementById('btn-hour-label').textContent = (ordinals[activeHour-1]||activeHour+'ª') + ' hora';
+  }
+
+  function switchToHour(h) {
+    if (isHistoryMode()) {
+       selectHour(h);
+       return;
+    }
+    const globalCourseByHour = {};
+    if (typeof myCourses !== 'undefined') {
+      myCourses.forEach(c => {
+        (c.today_slots || []).forEach(s => {
+          globalCourseByHour[s.class_hour] = c;
+        });
+      });
+    }
+    const targetCourse = globalCourseByHour[h];
+    
+    if (typeof _attDirty !== 'undefined' && _attDirty) {
+       showToast('Tienes cambios sin guardar. Guárdalos antes de cambiar de hora.', 'warning');
+       return;
+    }
+    
+    if (targetCourse && activeCourse && targetCourse.id !== activeCourse.id) {
+       openCourseAttendance({...targetCourse, _slotHour: h});
+    } else {
+       selectHour(h);
+    }
+  }
+
+  function selectHour(h) {
+    activeHour = h;
+    clearEvasionPanel();
+    _actividadEspecial = false;
+    _actividadNote = '';
+    const noteArea = document.getElementById('ae-note-area');
+    const noteInput = document.getElementById('ae-note-input');
+    if (noteArea)  noteArea.style.display = 'none';
+    if (noteInput) noteInput.value = '';
+    buildHourSelector();
+    loadCourseStudents();
+  }
+
+  async function loadCourseStudents(forceRefresh = false) {
+    if (!activeCourse) return;
+    const date = document.getElementById('att-date-picker').value;
+    const key  = _cacheKey(activeCourse.id, date, activeHour);
+
+    // If teacher has unsaved changes, never overwrite
+    if (_attDirty) return;
+
+    // Serve from cache unless forced refresh
+    if (!forceRefresh && _hourCache[key]) {
+      const cached = _hourCache[key];
+      studentsAtt = cached.students.map(s => ({...s})); // shallow clone
+      _actividadEspecial = cached.saved && studentsAtt.length > 0 && studentsAtt.every(s => s.status === 'S');
+      _actividadNote = (_actividadEspecial && cached.activity_note) ? cached.activity_note : '';
+      const noteArea  = document.getElementById('ae-note-area');
+      const noteInput = document.getElementById('ae-note-input');
+      if (noteArea)  noteArea.style.display = _actividadEspecial ? 'block' : 'none';
+      if (noteInput) noteInput.value        = _actividadNote;
+      renderStudentList();
+      document.getElementById('att-saved-badge').textContent = cached.saved ? '✅ Lista guardada' : '';
+      return;
+    }
+
+    const { ok, data, status } = await fetchAPI(`/raice/attendance/course?course_id=${activeCourse.id}&date=${date}&hour=${activeHour}`);
+
+    if (!ok) {
+      const list = document.getElementById('student-list');
+      const msg = data?.error || (status === 403 ? 'Sin acceso a este curso' : 'Error al cargar estudiantes');
+      list.innerHTML = `<div style="text-align:center;padding:2rem;color:var(--rose);">⚠️ ${msg}</div>`;
+      studentsAtt = [];
+      updateCounts();
+      return;
+    }
+
+    // In history mode with no records for this hour: show neutral empty message
+    if (isHistoryMode() && !data.students?.length) {
+      const list = document.getElementById('student-list');
+      list.innerHTML = `<div style="text-align:center;padding:2rem;color:var(--gray);">📭 Sin registro para esta hora en la fecha seleccionada.</div>`;
+      studentsAtt = [];
+      updateCounts();
+      renderStudentList(); // ensure banners/buttons update correctly
+      return;
+    }
+
+    studentsAtt = (data.students || []).map(s => ({
+      id: s.id,
+      first_name: s.first_name,
+      last_name:  s.last_name,
+      status: s.attendance_status || 'P',
+      suspension: s.suspension || null,
+      excusa: s.excusa || null
+    }));
+
+    // Auto-detectar actividad especial si todos los registros guardados son S
+    _actividadEspecial = data.saved && studentsAtt.length > 0 && studentsAtt.every(s => s.status === 'S');
+
+    // Restore activity note if present
+    _actividadNote = (_actividadEspecial && data.activity_note) ? data.activity_note : '';
+    const noteArea  = document.getElementById('ae-note-area');
+    const noteInput = document.getElementById('ae-note-input');
+    if (noteArea)  noteArea.style.display  = _actividadEspecial ? 'block' : 'none';
+    if (noteInput) noteInput.value         = _actividadNote;
+
+    // Store in cache
+    _hourCache[key] = { students: studentsAtt.map(s => ({...s})), saved: !!data.saved, activity_note: data.activity_note || null };
+
+    renderStudentList();
+    document.getElementById('att-saved-badge').textContent = data.saved ? '✅ Lista guardada' : '';
+  }
+
+  function renderStudentList() {
+    const list     = document.getElementById('student-list');
+    const date     = document.getElementById('att-date-picker').value;
+    const key      = _cacheKey(activeCourse?.id || '', date, activeHour);
+    const isSaved  = activeCourse?.saved_hours?.includes(activeHour) || (_hourCache[key]?.saved === true);
+    const saveBtn  = document.getElementById('btn-save-att');
+    const quickMark = document.querySelector('.quick-mark');
+
+    // Toggle save button and quick-mark visibility based on saved state
+    if (saveBtn)   saveBtn.style.display   = (isSaved || isHistoryMode()) ? 'none' : '';
+    if (quickMark) quickMark.style.display = (isSaved || isHistoryMode()) ? 'none' : '';
+
+    // Read-only banner
+    let roBanner = document.getElementById('att-readonly-banner');
+    if (!roBanner) {
+      roBanner = document.createElement('div');
+      roBanner.id = 'att-readonly-banner';
+      roBanner.style.cssText = 'border-radius:12px;padding:.65rem 1rem;margin-bottom:.75rem;font-size:.83rem;font-weight:600;display:none;';
+      list.parentNode.insertBefore(roBanner, list);
+    }
+    const histMode = isHistoryMode();
+    if (histMode) {
+      roBanner.style.background   = '#eff6ff';
+      roBanner.style.border       = '1.5px solid #93c5fd';
+      roBanner.style.color        = '#1d4ed8';
+      roBanner.innerHTML          = '📅 Modo historial — solo lectura.';
+      roBanner.style.display      = 'block';
+    } else if (_actividadEspecial && !isSaved) {
+      roBanner.style.background   = '#fef9c3';
+      roBanner.style.border       = '1.5px solid #fbbf24';
+      roBanner.style.color        = '#92400e';
+      const noteHtml = _actividadNote ? ` — <em>${_actividadNote}</em>` : '';
+      roBanner.innerHTML          = `📌 Actividad especial activa${noteHtml} — no se registrará asistencia individual. Los estudiantes quedarán como <b>sin registro</b> para esta hora.`;
+      roBanner.style.display      = 'block';
+    } else if (isSaved) {
+      roBanner.style.background   = '#f0fdf4';
+      roBanner.style.border       = '1.5px solid #86efac';
+      roBanner.style.color        = '#15803d';
+      roBanner.innerHTML          = '🔒 Lista guardada — solo lectura. &nbsp;<button class="btn-unlock" onclick="openUnlockModal()">✏️ Corregir lista</button>';
+      roBanner.style.display      = 'block';
+    } else {
+      roBanner.style.display      = 'none';
+    }
+
+    // Botón "Partir de hora anterior" — solo cuando: hora >= 2, sin guardar, sin cambios, hora anterior guardada
+    // Si la hora anterior la tomó el mismo docente → botón para copiar
+    // Si la tomó otro docente → solo aviso informativo sin botón
+    let copyPrevBtn = document.getElementById('btn-copy-prev-hour');
+    if (!copyPrevBtn) {
+      copyPrevBtn = document.createElement('div');
+      copyPrevBtn.id = 'btn-copy-prev-hour';
+      list.parentNode.insertBefore(copyPrevBtn, list);
+    }
+    const prevHour = activeHour - 1;
+    const prevHourSaved = !isSaved && !histMode && !_attDirty
+      && activeHour >= 2
+      && prevHour in (activeCourse?.saved_hours_by || {});
+    if (prevHourSaved) {
+      const ordinals = ['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª','10ª'];
+      const prevTeacherId = (activeCourse?.saved_hours_by || {})[prevHour] || null;
+      const sameTeacher = !prevTeacherId || prevTeacherId === currentUser?.id;
+      copyPrevBtn.style.display = 'block';
+      if (sameTeacher) {
+        copyPrevBtn.innerHTML = `
+          <div style="background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:10px;padding:.6rem 1rem;margin-bottom:.6rem;display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;">
+            <span style="font-size:.8rem;color:#0369a1;">📋 La ${ordinals[prevHour-1]||prevHour+'ª'} hora ya fue registrada por ti</span>
+            <button onclick="copyFromPrevHour(${prevHour})"
+              style="background:#0ea5e9;color:#fff;border:none;border-radius:8px;padding:.35rem .85rem;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap;">
+              Partir de esa lista
+            </button>
+          </div>`;
+      } else {
+        copyPrevBtn.innerHTML = `
+          <div style="background:#fefce8;border:1.5px solid #fde68a;border-radius:10px;padding:.6rem 1rem;margin-bottom:.6rem;">
+            <span style="font-size:.8rem;color:#92400e;">ℹ️ La ${ordinals[prevHour-1]||prevHour+'ª'} hora fue registrada por otro docente</span>
+          </div>`;
+      }
+    } else {
+      copyPrevBtn.style.display = 'none';
+    }
+
+    list.innerHTML = sortStudents(studentsAtt).map((s, i) => {
+      const initials = (s.first_name[0] + s.last_name[0]).toUpperCase();
+      const isSuspended = !!s.suspension;
+      const rowClass = (s.status==='P'?'present-row':s.status==='A'?'absent-row':s.status==='T'?'late-row':s.status==='S'?'':' permit-row') + (isSuspended ? ' suspended' : '');
+      const statusLabel = { P:'✅ Presente', A:'❌ Ausente', T:'⏰ Tarde', PE:'🤒 Con permiso', S:'— Sin registro' }[s.status] || s.status;
+      const suspBadge = isSuspended
+        ? `<span class="suspension-badge">🏠 Suspendido · en casa hasta el ${s.suspension.end_date}</span>` : '';
+      const nameHtml = `<div style="display:flex;flex-direction:column;flex:1;min-width:0;">
+        <span class="student-name-text">${studentName(s)}</span>${suspBadge}</div>`;
+
+      if (isSaved) {
+        return `
+          <div class="student-row ${rowClass}" id="row-${s.id}" style="opacity:.92;">
+            <span class="student-num">${i+1}</span>
+            <div class="student-avatar" style="background:${avatarColors(s.first_name)};">${initials}</div>
+            ${nameHtml}
+            <span style="font-size:.78rem;font-weight:700;padding:.25rem .65rem;border-radius:8px;flex-shrink:0;position:relative;cursor:${s.status==='PE'&&s.excusa?'help':'default'};
+              background:${s.status==='P'?'#dcfce7':s.status==='A'?'#fee2e2':s.status==='T'?'#fff8e1':s.status==='S'?'#f3f4f6':'#ede9fe'};
+              color:${s.status==='P'?'#15803d':s.status==='A'?'#b91c1c':s.status==='T'?'#b45309':s.status==='S'?'#6b7280':'#7c3aed'};"
+              ${s.status==='PE'&&s.excusa ? `
+                onmouseenter="showExcusaTooltip(this,'${encodeURIComponent(JSON.stringify(s.excusa))}')"
+                onmouseleave="hideExcusaTooltip()"
+              ` : ''}
+            >${statusLabel}</span>
+            <button class="obs-btn" onclick="openObsModal('${s.id}','${s.first_name} ${s.last_name}')" title="Observación">📝</button>
+          </div>`;
+      }
+
+      return `
+        <div class="student-row ${rowClass}" id="row-${s.id}">
+          <span class="student-num">${i+1}</span>
+          <div class="student-avatar" style="background:${avatarColors(s.first_name)};">${initials}</div>
+          ${nameHtml}
+          ${isSuspended
+            ? `<span style="font-size:.78rem;font-weight:700;padding:.25rem .65rem;border-radius:8px;background:#fee2e2;color:#b91c1c;flex-shrink:0;margin-left:auto;">❌ Ausente</span>`
+            : `<div class="status-btns">
+            <button class="status-btn btn-p ${s.status==='P'?'active':''}" onclick="setStatus('${s.id}','P')" title="Presente"><span>✅</span></button>
+            <button class="status-btn btn-a ${s.status==='A'?'active':''}" onclick="setStatus('${s.id}','A')" title="Ausente"><span>❌</span></button>
+            <button class="status-btn btn-t ${s.status==='T'?'active':''}" onclick="setStatus('${s.id}','T')" title="Tarde" style="background:${s.status==='T'?'#f59e0b':'var(--light)'};border-color:${s.status==='T'?'#f59e0b':'var(--border)'};""><span>⏰</span></button>
+            <button class="status-btn btn-pe ${s.status==='PE'?'active':''}" onclick="setStatus('${s.id}','PE')" title="Con permiso"
+              ${s.excusa ? `
+                onmouseenter="showExcusaTooltip(this,'${encodeURIComponent(JSON.stringify(s.excusa))}')"
+                onmouseleave="hideExcusaTooltip()"
+                style="position:relative;"
+              ` : ''}
+            ><span>🤒</span></button>
+          </div>`}
+          <button class="obs-btn" onclick="openObsModal('${s.id}','${s.first_name} ${s.last_name}')" title="Observación">📝</button>
+          ${isSuspended ? '' : `<button class="btn-removal" onclick="openRemovalModal('${s.id}','${s.first_name} ${s.last_name}')" title="Retirar de clase">⛔</button>`}
+        </div>`;
+    }).join('');
+    updateCounts();
+  }
+
+  function setStatus(studentId, status) {
+    const s = studentsAtt.find(x => x.id === studentId);
+    if (!s) return;
+    s.status = status;
+    _attDirty = true; // mark unsaved changes
+    const row = document.getElementById('row-' + studentId);
+    row.className = 'student-row ' + (status==='P'?'present-row':status==='A'?'absent-row':status==='T'?'late-row':'permit-row');
+    row.querySelectorAll('.status-btn').forEach(btn => {
+      btn.classList.remove('active');
+      if ((btn.classList.contains('btn-p')  && status==='P')  ||
+          (btn.classList.contains('btn-a')  && status==='A')  ||
+          (btn.classList.contains('btn-t')  && status==='T')  ||
+          (btn.classList.contains('btn-pe') && status==='PE')) {
+        btn.classList.add('active');
+      }
+    });
+    // Update tarde button color
+    const tBtn = row.querySelector('.btn-t');
+    if (tBtn) {
+      tBtn.style.background    = status==='T' ? '#f59e0b' : 'var(--light)';
+      tBtn.style.borderColor   = status==='T' ? '#f59e0b' : 'var(--border)';
+    }
+    updateCounts();
+  }
+
+  function markAll(status) {
+    _actividadEspecial = false;
+    studentsAtt.forEach(s => s.status = status);
+    _attDirty = true;
+    renderStudentList();
+  }
+
+  function toggleActividadEspecial() {
+    _actividadEspecial = !_actividadEspecial;
+    if (!_actividadEspecial) { _actividadNote = ''; }
+    studentsAtt.forEach(s => s.status = _actividadEspecial ? 'S' : 'P');
+    _attDirty = true;
+    const noteArea = document.getElementById('ae-note-area');
+    const noteInput = document.getElementById('ae-note-input');
+    if (noteArea) noteArea.style.display = _actividadEspecial ? 'block' : 'none';
+    if (noteInput && !_actividadEspecial) noteInput.value = '';
+    renderStudentList();
+  }
+
+  function updateCounts() {
+    const p  = studentsAtt.filter(s => s.status==='P').length;
+    const a  = studentsAtt.filter(s => s.status==='A').length;
+    const t  = studentsAtt.filter(s => s.status==='T').length;
+    const pe = studentsAtt.filter(s => s.status==='PE').length;
+    document.getElementById('count-p').textContent  = _actividadEspecial ? '—' : p;
+    document.getElementById('count-a').textContent  = _actividadEspecial ? '—' : a;
+    document.getElementById('count-t').textContent  = _actividadEspecial ? '—' : t;
+    document.getElementById('count-pe').textContent = _actividadEspecial ? '—' : pe;
+    const btnAE = document.getElementById('btn-actividad-especial');
+    if (btnAE) {
+      btnAE.style.background    = _actividadEspecial ? '#fbbf24' : '#fef9c3';
+      btnAE.style.color         = _actividadEspecial ? '#fff'    : '#92400e';
+      btnAE.textContent         = _actividadEspecial ? '📌 Sin lista (activo)' : '📌 Actividad especial';
+    }
+  }
+
+  function isHistoryMode() {
+    const date = document.getElementById('att-date-picker')?.value;
+    return date && date < todayColombia();
+  }
+
+  function onDateChange() {
+    const date = document.getElementById('att-date-picker').value;
+    document.getElementById('att-date-info').textContent =
+      new Date(date + 'T12:00:00').toLocaleDateString('es-CO', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+    _attDirty = false;
+    if (activeCourse) _invalidateCourseCache(activeCourse.id);
+    if (isHistoryMode()) activeHour = 1;
+    buildHourSelector();
+    loadCourseStudents(true);
+  }
+
+  // ---- OBSERVATION ----
+  function openObsModal(studentId, name) {
+    document.getElementById('obs-student-id').value = studentId;
+    document.getElementById('obs-student-name').textContent = name;
+    document.getElementById('obs-text').value = '';
+    document.getElementById('obs-type').value = 'neutral';
+    openModal('modal-obs');
+  }
+
+  async function saveObservation() {
+    const studentId = document.getElementById('obs-student-id').value;
+    const type      = document.getElementById('obs-type').value;
+    const text      = document.getElementById('obs-text').value.trim();
+    if (!text) { showToast('Escribe la observación', 'warning'); return; }
+    const { ok } = await fetchAPI('/raice/observations', {
+      method:'POST',
+      body: JSON.stringify({ student_id: studentId, type, text, course_id: activeCourse?.id })
+    });
+    if (ok) {
+      showToast('Observación guardada', 'success');
+      closeModal('modal-obs');
+    } else {
+      showToast('Error al guardar observación', 'error');
+    }
+  }
+
+  // ---- PRINT OBSERVADOR ----
+  async function printObservador(studentId) {
+    if (!studentId) { showToast('Selecciona un estudiante', 'warning'); return; }
+    showToast('Generando observador…', 'info');
+    const [fichaRes, configRes] = await Promise.all([
+      fetchAPI('/raice/student-ficha?id=' + studentId + '&all_obs=1'),
+      fetchAPI('/raice/config')
+    ]);
+    if (!fichaRes.ok || !fichaRes.data?.student) { showToast('Error al cargar datos del estudiante', 'error'); return; }
+    const d = fichaRes.data;
+    const cfg = configRes.ok ? configRes.data : {};
+    _printObservadorWindow(d, cfg);
+  }
+
+  // ---- CASES ----
+  function populateCaseCourses() {
+    const sel = document.getElementById('case-course');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">— Selecciona un curso —</option>' +
+      [...myCourses].sort((a,b) => a.grade - b.grade || a.number - b.number || (a.subject||'').localeCompare(b.subject||''))
+        .map(c => `<option value="${c.id}">${c.type === 'subgroup' ? (c.name || 'Subgrupo') : `${c.grade}°${c.number}`} — ${c.subject||'Clase'}</option>`).join('');
+  }
+
+  async function loadStudentsForCase() {
+    const courseId = document.getElementById('case-course').value;
+    if (!courseId) return;
+    const { ok, data } = await fetchAPI(`/raice/students?course_id=${courseId}`);
+    const students = sortStudents(data.students || []);
+    const sel = document.getElementById('case-student');
+    const nameFor = s => getSortPref() === 'first_name'
+      ? `${s.first_name} ${s.last_name}`
+      : `${s.last_name}, ${s.first_name}`;
+    sel.innerHTML = '<option value="">— Selecciona el estudiante —</option>' +
+      students.map(s => `<option value="${s.id}">${nameFor(s)}</option>`).join('');
+  }
+
+  let _faltasCatalogo = {}; // { 'academica': [...], 'convivencia': [...], 'bullying': [...] }
+
+  function selectType(type, el) {
+    selectedType = type;
+    document.getElementById('case-type').value = type;
+    document.querySelectorAll('.type-opt').forEach(o => o.className = 'type-opt');
+    el.className = `type-opt selected-${type}`;
+    // Show falta selector for ALL types with dynamic colors per type
+    const panel = document.getElementById('falta-selector-panel');
+    panel.style.display = 'block';
+    const panelColors = {
+      1:{ bg:'#fffbeb', border:'#f59e0b', text:'#92400e', prev:'#fef3c7' },
+      2:{ bg:'#faf5ff', border:'#a855f7', text:'#6b21a8', prev:'#ede9fe' },
+      3:{ bg:'#fff1f2', border:'#ef4444', text:'#991b1b', prev:'#fee2e2' },
+    };
+    const pc = panelColors[type] || panelColors[1];
+    panel.style.background  = pc.bg;
+    panel.style.borderColor = pc.border;
+    const ptitle = document.getElementById('falta-panel-title');
+    if (ptitle) ptitle.style.color = pc.text;
+    const fcat = document.getElementById('falta-categoria');
+    if (fcat) fcat.style.borderColor = pc.border;
+    const fnum = document.getElementById('falta-numeral');
+    if (fnum) fnum.style.borderColor = pc.border;
+    const fprev = document.getElementById('falta-preview');
+    if (fprev) { fprev.style.background = pc.prev; fprev.style.color = pc.text; }
+    // Reset category/numeral when type changes
+    if (fcat) fcat.value = '';
+    if (fnum) fnum.innerHTML = '<option value="">— Selecciona primero la categoría —</option>';
+    clearFaltaSelection();
+    loadFaltasCatalogo(type);
+    // Hide action chips for Tipo I (auto-set), show for II and III
+    const actionsSection = document.getElementById('actions-chips')?.closest('.form-group');
+    if (actionsSection) actionsSection.style.display = type === 1 ? 'none' : '';
+    // Update submit button text
+    const submitBtn = document.getElementById('btn-submit-case');
+    if (submitBtn) {
+      submitBtn.textContent = type === 1
+        ? '📋 Iniciar seguimiento'
+        : '📤 Reportar caso al coordinador';
+    }
+  }
+
+  async function loadFaltasCatalogo(tipo) {
+    if (_faltasCatalogo[tipo]) return; // already cached
+    const { ok, data } = await fetchAPI(`/raice/faltas-catalogo?tipo=${tipo}`);
+    if (!ok) return;
+    // Deduplicate by numeral (safety net for duplicate DB rows)
+    const seen = new Set();
+    const unique = (data.faltas || []).filter(f => {
+      const key = `${f.tipo}-${f.categoria}-${f.numeral}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    _faltasCatalogo[tipo] = unique;
+  }
+
+  async function loadFaltasByCategoria() {
+    const cat = document.getElementById('falta-categoria').value;
+    const sel = document.getElementById('falta-numeral');
+    clearFaltaSelection();
+    if (!cat) { sel.innerHTML = '<option value="">— Selecciona primero la categoría —</option>'; return; }
+    const tipo = selectedType || 1;
+    // Ensure catalog is loaded before rendering
+    if (!_faltasCatalogo[tipo] || !_faltasCatalogo[tipo].length) {
+      await loadFaltasCatalogo(tipo);
+    }
+    const lista = (_faltasCatalogo[tipo] || []).filter(f => f.categoria === cat);
+    sel.innerHTML = '<option value="">— Selecciona la falta —</option>' +
+      lista.map(f => `<option value="${f.id}" data-num="${f.numeral}" data-desc="${f.descripcion.replace(/"/g,'&quot;')}">${f.numeral} — ${f.descripcion}</option>`).join('');
+  }
+
+  function onFaltaSelected() {
+    const sel = document.getElementById('falta-numeral');
+    const opt = sel.options[sel.selectedIndex];
+    if (!opt || !opt.value) { clearFaltaSelection(); return; }
+    document.getElementById('falta-id-selected').value          = opt.value;
+    document.getElementById('falta-numeral-selected').value     = opt.dataset.num;
+    document.getElementById('falta-descripcion-selected').value = opt.dataset.desc;
+    const preview = document.getElementById('falta-preview');
+    preview.innerHTML = `<strong>${opt.dataset.num}</strong> — ${opt.dataset.desc}`;
+    preview.style.display = 'block';
+  }
+
+  function clearFaltaSelection() {
+    document.getElementById('falta-id-selected').value = '';
+    document.getElementById('falta-numeral-selected').value = '';
+    document.getElementById('falta-descripcion-selected').value = '';
+    const preview = document.getElementById('falta-preview');
+    if (preview) preview.style.display = 'none';
+  }
+
+  function toggleAction(btn, action) {
+    if (selectedActions.has(action)) {
+      selectedActions.delete(action);
+      btn.classList.remove('selected');
+    } else {
+      selectedActions.add(action);
+      btn.classList.add('selected');
+    }
+  }
+
+  async function submitCase() {
+    const courseId   = document.getElementById('case-course').value;
+    const studentId  = document.getElementById('case-student').value;
+    const type       = parseInt(document.getElementById('case-type').value || '0');
+    const desc       = document.getElementById('case-description').value.trim();
+    const notes      = document.getElementById('case-notes').value.trim();
+
+    if (!courseId)  { showToast('Selecciona el curso', 'warning'); return; }
+    if (!studentId) { showToast('Selecciona el estudiante', 'warning'); return; }
+    if (!type)      { showToast('Selecciona el tipo de situación', 'warning'); return; }
+    if (!desc)      { showToast('Describe la situación', 'warning'); return; }
+
+    // Tipo I requiere selección de falta del catálogo
+    const faltaId   = document.getElementById('falta-id-selected')?.value || null;
+    const faltaNum  = document.getElementById('falta-numeral-selected')?.value || null;
+    const faltaDesc = document.getElementById('falta-descripcion-selected')?.value || null;
+    const faltaCat  = document.getElementById('falta-categoria')?.value || null;
+    if (!faltaId) {
+      showToast('Selecciona la falta específica del manual', 'warning'); return;
+    }
+
+    const payload = {
+      course_id: courseId, student_id: studentId,
+      type, description: desc,
+      actions_taken: type === 1 ? 'Llamado de atención verbal' : [...selectedActions].join(', '),
+      notes,
+      falta_id: faltaId, falta_numeral: faltaNum,
+      falta_descripcion: faltaDesc, falta_categoria: faltaCat,
+    };
+
+    const { ok, data } = await fetchAPI('/raice/cases', { method:'POST', body: JSON.stringify(payload) });
+
+    if (ok) {
+      if (type === 1) {
+        // Automatically register escalon 1 (verbal) — check for errors
+        const { ok: okE, data: dataE } = await fetchAPI('/raice/tipo1-escalones', {
+          method: 'POST',
+          body: JSON.stringify({ case_id: data.case.id, descripcion: desc })
+        });
+        if (!okE) {
+          showToast('⚠️ Caso creado pero el llamado verbal no se registró. Añádelo desde el historial.', 'warning');
+        } else {
+          showToast('✅ Caso Tipo I iniciado — llamado verbal registrado', 'success');
+        }
+        clearCaseForm();
+        showSection('historial', document.querySelector('[onclick="showSection(\'historial\',this)"]'));
+      } else {
+        showToast('✅ Caso reportado al coordinador', 'success');
+        clearCaseForm();
+      }
+    } else {
+      showToast(data.error || 'Error al reportar el caso', 'error');
+    }
+  }
+
+  function clearCaseForm() {
+    document.getElementById('case-course').value = '';
+    document.getElementById('case-student').innerHTML = '<option value="">— Selecciona primero el curso —</option>';
+    document.getElementById('case-type').value = '';
+    document.getElementById('case-description').value = '';
+    document.getElementById('case-notes').value = '';
+    selectedType = null;
+    selectedActions.clear();
+    document.querySelectorAll('.type-opt').forEach(o => o.className = 'type-opt');
+    document.querySelectorAll('.action-chip').forEach(c => c.classList.remove('selected'));
+    const actSec = document.getElementById('actions-chips')?.closest('.form-group');
+    if (actSec) actSec.style.display = '';
+    // Reset submit button text
+    const submitBtn = document.getElementById('btn-submit-case');
+    if (submitBtn) submitBtn.textContent = '📤 Enviar reporte';
+    // Reset falta selector
+    const panel = document.getElementById('falta-selector-panel');
+    if (panel) panel.style.display = 'none';
+    const catSel = document.getElementById('falta-categoria');
+    if (catSel) catSel.value = '';
+    const numSel = document.getElementById('falta-numeral');
+    if (numSel) numSel.innerHTML = '<option value="">— Selecciona primero la categoría —</option>';
+    clearFaltaSelection();
+  }
+
+  // ---- HISTORY ----
+  async function loadHistory() {
+    const { ok, data } = await fetchAPI('/raice/my-cases');
+    myHistory = data.cases || [];
+    renderHistory(myHistory);
+  }
+
+  function filterHistory() {
+    const f = document.getElementById('hist-filter').value;
+    let list = myHistory;
+    if (f === '1' || f === '2' || f === '3') list = list.filter(c => String(c.type) === f);
+    else if (f === 'open')   list = list.filter(c => c.status === 'open');
+    else if (f === 'closed') list = list.filter(c => c.status === 'closed');
+    renderHistory(list);
+  }
+
+  function renderHistory(list) {
+    const el = document.getElementById('history-list');
+    if (!list.length) {
+      el.innerHTML = `<div style="text-align:center;padding:2.5rem;color:var(--gray);">
+        <div style="font-size:2.5rem;margin-bottom:.6rem;">📋</div>
+        Sin casos registrados.
+      </div>`;
+      return;
+    }
+    const typeIcos  = { 1:'🟡', 2:'🟣', 3:'🔴' };
+    const typeClass = { 1:'t1', 2:'t2', 3:'t3' };
+    const statusPills = {
+      open:          '<span class="pill pill-yellow" style="margin-left:auto;flex-shrink:0;align-self:flex-start;">En seguimiento</span>',
+      tracking:      '<span class="pill pill-yellow" style="margin-left:auto;flex-shrink:0;align-self:flex-start;">En seguimiento</span>',
+      closed:        '<span class="pill pill-green"  style="margin-left:auto;flex-shrink:0;align-self:flex-start;">Cerrado</span>',
+      escalado:      '<span class="pill pill-red"    style="margin-left:auto;flex-shrink:0;align-self:flex-start;">Escalado → Tipo II</span>',
+    };
+    el.innerHTML = list.map(c => {
+      const faltaTag = c.falta_numeral
+        ? `<span style="background:#fef3c7;color:#92400e;font-size:.72rem;font-weight:700;padding:.15rem .5rem;border-radius:6px;">Falta ${c.falta_numeral}</span>`
+        : '';
+      const sName = (c.student_name||'').replace(/'/g,"\'");
+      const tipo1Btns = c.type === 1
+        ? (c.status === 'escalado' || c.status === 'closed')
+          ? `<div style="display:flex;gap:.4rem;margin-top:.6rem;flex-wrap:wrap;">
+               <button class="btn btn-ghost btn-sm" onclick="openTipo1Historial('${c.id}','${sName}')">🗂️ Ver proceso completo</button>
+             </div>`
+          : `<div style="display:flex;gap:.4rem;margin-top:.6rem;flex-wrap:wrap;">
+               <button class="btn btn-ghost btn-sm" onclick="openTipo1Historial('${c.id}','${sName}')">🗂️ Ver proceso</button>
+               <button class="btn btn-teal btn-sm" onclick="openTipo1EscalonModal('${c.id}','${sName}')">➕ Registrar escalón</button>
+               <button class="btn btn-sm" onclick="openCierreCasoModal('${c.id}','${sName}')"
+                 style="background:#f0fdf4;border:1.5px solid #86efac;color:#15803d;">✅ Cerrar caso</button>
+             </div>`
+        : '';
+      return `
+      <div class="history-item ${typeClass[c.type]||''}">
+        <div class="history-ico">${typeIcos[c.type]||'⚠️'}</div>
+        <div class="history-body" style="flex:1;">
+          <div class="history-title" style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
+            ${c.student_name} — ${c.grade}°${c.course} ${faltaTag}
+          </div>
+          <div class="history-desc">${(c.description||'').substring(0,120)}${(c.description||'').length>120?'…':''}</div>
+          <div class="history-meta">
+            <span>📅 ${new Date(c.created_at).toLocaleDateString('es-CO')}</span>
+            <span>📍 Tipo ${c.type}</span>
+            ${c.actions_taken ? `<span>🔧 ${c.actions_taken}</span>` : ''}
+          </div>
+          ${tipo1Btns}
+        </div>
+        ${statusPills[c.status] || ''}
+      </div>`;
+    }).join('');
+  }
+
+
+  // ──────────────────────────────────────────────
+  // TIPO I — ESCALONES
+  // ──────────────────────────────────────────────
+  let _tipo1CaseId   = null;
+  let _tipo1CaseName = null;
+
+  const _ESCALON_CONFIG = {
+    1: { label:'Escalón 1 — Llamado de atención verbal',   color:'#fef3c7', border:'#f59e0b', text:'#92400e',
+         descPlaceholder:'Describe el comportamiento observado y el llamado verbal realizado…',
+         showDescargos:false, showCompromiso:false, showGarante:false },
+    2: { label:'Escalón 2 — 1er llamado de atención escrito', color:'#fff7ed', border:'#f97316', text:'#9a3412',
+         descPlaceholder:'Describe el incidente que motiva el llamado escrito…',
+         showDescargos:true, showCompromiso:true, showGarante:false },
+    3: { label:'Escalón 3 — 2do llamado de atención escrito', color:'#fdf4ff', border:'#a855f7', text:'#6b21a8',
+         descPlaceholder:'Describe el nuevo incidente. El mediador de convivencia debe estar presente…',
+         showDescargos:true, showCompromiso:true, showGarante:true, garanteLabel:'Mediador de convivencia (nombre libre)' },
+    4: { label:'Escalón 4 — Citación al acudiente',         color:'#fef2f2', border:'#ef4444', text:'#991b1b',
+         descPlaceholder:'Describe la situación y los acuerdos de la citación con el acudiente…',
+         showDescargos:true, showCompromiso:true, showGarante:true, garanteLabel:'Acudiente / Padre de familia' },
+  };
+
+  async function openTipo1EscalonModal(caseId, studentName) {
+    _tipo1CaseId   = caseId;
+    _tipo1CaseName = studentName;
+
+    // Determine next escalon number
+    const { ok, data } = await fetchAPI(`/raice/tipo1-escalones?case_id=${caseId}`);
+    if (!ok) { showToast('Error al cargar escalones', 'error'); return; }
+    const nextNum = (data.escalones || []).length + 1;
+
+    if (nextNum > 4) {
+      showToast('Este caso ya agotó los 4 escalones y debe escalar a Tipo II', 'warning'); return;
+    }
+
+    const cfg = _ESCALON_CONFIG[nextNum];
+    document.getElementById('tipo1-escalon-title').textContent = `${cfg.label}`;
+    const badge = document.getElementById('tipo1-escalon-badge');
+    badge.style.background = cfg.color;
+    badge.style.border     = `1.5px solid ${cfg.border}`;
+    badge.style.color      = cfg.text;
+    badge.innerHTML        = `👤 <strong>${studentName}</strong> &nbsp;·&nbsp; ${cfg.label}`;
+
+    document.getElementById('tipo1-desc').placeholder = cfg.descPlaceholder;
+    document.getElementById('tipo1-desc').value        = '';
+    document.getElementById('tipo1-descargos').value   = '';
+    document.getElementById('tipo1-compromiso').value  = '';
+    document.getElementById('tipo1-compromiso-fecha').value = '';
+    document.getElementById('tipo1-garante').value     = '';
+
+    document.getElementById('tipo1-descargos-group').style.display  = cfg.showDescargos  ? 'block' : 'none';
+    document.getElementById('tipo1-compromiso-group').style.display = cfg.showCompromiso ? 'block' : 'none';
+    document.getElementById('tipo1-garante-group').style.display    = cfg.showGarante    ? 'block' : 'none';
+    if (cfg.showGarante) {
+      document.getElementById('tipo1-garante-label').textContent = cfg.garanteLabel || 'Garante';
+      document.getElementById('tipo1-garante').placeholder       = cfg.garanteLabel || 'Nombre del garante…';
+    }
+
+    // Warn if escalon 4 will trigger escalation
+    const btn = document.getElementById('tipo1-escalon-btn');
+    if (nextNum === 4) {
+      btn.textContent = '⚠️ Registrar y escalar a Tipo II';
+      btn.style.background = '#ef4444';
+    } else {
+      btn.textContent = '💾 Registrar escalón';
+      btn.style.background = '';
+    }
+
+    openModal('modal-tipo1-escalon');
+  }
+
+  async function saveTipo1Escalon() {
+    const desc        = document.getElementById('tipo1-desc').value.trim();
+    const descargos   = document.getElementById('tipo1-descargos').value.trim();
+    const compromiso  = document.getElementById('tipo1-compromiso').value.trim();
+    const comprFecha  = document.getElementById('tipo1-compromiso-fecha').value;
+    const garante     = document.getElementById('tipo1-garante').value.trim();
+
+    if (!desc) { showToast('Describe lo que ocurrió en este escalón', 'warning'); return; }
+
+    const { ok, data } = await fetchAPI('/raice/tipo1-escalones', {
+      method: 'POST',
+      body: JSON.stringify({
+        case_id:          _tipo1CaseId,
+        descripcion:      desc,
+        descargos:        descargos || null,
+        compromiso:       compromiso || null,
+        compromiso_fecha: comprFecha || null,
+        garante:          garante || null,
+      })
+    });
+
+    if (!ok) { showToast(data?.error || 'Error al registrar escalón', 'error'); return; }
+
+    closeModal('modal-tipo1-escalon');
+    if (data.escalado) {
+      showToast('⚠️ Caso escalado a Tipo II — ahora está en manos del coordinador', 'warning');
+    } else {
+      showToast('✅ Escalón registrado correctamente', 'success');
+    }
+    loadHistory();
+  }
+
+  async function openTipo1Historial(caseId, studentName) {
+    document.getElementById('tipo1-hist-title').textContent = `📋 Proceso Tipo I — ${studentName}`;
+    document.getElementById('tipo1-hist-body').innerHTML    = '<div style="text-align:center;padding:2rem;color:var(--gray);">Cargando…</div>';
+    document.getElementById('tipo1-hist-footer').innerHTML  = '<button class="btn btn-ghost" onclick="closeModal(&apos;modal-tipo1-historial&apos;)">Cerrar</button>';
+    openModal('modal-tipo1-historial');
+    // Find case data to show falta info
+    const caseData = myHistory.find(c => c.id === caseId);
+
+    const { ok, data } = await fetchAPI(`/raice/tipo1-escalones?case_id=${caseId}`);
+    if (!ok) {
+      document.getElementById('tipo1-hist-body').innerHTML = '<div style="color:var(--rose);padding:1rem;">Error al cargar el proceso.</div>';
+      return;
+    }
+
+    const escalones = data.escalones || [];
+    const tipoLabels = {
+      verbal:               '💬 Llamado de atención verbal',
+      escrito:              '✍️ 1er llamado de atención escrito',
+      escrito_con_mediador: '✍️ 2do llamado escrito (con mediador)',
+      citacion_acudiente:   '👨‍👩‍👧 Citación al acudiente',
+      cierre:               '✅ Caso cerrado — resuelto',
+    };
+    const tipoColors = {
+      verbal:'#fef3c7', escrito:'#fff7ed', escrito_con_mediador:'#fdf4ff',
+      citacion_acudiente:'#fef2f2', cierre:'#f0fdf4'
+    };
+    const tipoBorders = {
+      verbal:'#f59e0b', escrito:'#f97316', escrito_con_mediador:'#a855f7',
+      citacion_acudiente:'#ef4444', cierre:'#86efac'
+    };
+
+    if (!escalones.length) {
+      document.getElementById('tipo1-hist-body').innerHTML = '<div style="text-align:center;padding:2rem;color:var(--gray);">Sin escalones registrados aún.</div>';
+      return;
+    }
+
+    // Falta info banner
+    const _catLabels = {'academica':'📚 Conductas académicas','convivencia':'🏫 Convivencia escolar','bullying':'⚠️ Acoso escolar / Bullying y Ciberbullying'};
+    const _catLabel  = _catLabels[caseData?.falta_categoria] || '';
+    const faltaBanner = (caseData?.falta_numeral && caseData?.falta_descripcion) ? `
+      <div style="background:#fef3c7;border:1.5px solid #f59e0b;border-radius:10px;padding:.65rem 1rem;margin-bottom:1rem;font-size:.82rem;color:#92400e;">
+        ${_catLabel ? `<div style="font-weight:700;margin-bottom:.2rem;">${_catLabel}</div>` : ''}
+        <strong>Falta ${caseData.falta_numeral}:</strong> ${caseData.falta_descripcion}
+      </div>` : '';
+
+    document.getElementById('tipo1-hist-body').innerHTML = faltaBanner + `
+      <div style="position:relative;padding-left:1.5rem;">
+        <div style="position:absolute;left:.6rem;top:0;bottom:0;width:2px;background:var(--border);border-radius:2px;"></div>
+        ${escalones.map((e, i) => `
+          <div style="position:relative;margin-bottom:1rem;">
+            <div style="position:absolute;left:-1.05rem;top:.45rem;width:11px;height:11px;border-radius:50%;
+              background:${tipoBorders[e.tipo_llamado]||'var(--gray)'};border:2px solid var(--white);"></div>
+            <div style="background:${tipoColors[e.tipo_llamado]||'var(--light)'};
+              border:1.5px solid ${tipoBorders[e.tipo_llamado]||'var(--border)'};
+              border-radius:10px;padding:.75rem 1rem;">
+              <div style="font-weight:700;font-size:.85rem;margin-bottom:.35rem;">
+                ${tipoLabels[e.tipo_llamado]||e.tipo_llamado}
+              </div>
+              <div style="font-size:.8rem;color:var(--navy);margin-bottom:.3rem;">${e.descripcion}</div>
+              ${e.descargos ? `<div style="font-size:.78rem;color:var(--gray);margin-top:.3rem;"><strong>Descargos:</strong> ${e.descargos}</div>` : ''}
+              ${e.compromiso ? `<div style="font-size:.78rem;color:var(--navy);margin-top:.3rem;background:var(--white);border-radius:7px;padding:.4rem .6rem;">
+                <strong>Compromiso:</strong> ${e.compromiso}
+                ${e.compromiso_fecha ? ` <span style="color:var(--gray);">· Fecha límite: ${e.compromiso_fecha}</span>` : ''}
+              </div>` : ''}
+              ${e.garante ? `<div style="font-size:.78rem;color:var(--gray);margin-top:.25rem;"><strong>Garante:</strong> ${e.garante}</div>` : ''}
+              <div style="font-size:.72rem;color:var(--gray);margin-top:.35rem;">📅 ${new Date(e.created_at).toLocaleDateString('es-CO')}</div>
+            </div>
+          </div>`).join('')}
+      </div>`;
+  }
+
+
+  // ── Cierre de caso Tipo I ──
+  let _cierreCaseId = null;
+
+  function openCierreCasoModal(caseId, studentName) {
+    _cierreCaseId = caseId;
+    document.getElementById('cierre-student-badge').textContent = `Estudiante: ${studentName}`;
+    document.getElementById('cierre-nota').value = '';
+    openModal('modal-cierre-caso');
+  }
+
+  async function saveCierreCaso() {
+    const nota = document.getElementById('cierre-nota').value.trim();
+    if (!nota) { showToast('Escribe una observación de cierre', 'warning'); return; }
+
+    // Disable button to prevent double-submit
+    const btn = document.querySelector('#modal-cierre-caso .btn-teal');
+    if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
+
+    // 1. Register the cierre escalon
+    const { ok: okE, data: dataE } = await fetchAPI('/raice/tipo1-escalones', {
+      method: 'POST',
+      body: JSON.stringify({
+        case_id:     _cierreCaseId,
+        descripcion: nota,
+        _cierre:     true,
+      })
+    });
+    if (!okE) {
+      if (btn) { btn.disabled = false; btn.textContent = '✅ Confirmar cierre'; }
+      showToast(dataE?.error || 'Error al registrar el cierre', 'error');
+      return;
+    }
+
+    // 2. Update case status to closed
+    const { ok: okC } = await fetchAPI('/raice/cases/status', {
+      method: 'POST',
+      body: JSON.stringify({ case_id: _cierreCaseId, status: 'closed' })
+    });
+    if (!okC) {
+      if (btn) { btn.disabled = false; btn.textContent = '✅ Confirmar cierre'; }
+      showToast('Error al cerrar el caso', 'error');
+      return;
+    }
+
+    closeModal('modal-cierre-caso');
+    showToast('✅ Caso cerrado como resuelto', 'success');
+    loadHistory(); // reload so card updates immediately
+  }
+
+  // ---- PROFILE ----
+  async function changePassword() {
+    const current = document.getElementById('pwd-current').value;
+    const newPwd  = document.getElementById('pwd-new').value;
+    const confirm = document.getElementById('pwd-confirm').value;
+    if (!current || !newPwd)       { showToast('Completa todos los campos', 'warning'); return; }
+    if (newPwd !== confirm)        { showToast('Las contraseñas no coinciden', 'error'); return; }
+    if (newPwd.length < 6)         { showToast('La contraseña debe tener al menos 6 caracteres', 'warning'); return; }
+    const { ok } = await fetchAPI('/raice/change-password', {
+      method:'POST', body: JSON.stringify({ current_password:current, new_password:newPwd })
+    });
+    if (ok) {
+      showToast('Contraseña actualizada', 'success');
+      document.getElementById('pwd-current').value = '';
+      document.getElementById('pwd-new').value = '';
+      document.getElementById('pwd-confirm').value = '';
+    } else {
+      showToast('Contraseña actual incorrecta', 'error');
+    }
+  }
+
+  function printAttendance() {
+    if (!activeCourse || !studentsAtt.length) { showToast('No hay lista para imprimir', 'warning'); return; }
+    const date = document.getElementById('att-date-picker').value;
+    const w = window.open('', '_blank');
+    const rows = studentsAtt.map((s,i) => `
+      <tr>
+        <td style="padding:.4rem .6rem;border:1px solid #e2e8f0;">${i+1}</td>
+        <td style="padding:.4rem .6rem;border:1px solid #e2e8f0;">${studentName(s)}</td>
+        <td style="padding:.4rem .6rem;border:1px solid #e2e8f0;text-align:center;">${s.status==='P'?'✅ Presente':s.status==='A'?'❌ Ausente':'🤒 Permiso'}</td>
+      </tr>
+    `).join('');
+    w.document.write(`<!DOCTYPE html><html><head><title>Asistencia — ${activeCourse.grade}°${activeCourse.number}</title>
+    <style>@page{size:A4;margin:15mm}body{font-family:Arial,sans-serif;font-size:10pt}h2{text-align:center}table{width:100%;border-collapse:collapse}th{background:#f1f5f9;padding:.4rem .6rem;border:1px solid #e2e8f0;font-size:9pt}tr:nth-child(even){background:#f8fafc}</style>
+    </head><body>
+    <h2>Lista de Asistencia</h2>
+    <p style="text-align:center;">Curso: <strong>${activeCourse.grade}°${activeCourse.number}</strong> · Fecha: <strong>${date}</strong> · Docente: <strong>${document.getElementById('teacher-name').textContent}</strong></p>
+    <table><thead><tr><th>#</th><th>Estudiante</th><th>Estado</th></tr></thead><tbody>${rows}</tbody></table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</body></html>`);
+    w.document.close();
+    setTimeout(() => w.print(), 400);
+  }
+
+  // ---- DATE ----
+  document.getElementById('topbar-date').textContent =
+    new Date().toLocaleDateString('es-CO', { weekday:'long', day:'numeric', month:'long' });
+
+  // =====================================================
+  // MI HORARIO SEMANAL
+  // =====================================================
+  async function openMySchedule() {
+    const modal = document.getElementById('modal-my-schedule');
+    const body  = document.getElementById('my-schedule-body');
+    modal.style.display = 'flex';
+    body.innerHTML = '<div style="text-align:center;padding:2rem;color:#64748b;">Cargando…</div>';
+
+    const { ok, data } = await fetchAPI('/raice/teacher-schedule');
+    if (!ok) { body.innerHTML = '<div style="color:#f43f5e;padding:1rem;">Error al cargar horario</div>'; return; }
+
+    const schedules   = data.schedules   || [];
+    const bellSched   = data.bell_schedule || [];
+    const bellMap     = {};
+    bellSched.forEach(b => bellMap[b.class_hour] = b);
+
+    const DAYS = ['','Lunes','Martes','Miércoles','Jueves','Viernes'];
+    const jsDay  = new Date().getDay();
+    const today  = jsDay === 0 ? 7 : jsDay;
+
+    if (!schedules.length) {
+      body.innerHTML = '<div style="text-align:center;padding:3rem;color:#64748b;"><div style="font-size:2rem;margin-bottom:.75rem;">📭</div>Sin horario configurado aún.<br>Pídele al coordinador que configure tu horario.</div>';
+      return;
+    }
+
+    // Build slot map: day → hour → slot
+    const slotMap = {};
+    schedules.forEach(s => {
+      if (!slotMap[s.day_of_week]) slotMap[s.day_of_week] = {};
+      slotMap[s.day_of_week][s.class_hour] = s;
+    });
+
+    const allHours = [...new Set(schedules.map(s => s.class_hour))].sort((a,b)=>a-b);
+
+    // Color by course
+    const courseColors = ['#dbeafe','#dcfce7','#fef9c3','#f5f3ff','#fff7ed','#fce7f3'];
+    const courseBorder = ['#93c5fd','#86efac','#fde68a','#c4b5fd','#fed7aa','#f9a8d4'];
+    const colorMap = {};
+    let colorIdx = 0;
+    schedules.forEach(s => {
+      const key = `${s.course_id}_${s.subject}`;
+      if (!colorMap[key]) { colorMap[key] = { bg: courseColors[colorIdx % courseColors.length], border: courseBorder[colorIdx % courseBorder.length] }; colorIdx++; }
+    });
+
+    let html = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <table style="border-collapse:collapse;font-size:.82rem;width:max-content;min-width:100%;">
+        <thead><tr>
+          <th style="padding:.5rem;background:#f8fafc;border:1px solid #e2e8f0;width:65px;min-width:65px;font-size:.75rem;color:#64748b;position:sticky;left:0;z-index:3;box-shadow:2px 0 4px rgba(0,0,0,.06);">Hora</th>
+          ${[1,2,3,4,5].map(d => `<th style="padding:.5rem;min-width:110px;background:${d===today?'#f0fdf4':'#f8fafc'};border:1px solid #e2e8f0;text-align:center;font-weight:${d===today?'700':'600'};color:${d===today?'#0d9488':'#1a2744'};">
+            ${DAYS[d]}${d===today?' ← hoy':''}
+          </th>`).join('')}
+        </tr></thead>
+        <tbody>`;
+
+    allHours.forEach(h => {
+      const bell = bellMap[h];
+      const timeLabel = bell ? `<div style="font-size:.65rem;color:#94a3b8;">${bell.start_time.substring(0,5)}–${bell.end_time.substring(0,5)}</div>` : '';
+      html += `<tr>
+        <td style="padding:.4rem;border:1px solid #e2e8f0;text-align:center;background:#f8fafc;position:sticky;left:0;z-index:2;box-shadow:2px 0 4px rgba(0,0,0,.06);">
+          <div style="font-weight:700;color:#1a2744;">${h}ª</div>${timeLabel}
+        </td>`;
+      for (let d = 1; d <= 5; d++) {
+        const slot = slotMap[d]?.[h];
+        const isToday = d === today;
+        if (slot) {
+          const key   = `${slot.course_id}_${slot.subject}`;
+          const col   = colorMap[key] || { bg:'#f1f5f9', border:'#cbd5e1' };
+          const time  = slot.start_time ? `<div style="font-size:.65rem;color:#6b7280;margin-top:.1rem;">${slot.start_time.substring(0,5)}–${(slot.end_time||'').substring(0,5)}</div>` : '';
+          const isSubg = slot.course_type === 'subgroup';
+          const mainLbl = isSubg ? (slot.course_name || 'Subgrupo') : (slot.subject || '—');
+          const subLbl  = isSubg
+            ? (slot.grade ? `${slot.grade}° · ${slot.subject || 'Clase'}` : (slot.subject || 'Clase'))
+            : `${slot.grade}°${slot.section || slot.course_num}`;
+          html += `<td style="padding:.3rem;border:1px solid #e2e8f0;background:${isToday?'#f0fdf4':'white'};">
+            <div style="background:${col.bg};border:1.5px solid ${col.border};border-radius:8px;padding:.3rem .5rem;">
+              <div style="font-weight:700;font-size:.78rem;color:#1a2744;">${mainLbl}</div>
+              <div style="font-size:.7rem;color:#64748b;">${subLbl}</div>
+              ${time}
+            </div>
+          </td>`;
+        } else {
+          html += `<td style="border:1px solid #e2e8f0;background:${isToday?'#f0fdf4':'#fafafa'};"></td>`;
+        }
+      }
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+
+    // Summary: hours per week
+    html += `<div style="margin-top:1rem;display:flex;flex-wrap:wrap;gap:.5rem;">`;
+    const subjectMap = {};
+    schedules.forEach(s => {
+      const isSubg = s.course_type === 'subgroup';
+      const courseLbl = isSubg ? (s.course_name || 'Subgrupo') : `${s.grade}°${s.section||s.course_num}`;
+      const subjLbl   = isSubg ? (s.subject || 'Clase') : (s.subject || '—');
+      const k = `${subjLbl}|${courseLbl}`;
+      subjectMap[k] = (subjectMap[k]||0) + 1;
+    });
+    Object.entries(subjectMap).forEach(([key, count]) => {
+      const [subj, course] = key.split('|');
+      html += `<div style="background:#f1f5f9;border-radius:20px;padding:.2rem .75rem;font-size:.75rem;">
+        <strong>${subj}</strong> · ${course} · ${count}h/sem
+      </div>`;
+    });
+    html += `</div>`;
+
+    body.innerHTML = html;
+  }
+
+  // =====================================================
+  // MI HORARIO SEMANAL
+  // =====================================================
+  const DAYS_LABEL = ['','Lunes','Martes','Miércoles','Jueves','Viernes'];
+  const SCHED_DAY_COLORS = ['','#dbeafe','#dcfce7','#fef9c3','#f5f3ff','#fff7ed'];
+  const SCHED_DAY_BORDER = ['','#93c5fd','#86efac','#fde68a','#c4b5fd','#fed7aa'];
+
+  async function loadMySchedule() {
+    const body       = document.getElementById('horario-body');
+    const todayBody  = document.getElementById('horario-today-body');
+    const todayLabel = document.getElementById('horario-today-label');
+    body.innerHTML   = '<div style="text-align:center;padding:2rem;color:var(--gray);">Cargando…</div>';
+
+    const { ok, data } = await fetchAPI('/raice/my-schedule');
+    if (!ok || !data.schedules?.length) {
+      body.innerHTML = `<div style="text-align:center;padding:2.5rem;color:var(--gray);">
+        <div style="font-size:2.5rem;margin-bottom:.75rem;">🕐</div>
+        No tienes horario configurado aún.<br>
+        <span style="font-size:.82rem;">Pide al superadmin que lo configure en la sección Cursos.</span>
+      </div>`;
+      if (todayBody) todayBody.innerHTML = '';
+      return;
+    }
+
+    const schedules = data.schedules || [];
+    const bell      = data.bell_schedule || [];
+    const bellMap   = {};
+    bell.forEach(b => bellMap[b.class_hour] = b);
+
+    const jsDay = new Date().getDay();
+    const today = jsDay === 0 ? 7 : jsDay;
+    if (todayLabel) todayLabel.textContent = `Hoy es ${DAYS_LABEL[today] || '—'}`;
+
+    const slotMap = {};
+    schedules.forEach(s => { slotMap[`${s.day_of_week}_${s.class_hour}`] = s; });
+    const hours = [...new Set(schedules.map(s => s.class_hour))].sort((a,b) => a-b);
+
+    // ── WEEKLY GRID ──
+    let html = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <table style="border-collapse:collapse;font-size:.78rem;width:100%;table-layout:fixed;">
+        <colgroup>
+          <col style="width:58px;">
+          ${[1,2,3,4,5].map(()=>`<col style="width:calc((100% - 58px)/5);">`).join('')}
+        </colgroup>
+        <thead><tr>
+          <th style="padding:.4rem .25rem;background:var(--bg);border:1px solid var(--border);text-align:center;color:var(--gray);font-size:.7rem;position:sticky;left:0;z-index:3;box-shadow:2px 0 4px rgba(0,0,0,.06);">Hora</th>
+          ${[1,2,3,4,5].map(d => `
+            <th style="padding:.4rem .2rem;background:${d===today?'rgba(13,148,136,.08)':'var(--bg)'};border:1px solid var(--border);${d===today?'border-bottom:2.5px solid var(--teal2);':''}text-align:center;font-size:.72rem;">
+              <div style="font-weight:700;${d===today?'color:var(--teal);':''}">${DAYS_LABEL[d].substring(0,3)}</div>
+              ${d===today?'<div style="font-size:.6rem;color:var(--teal);">Hoy</div>':''}
+            </th>`).join('')}
+        </tr></thead><tbody>`;
+
+    hours.forEach(h => {
+      const bellInfo = bellMap[h];
+      const timeStr  = bellInfo ? `${bellInfo.start_time.substring(0,5)}–${bellInfo.end_time.substring(0,5)}` : '';
+      html += `<tr>
+        <td style="padding:.35rem .2rem;border:1px solid var(--border);text-align:center;background:var(--bg);position:sticky;left:0;z-index:2;box-shadow:2px 0 4px rgba(0,0,0,.06);">
+          <div style="font-weight:700;color:var(--navy);font-size:.75rem;">${h}ª</div>
+          ${timeStr ? `<div style="font-size:.72rem;color:var(--gray);line-height:1.2;">${timeStr.replace('–','–<br>')}</div>` : ''}
+        </td>`;
+      for (let d = 1; d <= 5; d++) {
+        const slot    = slotMap[`${d}_${h}`];
+        const isToday = d === today;
+        if (slot) {
+          html += `<td style="padding:.2rem;border:1px solid var(--border);">
+            <div style="background:${SCHED_DAY_COLORS[d]};border:1.5px solid ${SCHED_DAY_BORDER[d]};border-radius:6px;padding:.25rem .3rem;${isToday?'border-left:3px solid var(--teal2);':''}">
+              <div style="font-weight:700;font-size:.7rem;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${slot.course_type==='subgroup'?(slot.course_name||'Subgrupo'):(slot.subject||'Clase')}</div>
+              <div style="font-size:.74rem;color:var(--gray);">${slot.course_type==='subgroup'?(slot.grade?slot.grade+'°'+(slot.subject?'·'+slot.subject:''):(slot.subject||'Clase')):(slot.grade+'°'+(slot.section||slot.course_num))}</div>
+            </div></td>`;
+        } else {
+          html += `<td style="padding:.2rem;border:1px solid var(--border);background:#fafafa;"></td>`;
+        }
+      }
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+    body.innerHTML = html;
+
+    // ── HOY ──
+    if (!todayBody) return;
+    const todaySlots = schedules.filter(s => s.day_of_week === today).sort((a,b) => a.class_hour - b.class_hour);
+    if (!todaySlots.length) {
+      todayBody.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--gray);">No tienes clases hoy 🎉</div>';
+      return;
+    }
+    const nowMins = new Date().getHours()*60 + new Date().getMinutes();
+    todayBody.innerHTML = todaySlots.map(s => {
+      const b = bellMap[s.class_hour] || {};
+      const timeStr = b.start_time ? `${b.start_time.substring(0,5)} – ${b.end_time.substring(0,5)}` : `${s.class_hour}ª hora`;
+      const startM  = b.start_time ? parseInt(b.start_time.split(':')[0])*60+parseInt(b.start_time.split(':')[1]) : null;
+      const endM    = b.end_time   ? parseInt(b.end_time.split(':')[0])*60+parseInt(b.end_time.split(':')[1])     : null;
+      const isNow   = startM !== null && nowMins >= startM && nowMins < endM;
+      const isPast  = endM   !== null && nowMins >= endM;
+      const badge   = isNow  ? '<span style="background:#dcfce7;color:#16a34a;font-size:.7rem;font-weight:700;padding:.15rem .5rem;border-radius:20px;">🟢 Ahora</span>'
+                   : isPast  ? '<span style="color:var(--gray);font-size:.72rem;">✅ Terminó</span>'
+                             : '<span style="color:#92400e;background:#fef3c7;font-size:.7rem;font-weight:600;padding:.15rem .5rem;border-radius:20px;">⏳ Próxima</span>';
+      const course  = myCourses.find(c => c.grade===s.grade && c.subject===s.subject && String(c.section||c.number)===String(s.section||s.course_num));
+      return `<div style="display:flex;align-items:center;gap:.85rem;padding:.75rem 1rem;border-radius:12px;margin-bottom:.5rem;background:${isNow?'rgba(13,148,136,.05)':'var(--bg)'};border:${isNow?'1.5px solid var(--teal2)':'1px solid var(--border)'};">
+        <div style="text-align:center;min-width:44px;">
+          <div style="font-family:'Fraunces',serif;font-size:1.3rem;font-weight:900;color:var(--navy);">${s.class_hour}ª</div>
+          <div style="font-size:.74rem;color:var(--gray);">hora</div>
+        </div>
+        <div style="flex:1;">
+          <div style="font-weight:700;">${s.course_type==='subgroup'?(s.course_name||'Subgrupo')+(s.grade?' · '+s.grade+'°':''):(s.subject||'Clase')+' — '+s.grade+'°'+(s.section||s.course_num)}</div>
+          <div style="font-size:.75rem;color:var(--gray);">${timeStr}</div>
+        </div>
+        ${badge}
+        ${course ? `<button class="btn btn-primary btn-sm" onclick='openCourseAttendance(${JSON.stringify(course).replace(/'/g,"&#39;")})'>📋 Lista</button>` : ''}
+      </div>`;
+    }).join('');
+  }
+
+  // =====================================================
+  // OFFLINE QUEUE
+  const OFFLINE_KEY = 'raice_offline_queue';
+
+  function getOfflineQueue() {
+    try { return JSON.parse(localStorage.getItem(OFFLINE_KEY) || '[]'); } catch { return []; }
+  }
+  function saveOfflineQueue(q) {
+    localStorage.setItem(OFFLINE_KEY, JSON.stringify(q));
+  }
+  function enqueueOffline(payload) {
+    const q = getOfflineQueue();
+    // Remove duplicate (same course+date+hour) and add fresh
+    const filtered = q.filter(item => !(item.course_id===payload.course_id && item.date===payload.date && item.class_hour===payload.class_hour));
+    filtered.push({ ...payload, queued_at: new Date().toISOString() });
+    saveOfflineQueue(filtered);
+    updateOfflineBadge();
+  }
+  function updateOfflineBadge() {
+    const q = getOfflineQueue();
+    let badge = document.getElementById('offline-badge');
+    if (!badge) {
+      badge = document.createElement('div');
+      badge.id = 'offline-badge';
+      badge.style.cssText = 'position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);background:#1a2744;color:white;padding:.65rem 1.25rem;border-radius:999px;font-size:.82rem;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,.25);z-index:1000;display:flex;align-items:center;gap:.6rem;cursor:pointer;';
+      badge.onclick = () => syncOfflineQueue();
+      document.body.appendChild(badge);
+    }
+    if (q.length === 0) { badge.style.display = 'none'; return; }
+    badge.style.display = 'flex';
+    badge.innerHTML = `📵 ${q.length} lista(s) sin sincronizar — <span style="text-decoration:underline;">Sincronizar ahora</span>`;
+  }
+
+  async function syncOfflineQueue() {
+    const q = getOfflineQueue();
+    if (!q.length) return;
+    if (!navigator.onLine) { showToast('Sin conexión. Intenta más tarde.', 'warning'); return; }
+
+    let ok_count = 0, fail_count = 0;
+    const remaining = [];
+    for (const item of q) {
+      const { ok } = await fetchAPI('/raice/attendance', {
+        method: 'POST', body: JSON.stringify(item)
+      });
+      if (ok) ok_count++;
+      else { fail_count++; remaining.push(item); }
+    }
+    saveOfflineQueue(remaining);
+    updateOfflineBadge();
+    if (ok_count > 0) showToast(`✅ ${ok_count} lista(s) sincronizada(s)`, 'success');
+    if (fail_count > 0) showToast(`⚠️ ${fail_count} lista(s) fallaron`, 'warning');
+  }
+
+  // Show confirmation modal with absent/permit summary before saving
+  function previewAttendance() {
+    if (!activeCourse) return;
+    const ordinals = ['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª','10ª'];
+    const hourLabel = ordinals[activeHour-1] || activeHour + 'ª';
+    if (_actividadEspecial) {
+      const noteHtml = _actividadNote.trim()
+        ? `<div style="margin-top:.5rem;padding:.4rem .6rem;background:#fff8dc;border-radius:8px;font-size:.82rem;font-weight:400;color:#78350f;">📝 <em>${_actividadNote.trim()}</em></div>`
+        : '';
+      document.getElementById('att-confirm-body').innerHTML = `
+        <div style="background:#fef9c3;border:1.5px solid #fbbf24;border-radius:10px;padding:.85rem 1rem;font-size:.84rem;color:#92400e;font-weight:600;">
+          📌 Actividad especial — ${hourLabel} hora — ${activeCourse.grade}°${activeCourse.number}<br>
+          <span style="font-weight:400;margin-top:.3rem;display:block;">Se guardará <b>sin registro individual</b> para los ${studentsAtt.length} estudiantes. Esta hora no contará en el porcentaje de asistencia.</span>
+          ${noteHtml}
+        </div>`;
+      openModal('modal-att-confirm');
+      return;
+    }
+    const absent  = sortStudents(studentsAtt.filter(s => s.status === 'A'));
+    const permit  = sortStudents(studentsAtt.filter(s => s.status === 'PE'));
+    const late    = sortStudents(studentsAtt.filter(s => s.status === 'T'));
+
+    let html = `<div style="font-size:.83rem;color:var(--navy);margin-bottom:.75rem;font-weight:600;">
+      🕐 ${hourLabel} hora — ${activeCourse.grade}°${activeCourse.number}
+      <span style="font-weight:400;color:var(--gray);margin-left:.5rem;">${studentsAtt.length} estudiante(s)</span>
+    </div>`;
+
+    if (absent.length === 0 && permit.length === 0 && late.length === 0) {
+      html += '<div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:.75rem 1rem;font-size:.84rem;color:#15803d;font-weight:600;">✅ Todos los estudiantes presentes</div>';
+    } else {
+      if (absent.length) {
+        html += `<div style="margin-bottom:.65rem;">
+          <div style="font-size:.78rem;font-weight:700;color:#b91c1c;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.35rem;">❌ Ausentes (${absent.length})</div>
+          ${absent.map(s => `<div style="padding:.3rem .65rem;background:#fee2e2;border-radius:8px;font-size:.83rem;margin-bottom:.25rem;">${studentName(s)}</div>`).join('')}
+        </div>`;
+      }
+      if (late.length) {
+        html += `<div style="margin-bottom:.65rem;">
+          <div style="font-size:.78rem;font-weight:700;color:#b45309;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.35rem;">⏰ Tardanzas (${late.length})</div>
+          ${late.map(s => `<div style="padding:.3rem .65rem;background:#fff8e1;border-radius:8px;font-size:.83rem;margin-bottom:.25rem;">${studentName(s)}</div>`).join('')}
+        </div>`;
+      }
+      if (permit.length) {
+        html += `<div style="margin-bottom:.65rem;">
+          <div style="font-size:.78rem;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.35rem;">🤒 Con permiso (${permit.length})</div>
+          ${permit.map(s => `<div style="padding:.3rem .65rem;background:#ede9fe;border-radius:8px;font-size:.83rem;margin-bottom:.25rem;">${studentName(s)}</div>`).join('')}
+        </div>`;
+      }
+    }
+
+    document.getElementById('att-confirm-body').innerHTML = html;
+    openModal('modal-att-confirm');
+  }
+
+  async function confirmAndSave() {
+    closeModal('modal-att-confirm');
+    await saveAttendance();
+  }
+
+  // Override saveAttendance to support offline mode
+  async function saveAttendance() {
+    if (!activeCourse) return;
+    const btn = document.getElementById('btn-save-att');
+    btn.disabled = true; btn.textContent = '⏳ Guardando…';
+    const date    = document.getElementById('att-date-picker').value;
+    const payload = {
+      course_id:    activeCourse.id,
+      date,
+      class_hour:   activeHour,
+      records:      studentsAtt.map(s => ({ student_id: s.id, status: s.status })),
+      activity_note: _actividadEspecial ? (_actividadNote.trim() || null) : null
+    };
+    const ordinals = ['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª','10ª'];
+    const hourLabel = ordinals[activeHour-1] || activeHour+'ª';
+
+    if (!navigator.onLine) {
+      // Save to offline queue and mark as saved locally (read-only until sync)
+      enqueueOffline(payload);
+      _attDirty = false;
+      const key0 = _cacheKey(activeCourse.id, date, activeHour);
+      _hourCache[key0] = { students: studentsAtt.map(s => ({...s})), saved: true };
+      if (activeCourse.saved_hours && !activeCourse.saved_hours.includes(activeHour)) {
+        activeCourse.saved_hours.push(activeHour);
+      } else if (!activeCourse.saved_hours) {
+        activeCourse.saved_hours = [activeHour];
+      }
+      btn.disabled = false;
+      btn.innerHTML = `💾 Guardar lista — <span id="btn-hour-label">${hourLabel} hora</span>`;
+      showToast('📵 Sin conexión — lista guardada localmente', 'warning');
+      document.getElementById('att-saved-badge').textContent = '📵 Sin conexión';
+      buildHourSelector();
+      renderStudentList(); // switch to read-only even when offline
+      return;
+    }
+
+    const { ok, status, data } = await fetchAPI('/raice/attendance', { method: 'POST', body: JSON.stringify(payload) });
+    btn.disabled = false;
+    btn.innerHTML = `💾 Guardar lista — <span id="btn-hour-label">${hourLabel} hora</span>`;
+    if (ok) {
+      _attDirty = false;
+      const date2 = document.getElementById('att-date-picker').value;
+      const key2  = _cacheKey(activeCourse.id, date2, activeHour);
+      _hourCache[key2] = { students: studentsAtt.map(s => ({...s})), saved: true };
+      if (activeCourse.saved_hours && !activeCourse.saved_hours.includes(activeHour)) {
+        activeCourse.saved_hours.push(activeHour);
+      } else if (!activeCourse.saved_hours) {
+        activeCourse.saved_hours = [activeHour];
+      }
+      buildHourSelector();
+      renderStudentList(); // ← switch list to read-only mode immediately
+      showToast('Lista guardada correctamente', 'success');
+      document.getElementById('att-saved-badge').textContent = '✅ Guardada';
+      const tardes = studentsAtt.filter(s => s.status==='T').length;
+      if (tardes > 0) showToast(`⏰ ${tardes} tardanza(s) reportadas a coordinación`, 'info');
+      // Show evasion feedback — toast always if detected, panel if student data available
+      if (data.evasiones > 0) {
+        _evasionHours.add(activeHour);
+        buildHourSelector(); // refresh selector to show 🏃 on this hour
+        showToast(`🏃 ${data.evasiones} posible(s) evasión detectada(s) — coordinador notificado`, 'warning');
+        if (data.evadidos?.length) {
+          renderEvasionPanel(data.evadidos);
+        } else {
+          clearEvasionPanel();
+        }
+      } else {
+        clearEvasionPanel();
+      }
+    } else if (status === 423) {
+      const msg = data?.error || 'El horario escolar finalizó';
+      showToast('🔒 ' + msg, 'warning');
+      document.getElementById('att-saved-badge').textContent = '';
+    } else if (status === 403) {
+      const msg = data?.error || 'No tienes permiso para guardar esta lista';
+      showToast('⚠️ ' + msg, 'warning');
+      document.getElementById('att-saved-badge').textContent = '';
+    } else {
+      enqueueOffline(payload);
+      showToast('Error de conexión — lista guardada localmente', 'warning');
+      document.getElementById('att-saved-badge').textContent = '📵 Local';
+    }
+  }
+
+  // Network status indicator in topbar
+  function updateNetworkStatus() {
+    let indicator = document.getElementById('network-status');
+    if (!indicator) {
+      indicator = document.createElement('div');
+      indicator.id = 'network-status';
+      indicator.style.cssText = 'font-size:.72rem;padding:.25rem .6rem;border-radius:20px;font-weight:600;';
+      const topbarRight = document.querySelector('.topbar-right');
+      if (topbarRight) topbarRight.prepend(indicator);
+    }
+    if (navigator.onLine) {
+      indicator.style.background = '#dcfce7'; indicator.style.color = '#16a34a';
+      indicator.textContent = '● En línea';
+      syncOfflineQueue(); // Auto-sync when reconnected
+    } else {
+      indicator.style.background = '#fee2e2'; indicator.style.color = '#dc2626';
+      indicator.textContent = '● Sin conexión';
+    }
+  }
+  window.addEventListener('online',  updateNetworkStatus);
+  window.addEventListener('offline', updateNetworkStatus);
+
+  // ---- EVASION PANEL ----
+  let _pendingEvasionCase = null; // { courseId, studentId, studentName }
+  const _evasionHours = new Set(); // horas con evasión detectada en esta sesión (se limpia al cambiar curso)
+
+  async function copyFromPrevHour(prevHour) {
+    if (!activeCourse) return;
+    const date = document.getElementById('att-date-picker').value;
+
+    // Fetch previous hour's attendance
+    const { ok, data } = await fetchAPI(
+      `/raice/attendance/course?course_id=${activeCourse.id}&date=${date}&hour=${prevHour}`
+    );
+    if (!ok || !data.students?.length) {
+      showToast('No se pudo cargar la lista de la hora anterior', 'error');
+      return;
+    }
+
+    // Validar que la guardó el mismo docente
+    if (data.saved_by && data.saved_by !== currentUser?.id) {
+      showToast('Esa hora fue registrada por otro docente — no se puede copiar', 'warning');
+      return;
+    }
+
+    // Aplicar statuses de la hora anterior a studentsAtt actual
+    const prevMap = {};
+    (data.students || []).forEach(s => { prevMap[s.id] = s.attendance_status || 'P'; });
+
+    let copied = 0;
+    studentsAtt.forEach(s => {
+      if (prevMap[s.id]) { s.status = prevMap[s.id]; copied++; }
+    });
+
+    if (copied === 0) {
+      showToast('No se encontraron coincidencias con la lista anterior', 'warning');
+      return;
+    }
+
+    _attDirty = true;
+
+    // Ocultar el botón de copia y mostrar banner de aviso
+    const copyBtn = document.getElementById('btn-copy-prev-hour');
+    if (copyBtn) {
+      const ordinals = ['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª','10ª'];
+      copyBtn.innerHTML = `
+        <div style="background:#fffbeb;border:1.5px solid #fde68a;border-radius:10px;padding:.6rem 1rem;margin-bottom:.6rem;font-size:.8rem;color:#92400e;">
+          ⚠️ Partiendo de la lista de la ${ordinals[prevHour-1]||prevHour+'ª'} hora — <strong>revisa y ajusta antes de guardar</strong>
+        </div>`;
+    }
+
+    renderStudentList();
+    updateCounts();
+    showToast(`Lista de la ${['','1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª'][prevHour]||prevHour+'ª'} hora cargada como referencia`, 'info');
+  }
+
+  function clearEvasionPanel() {
+    const panel = document.getElementById('evasion-alert-panel');
+    if (panel) { panel.style.display = 'none'; panel.innerHTML = ''; }
+  }
+
+  function renderEvasionPanel(evadidos) {
+    const panel = document.getElementById('evasion-alert-panel');
+    if (!panel) return;
+    const courseId = activeCourse?.id || '';
+    const date     = document.getElementById('att-date-picker')?.value || '';
+    const n = evadidos.length;
+
+    panel.style.display = 'block';
+    panel.innerHTML = `
+      <div style="background:#fff7ed;border:1.5px solid #fed7aa;border-radius:12px;padding:1rem;">
+        <div style="font-weight:700;color:#c2410c;margin-bottom:.75rem;font-size:.93rem;">
+          ⚠️ Posible${n>1?'s':''} evasión${n>1?'es':''} detectada${n>1?'s':''} — ${n} estudiante${n>1?'s':''}
+        </div>
+        <div style="font-size:.78rem;color:#92400e;margin-bottom:.85rem;">
+          El coordinador ya fue notificado automáticamente. Verifica si es real o corrige la lista.
+        </div>
+        ${evadidos.map(e => `
+          <div style="background:#fff;border:1.5px solid #fed7aa;border-radius:10px;padding:.75rem;margin-bottom:.5rem;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;flex-wrap:wrap;">
+              <div style="flex:1;min-width:0;">
+                <div style="font-weight:700;color:var(--navy);font-size:.88rem;">🏃 ${e.student_name}</div>
+                <div style="font-size:.75rem;color:var(--gray);margin-top:.15rem;">${e.body||''}</div>
+              </div>
+              <div style="display:flex;gap:.45rem;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;">
+                <button onclick="openCourseScheduleModal('${courseId}','${date}','${e.student_id}','${(e.student_name||'').replace(/'/g,"\\'")}')"
+                  style="border:1.5px solid #0b7a75;background:#f0fdfa;color:#0b7a75;border-radius:8px;padding:.35rem .7rem;font-size:.76rem;font-weight:700;cursor:pointer;white-space:nowrap;">
+                  📅 Ver horario
+                </button>
+                <button onclick="openCaseForEvasion('${courseId}','${e.student_id}','${(e.student_name||'').replace(/'/g,"\\'")}')"
+                  style="border:1.5px solid #7c3aed;background:#f5f3ff;color:#6d28d9;border-radius:8px;padding:.35rem .7rem;font-size:.76rem;font-weight:700;cursor:pointer;white-space:nowrap;">
+                  ⚠️ Abrir caso
+                </button>
+              </div>
+            </div>
+          </div>`).join('')}
+      </div>`;
+  }
+
+  async function openCourseScheduleModal(courseId, date, studentId, studentName) {
+    _pendingEvasionCase = { courseId, studentId, studentName };
+    const subtitle = document.getElementById('modal-sched-subtitle');
+    if (subtitle) subtitle.textContent = `Seguimiento de ${studentName} · ${date}`;
+    const caseBtn = document.getElementById('modal-sched-case-btn');
+    if (caseBtn) caseBtn.style.display = 'inline-flex';
+    openModal('modal-course-schedule');
+
+    const body = document.getElementById('modal-sched-body');
+    body.innerHTML = '<div style="text-align:center;padding:2.5rem;color:var(--gray);">Cargando…</div>';
+
+    const { ok, data } = await fetchAPI(
+      `/raice/course-day-schedule?course_id=${courseId}&date=${date}&student_id=${studentId}`
+    );
+    if (!ok) {
+      body.innerHTML = '<div style="color:#f43f5e;padding:1rem 1.4rem;">Error al cargar el horario</div>';
+      return;
+    }
+
+    const hours = data.hours || [];
+    if (!hours.length) {
+      body.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--gray);">No hay horario configurado para este curso en este día.</div>';
+      return;
+    }
+
+    const ordinals = ['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª'];
+    const statusInfo = {
+      P:  { label: 'Presente',         icon: '✅', color: '#15803d', bg: '#f0fdf4' },
+      A:  { label: 'Ausente',           icon: '❌', color: '#b91c1c', bg: '#fff5f5' },
+      T:  { label: 'Tarde',             icon: '⏰', color: '#b45309', bg: '#fff8e1' },
+      PE: { label: 'Con permiso',       icon: '🤒', color: '#0b7a75', bg: '#f0fdfa' },
+      S:  { label: 'Act. especial',     icon: '📌', color: '#7c3aed', bg: '#f5f3ff' },
+    };
+
+    body.innerHTML = hours.map(h => {
+      const st = h.student_status ? (statusInfo[h.student_status] || { label: h.student_status, icon: '?', color: 'var(--gray)', bg: 'transparent' }) : null;
+      const isEvasion = h.student_status === 'A';
+      const rowBg = isEvasion ? '#fff5f5' : '';
+      const hourLabel = ordinals[h.class_hour - 1] || h.class_hour + 'ª';
+      return `
+        <div style="display:flex;align-items:center;gap:.75rem;padding:.7rem 1.2rem;border-bottom:1px solid var(--border);background:${rowBg};">
+          <div style="font-size:.78rem;font-weight:700;color:var(--gray);min-width:2rem;text-align:center;">${hourLabel}</div>
+          ${h.start_time ? `<div style="font-size:.72rem;color:var(--gray);min-width:3rem;">${h.start_time.slice(0,5)}</div>` : '<div style="min-width:3rem;"></div>'}
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:.86rem;font-weight:600;color:var(--navy);">${h.teacher_name}</div>
+            ${h.subject ? `<div style="font-size:.74rem;color:var(--gray);">${h.subject}</div>` : ''}
+          </div>
+          ${st ? `
+            <div style="display:flex;align-items:center;gap:.3rem;background:${st.bg};border-radius:8px;padding:.2rem .55rem;flex-shrink:0;">
+              <span style="font-size:.85rem;">${st.icon}</span>
+              <span style="font-size:.74rem;font-weight:700;color:${st.color};">${st.label}${isEvasion ? ' ← evasión' : ''}</span>
+            </div>` : `
+            <div style="font-size:.74rem;color:var(--gray);flex-shrink:0;">⏳ Sin registrar</div>`}
+        </div>`;
+    }).join('');
+  }
+
+  function openCaseForEvasion(courseId, studentId, studentName) {
+    showSection('reportar', document.querySelector('[onclick*="reportar"]'));
+    setTimeout(() => {
+      const courseEl = document.getElementById('case-course');
+      if (courseEl && courseId) {
+        courseEl.value = courseId;
+        loadStudentsForCase().then(() => {
+          const studentEl = document.getElementById('case-student');
+          if (studentEl && studentId) studentEl.value = studentId;
+        });
+      }
+      const desc = document.getElementById('case-description');
+      if (desc && !desc.value) {
+        desc.value = `Posible evasión de clase: ${studentName} estuvo presente en una hora y ausente en la siguiente. Verificar si hubo permiso o excusa no notificada.`;
+      }
+    }, 150);
+  }
+
+  // ---- INIT ----
+  function applyLogoToSidebar(logoUrl, schoolName) {
+    const logoImg = document.getElementById('sb-logo-img');
+    const markFb  = document.getElementById('sb-mark-fallback');
+    if (logoUrl) {
+      logoImg.src = logoUrl;
+      logoImg.style.display = 'block';
+      if (markFb) markFb.style.display = 'flex'; // mantener R visible junto al escudo
+    } else {
+      logoImg.style.display = 'none';
+      if (markFb) markFb.style.display = 'flex';
+    }
+    if (schoolName) {
+      const el = document.querySelector('.sb-name');
+      if (el) el.title = schoolName;
+    }
+  }
+
+  async function loadSchoolConfig() {
+    const { data } = await fetchAPI('/raice/config');
+    if (!data) return;
+    applyLogoToSidebar(data.logo_url, data.school_name);
+    if (data.classes_per_day) classesPerDay = data.classes_per_day;
+    let maxSlotHour = 0;
+    myCourses.forEach(c => (c.week_slots || []).forEach(s => { if (s.class_hour > maxSlotHour) maxSlotHour = s.class_hour; }));
+    if (maxSlotHour > classesPerDay) classesPerDay = maxSlotHour;
+  }
+
+  function handleMustChangePassword() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('cambiar-contrasena') !== '1') return;
+    setTimeout(() => {
+      showSection('perfil', null);
+      const sec = document.getElementById('sec-perfil');
+      if (!sec) return;
+      const banner = document.createElement('div');
+      banner.style.cssText = 'background:#fef9c3;border:2px solid #fbbf24;border-radius:12px;padding:1rem 1.25rem;margin-bottom:1rem;font-weight:600;color:#92400e;';
+      banner.textContent = '⚠️ Por seguridad debes cambiar tu contraseña antes de continuar.';
+      sec.insertBefore(banner, sec.firstChild);
+      document.getElementById('pwd-new')?.focus();
+    }, 500);
+  }
+
+  // ---- AUTO-REFRESH ----
+  let docenteRefreshInterval = null;
+
+  const docenteSectionLoaders = {
+    'mis-cursos':        () => loadMyCourses(),
+    'historial-casos':   () => loadCaseHistory(),
+  };
+
+  function startDocenteAutoRefresh() {
+    if (docenteRefreshInterval) clearInterval(docenteRefreshInterval);
+    docenteRefreshInterval = setInterval(async () => {
+      // Reload current section silently
+      const loader = docenteSectionLoaders[currentDocenteSection];
+      if (loader) await loader();
+
+      // Refresh attendance only if:
+      // 1. The teacher is in the attendance section
+      // 2. There is an active course
+      // 3. The teacher has NO unsaved changes (never overwrite dirty state)
+      if (currentDocenteSection === 'asistencia' && activeCourse && !_attDirty) {
+        // Force network fetch to get latest state from server, then update cache
+        const date = document.getElementById('att-date-picker')?.value;
+        if (date) {
+          const key = _cacheKey(activeCourse.id, date, activeHour);
+          delete _hourCache[key]; // invalidate this hour so forceRefresh hits network
+        }
+        await loadCourseStudents(true);
+      }
+    }, 60000); // every 60s (reduced from 30s to halve background requests)
+  }
+
+  initSession();
+  loadSchoolConfig();
+  handleMustChangePassword();
+  // Verificar festivo ANTES de renderizar cursos (sincronización crítica)
+  checkTodayHoliday().then(() => loadMyCourses());
+  // =============================================
+  // DIRECTOR DE GRADO — casos de mi grado (solo lectura)
+  // =============================================
+  let gradeCasesAll = [];
+
+  async function checkDirectorStatus() {
+    const { ok, data } = await fetchAPI('/raice/grade-cases');
+    if (!ok) return;
+    // Si la API retorna cursos, este docente es director de grado
+    const isDirector = data.is_director === true;
+    if (!isDirector) return;
+
+    // Mostrar elementos del sidebar
+    document.getElementById('nav-group-mi-grado').style.display = '';
+    document.getElementById('nav-btn-mi-grado').style.display   = '';
+    document.getElementById('nav-btn-excusas').style.display    = '';
+
+    // Guardar casos para usar cuando se abra la sección
+    gradeCasesAll = data.cases || [];
+  }
+
+  let gradeCourseInfo = null;
+  let _excusasCourseId = null;
+  let _excusasHolidays   = null; // array of 'YYYY-MM-DD' strings
+  let _excusasActivePeriod = null; // { start_date, end_date, name }
+
+  // ── Excusas del director de grado ──
+  async function initExcusas() {
+    const { ok, data } = await fetchAPI('/raice/grade-cases');
+    if (!ok) return;
+    const course = data.course;
+    if (!course) return;
+    _excusasCourseId = course.id;
+
+    // Update section title with course info
+    const titleEl = document.getElementById('excusas-title');
+    if (titleEl) titleEl.textContent = `📋 Excusas de mi grado — ${course.grade}°${course.number}`;
+
+    // Populate student select
+    const { ok: ok2, data: data2 } = await fetchAPI(`/raice/students?course_id=${course.id}`);
+    _excusasGradeStudents = (ok2 ? data2.students : []) || [];
+    
+    docenteExcusaPopulateStudents();
+
+    // Default date = today
+    const todayInput = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+    const dateEl = document.getElementById('excusa-date');
+    if (dateEl && !dateEl.value) dateEl.value = todayInput;
+
+    // Load holidays + active period for date validation
+    if (!_excusasHolidays) {
+      const year = new Date().getFullYear();
+      const { ok, data } = await fetchAPI(`/raice/calendar?year=${year}`);
+      _excusasHolidays = ok
+        ? (data.events || []).filter(e => e.type === 'holiday').map(e => e.date)
+        : [];
+    }
+    if (!_excusasActivePeriod) {
+      const { ok, data } = await fetchAPI('/raice/periods');
+      const periods = ok ? (data.periods || []) : [];
+      _excusasActivePeriod = periods.find(p => p.active) || null;
+    }
+
+    // Load hours checkboxes from bell schedule
+    await loadExcusaHoras();
+    loadExcusasList();
+  }
+
+  async function loadExcusasList() {
+    if (!_excusasCourseId) return;
+    const listEl = document.getElementById('excusas-list');
+    if (!listEl) return;
+    listEl.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--gray);">⏳ Cargando…</div>';
+
+    const date = document.getElementById('doc-excusa-filter-date')?.value || '';
+    const text = (document.getElementById('doc-excusa-filter-text')?.value || '').toLowerCase().trim();
+
+    // Build URL: bring all excuses for this course, optionally filtered
+    let url = `/raice/excusas?course_id=${_excusasCourseId}`;
+    // If searching by name, don't filter by date so we show full history
+    if (date && !text) {
+      url += `&date=${date}`;
+    }
+
+    const { ok, data } = await fetchAPI(url);
+    let excusas = ok ? (data.excusas || []) : [];
+
+    // Sort newest first
+    excusas.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    // Client-side text filter
+    if (text) {
+      excusas = excusas.filter(e => {
+        const full = `${e.raice_students?.first_name||''} ${e.raice_students?.last_name||''}`.toLowerCase();
+        return full.includes(text);
+      });
+    }
+
+    if (!excusas.length) {
+      listEl.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--gray);">Sin excusas registradas para los filtros seleccionados.</div>';
+      return;
+    }
+
+    listEl.innerHTML = `
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr style="background:var(--light);">
+            <th style="text-align:left;padding:.6rem 1rem;font-size:.73rem;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.06em;">Estudiante</th>
+            <th style="text-align:left;padding:.6rem 1rem;font-size:.73rem;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.06em;">Fecha</th>
+            <th style="text-align:left;padding:.6rem 1rem;font-size:.73rem;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.06em;">Horas</th>
+            <th style="text-align:left;padding:.6rem 1rem;font-size:.73rem;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.06em;">Motivo</th>
+            <th style="padding:.6rem 1rem;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${excusas.map(e => {
+            const st = e.raice_students;
+            const name = st ? `${st.first_name} ${st.last_name}` : '—';
+            const horas = e.horas && e.horas.length
+              ? `Horas ${e.horas.join(', ')}`
+              : 'Todas las horas';
+            return `<tr style="border-bottom:1px solid #f1f5f9;">
+              <td style="padding:.65rem 1rem;">
+                <div style="font-weight:600;font-size:.87rem;">${name}</div>
+              </td>
+              <td style="padding:.65rem 1rem;font-size:.85rem;">${e.date || '—'}</td>
+              <td style="padding:.65rem 1rem;">
+                <span style="background:${e.horas && e.horas.length ? '#f0fdf4' : '#eff6ff'};border:1px solid ${e.horas && e.horas.length ? '#86efac' : '#bfdbfe'};color:${e.horas && e.horas.length ? '#166534' : '#1e40af'};border-radius:999px;padding:.15rem .6rem;font-size:.76rem;font-weight:600;">
+                  ${horas}
+                </span>
+              </td>
+              <td style="padding:.65rem 1rem;font-size:.83rem;color:#374151;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.motivo}</td>
+              <td style="padding:.65rem 1rem;">
+                <button onclick="deleteExcusa('${e.id}')"
+                  style="background:#fee2e2;border:1px solid #fecaca;color:#b91c1c;border-radius:8px;padding:.3rem .65rem;font-size:.76rem;cursor:pointer;">
+                  🗑️
+                </button>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  // Load bell schedule hours into the hours checkboxes
+  async function loadExcusaHoras() {
+    const wrap = document.getElementById('excusa-horas-wrap');
+    if (!wrap) return;
+    const bell = await getBellSchedule();
+    if (!bell.length) {
+      wrap.innerHTML = '<div style="font-size:.8rem;color:var(--gray);">Sin horario del timbre configurado — se cubrirán todas las horas del día.</div>';
+      return;
+    }
+    wrap.innerHTML = bell.map(b => {
+      const label = b.label || `${b.class_hour}ª hora`;
+      const time  = b.start_time ? ` <span style="color:#94a3b8;font-size:.72rem;">${b.start_time}</span>` : '';
+      return `<label style="display:flex;align-items:center;gap:.3rem;padding:.35rem .65rem;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;font-size:.82rem;font-family:'DM Sans',sans-serif;background:var(--white);user-select:none;" id="hora-lbl-${b.class_hour}">
+        <input type="checkbox" value="${b.class_hour}" class="excusa-hora-chk"
+          onchange="updateExcusaInfoBox()"
+          style="accent-color:var(--teal2);width:14px;height:14px;cursor:pointer;">
+        ${label}${time}
+      </label>`;
+    }).join('');
+  }
+
+  let _excusaMode = 'single';
+  let _excusasGradeStudents = [];
+  
+  function docenteExcusaPopulateStudents() {
+    const sel = document.getElementById('excusa-student');
+    if (!sel) return;
+    
+    const searchVal = (document.getElementById('excusa-student-search')?.value || '').toLowerCase().trim();
+    let filtered = _excusasGradeStudents;
+    
+    if (searchVal) {
+      filtered = filtered.filter(s => {
+        const full = `${s.first_name||''} ${s.last_name||''} ${s.document||''}`.toLowerCase();
+        return full.includes(searchVal);
+      });
+    }
+    
+    sel.innerHTML = '<option value="">— Selecciona un estudiante —</option>' +
+      sortStudents(filtered).map(s =>
+        `<option value="${s.id}">${studentName(s)}</option>`
+      ).join('');
+  }
+
+  // Reload cases/hours if single date is active when student changes
+  document.getElementById('excusa-student')?.addEventListener('change', () => {
+    if (_excusaMode === 'single') loadExcusaHoras();
+    loadExcusasList();
+  });
+
+  function switchExcusaTab(mode) {
+    _excusaMode = mode;
+    const tSingle = document.getElementById('doc-exc-tab-single');
+    const tRange  = document.getElementById('doc-exc-tab-range');
+    const pSingle = document.getElementById('exc-panel-single');
+    const pRange  = document.getElementById('exc-panel-range');
+    
+    if (mode === 'single') {
+      if (tSingle) {
+        tSingle.style.borderBottomColor = 'var(--teal2)';
+        tSingle.style.color = 'var(--teal2)';
+        tRange.style.borderBottomColor  = 'transparent';
+        tRange.style.color  = 'var(--gray)';
+      }
+      pSingle.style.display = 'block';
+      pRange.style.display  = 'none';
+    } else {
+      if (tSingle) {
+        tRange.style.borderBottomColor = 'var(--teal2)';
+        tRange.style.color = 'var(--teal2)';
+        tSingle.style.borderBottomColor  = 'transparent';
+        tSingle.style.color  = 'var(--gray)';
+      }
+      pSingle.style.display = 'none';
+      pRange.style.display  = 'block';
+    }
+  }
+
+  function getSelectedHoras() {
+    return Array.from(document.querySelectorAll('.excusa-hora-chk:checked'))
+      .map(c => parseInt(c.value));
+  }
+
+  function updateExcusaInfoBox() {
+    const selected = getSelectedHoras();
+    const box = document.getElementById('excusa-info-box');
+    if (!box) return;
+    if (!selected.length) {
+      box.innerHTML = 'ℹ️ Al registrar la excusa, el estudiante quedará marcado como <strong>Con permiso 🤒</strong> en <strong>todas las horas programadas</strong> del día.';
+    } else {
+      box.innerHTML = `ℹ️ La excusa cubrirá <strong>solo las horas ${selected.join(', ')}</strong>. El resto de horas del día no se verán afectadas.`;
+    }
+  }
+
+  async function saveExcusa() {
+    const studentId = document.getElementById('excusa-student')?.value;
+    const date      = document.getElementById('excusa-date')?.value;
+    const motivo    = document.getElementById('excusa-motivo')?.value.trim();
+    const horas     = getSelectedHoras(); // [] = all hours
+
+    const dateFrom = document.getElementById('excusa-range-from')?.value;
+    const dateTo   = document.getElementById('excusa-range-to')?.value;
+    const noWeekends= document.getElementById('excusa-range-noweekends')?.checked;
+
+    if (!studentId) { showToast('Selecciona un estudiante', 'warning'); return; }
+    if (!motivo)    { showToast('Escribe el motivo de la excusa', 'warning'); return; }
+    if (!_excusasCourseId) { showToast('Error: curso no identificado', 'error'); return; }
+
+    let payload = { student_id: studentId, course_id: _excusasCourseId, motivo };
+
+    if (_excusaMode === 'single') {
+      if (!date) { showToast('Selecciona la fecha única', 'warning'); return; }
+      const { ok: chkOk, data: chkData } = await fetchAPI(`/raice/excusas?student_id=${studentId}&date=${date}`);
+      const existing = chkOk ? (chkData.excusas || []) : [];
+      if (existing.length > 0) {
+        const e = existing[0];
+        const horasText = e.horas?.length ? `horas ${e.horas.join(', ')}` : 'todo el día';
+        if (!confirm(`⚠️ Ya existe una excusa para este estudiante el ${date} (${horasText}).\n\n¿Deseas actualizarla con la nueva información?`)) return;
+      }
+      payload.date = date;
+      payload.horas = horas.length ? horas : null;
+    } else {
+      if (!dateFrom || !dateTo) { showToast('Selecciona la fecha desde y hasta completos', 'warning'); return; }
+      if (dateFrom > dateTo) { showToast('La fecha Desde no puede ser mayor que Hasta', 'warning'); return; }
+      payload.date = dateFrom;
+      payload.end_date = dateTo;
+      payload.no_weekends = noWeekends;
+    }
+
+    const btn = document.querySelector('#sec-excusas-grado [onclick="saveExcusa()"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
+
+    const { ok, data } = await fetchAPI('/raice/excusas', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Registrar excusa'; }
+
+    if (!ok) {
+      showToast(data?.error || 'Error al registrar la excusa', 'error');
+      return;
+    }
+
+    const msg = (_excusaMode === 'range') 
+      ? `✅ Excusas procesadas correctamente en el rango de fechas`
+      : (horas.length
+         ? `✅ Excusa registrada — horas ${horas.join(', ')} marcadas con permiso`
+         : '✅ Excusa registrada — todo el día marcado con permiso');
+    
+    showToast(msg, 'success');
+    document.getElementById('excusa-motivo').value = '';
+    if (_excusaMode === 'single') {
+      document.querySelectorAll('#sec-excusas-grado .excusa-hora-chk').forEach(c => c.checked = false);
+      updateExcusaInfoBox();
+    }
+    loadExcusasList();
+  }
+
+  async function deleteExcusa(id) {
+    if (!confirm('¿Anular esta excusa?')) return;
+    const { ok } = await fetchAPI('/raice/excusas', {
+      method: 'DELETE',
+      body: JSON.stringify({ id })
+    });
+    if (ok) {
+      showToast('Excusa anulada', 'success');
+      loadExcusasList();
+    } else {
+      showToast('Error al anular la excusa', 'error');
+    }
+  }
+
+  async function loadGradeCases() {
+    const listEl = document.getElementById('grado-cases-list');
+    listEl.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--gray);">Cargando…</div>';
+    const { ok, data } = await fetchAPI('/raice/grade-cases');
+    if (!ok) {
+      listEl.innerHTML = '<div style="color:var(--error);padding:1rem;">Error al cargar los casos.</div>';
+      return;
+    }
+    gradeCasesAll   = data.cases || [];
+    gradeCourseInfo = data.course || null;
+    const titleEl = document.querySelector('#sec-mi-grado h3');
+    if (titleEl && gradeCourseInfo) {
+      titleEl.textContent = '🏅 Casos RAICE — ' + gradeCourseInfo.grade + '°' + gradeCourseInfo.number;
+    }
+    renderGradoCasesStats(gradeCasesAll);
+    renderGradeCases();
+  }
+
+  function renderGradoCasesStats(cases) {
+    const statsEl = document.getElementById('grado-cases-stats');
+    const open   = cases.filter(c => c.status === 'open').length;
+    const proc   = cases.filter(c => c.status === 'tracking').length;
+    const closed = cases.filter(c => c.status === 'closed').length;
+    statsEl.innerHTML =
+      '<div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:10px;padding:.5rem .9rem;font-size:.82rem;font-weight:600;color:#b91c1c;">🔴 Abiertos: ' + open + '</div>' +
+      '<div style="background:#fff7ed;border:1.5px solid #fed7aa;border-radius:10px;padding:.5rem .9rem;font-size:.82rem;font-weight:600;color:#c2410c;">🟡 En seguimiento: ' + proc + '</div>' +
+      '<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:.5rem .9rem;font-size:.82rem;font-weight:600;color:#15803d;">✅ Cerrados: ' + closed + '</div>' +
+      '<div style="background:var(--light);border:1.5px solid var(--border);border-radius:10px;padding:.5rem .9rem;font-size:.82rem;font-weight:600;color:var(--navy);">📋 Total: ' + cases.length + '</div>';
+  }
+
+  function renderGradeCases() {
+    const listEl     = document.getElementById('grado-cases-list');
+    const filterType = document.getElementById('grado-filter-type').value;
+    const filterSt   = document.getElementById('grado-filter-status').value;
+
+    let cases = gradeCasesAll;
+    if (filterType) cases = cases.filter(c => c.type === parseInt(filterType));
+    if (filterSt)   cases = cases.filter(c => c.status === filterSt);
+
+    if (!cases.length) {
+      listEl.innerHTML = '<div style="text-align:center;padding:2.5rem;color:var(--gray);">No hay casos que coincidan con los filtros.</div>';
+      return;
+    }
+
+    const statusLabel  = { open:'🔴 Abierto', tracking:'🟡 En seguimiento', closed:'✅ Cerrado' };
+    const statusColor  = { open:'#fef2f2', tracking:'#fff7ed', closed:'#f0fdf4' };
+    const statusBorder = { open:'#fecaca', tracking:'#fed7aa', closed:'#bbf7d0' };
+    const statusText   = { open:'#b91c1c', tracking:'#c2410c', closed:'#15803d' };
+    const typeLabel    = { 1:'Tipo I', 2:'Tipo II', 3:'Tipo III' };
+
+    listEl.innerHTML = cases.map(function(c) {
+      const fecha = c.created_at ? new Date(c.created_at).toLocaleDateString('es-CO', { day:'2-digit', month:'short', year:'numeric' }) : '—';
+      const st    = statusLabel[c.status]  || c.status;
+      const stBg  = statusColor[c.status]  || 'var(--light)';
+      const stBd  = statusBorder[c.status] || 'var(--border)';
+      const stTx  = statusText[c.status]   || 'var(--navy)';
+      const tp    = typeLabel[c.type]      || ('Tipo ' + c.type);
+      const desc  = c.description ? '<div style="font-size:.82rem;color:var(--text);margin-top:.5rem;padding:.5rem .65rem;background:var(--light);border-radius:8px;line-height:1.5;">' + (c.description.length > 180 ? c.description.slice(0,180) + '…' : c.description) + '</div>' : '';
+      const acc   = c.actions_taken ? '<div style="font-size:.78rem;color:var(--gray);margin-top:.35rem;"><strong>Acciones:</strong> ' + (c.actions_taken.length > 120 ? c.actions_taken.slice(0,120) + '…' : c.actions_taken) + '</div>' : '';
+      return '<div style="border:1.5px solid var(--border);border-radius:12px;padding:.9rem 1rem;margin-bottom:.65rem;background:var(--white);">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;flex-wrap:wrap;">' +
+        '<div><div style="font-weight:700;font-size:.92rem;color:var(--navy);">' + (c.student_name || 'Estudiante') + '</div>' +
+        '<div style="font-size:.8rem;color:var(--gray);margin-top:.15rem;">📚 ' + tp + ' · ' + fecha + '</div></div>' +
+        '<span style="font-size:.78rem;font-weight:600;background:' + stBg + ';border:1.5px solid ' + stBd + ';color:' + stTx + ';border-radius:8px;padding:.25rem .6rem;white-space:nowrap;">' + st + '</span>' +
+        '</div>' + desc + acc +
+        '<div style="font-size:.76rem;color:var(--gray);margin-top:.35rem;">👨‍🏫 Reportado por: ' + (c.teacher_name || 'Docente') + '</div>' +
+        '</div>';
+    }).join('');
+  }
+
+  checkDirectorStatus();  // ← muestra sección si es director de grado
+  startDocenteAutoRefresh();
+  updateOfflineBadge();
+  setTimeout(updateNetworkStatus, 500);
+
+  // Refresh immediately when teacher returns to the tab (e.g. after passing attendance)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      if (currentDocenteSection === 'mis-cursos') loadMyCourses();
+      else if (currentDocenteSection === 'asistencia' && activeCourse) loadCourseStudents();
+    }
+  });
+
+
+  // =====================================================
+  // RETIRO DE CLASE
+  // =====================================================
+  let _removalStudentId = null;
+
+  async function openRemovalModal(studentId, studentName) {
+    _removalStudentId = studentId;
+    document.getElementById('removal-student-name').value = studentName;
+    document.getElementById('removal-reason').value = '';
+    openModal('modal-removal');
+  }
+
+  async function submitRemoval() {
+    const reason = document.getElementById('removal-reason').value.trim();
+    if (!reason) { showToast('Debes escribir el motivo del retiro', 'warning'); return; }
+    if (!activeCourse || !_removalStudentId) return;
+
+    const date = document.getElementById('att-date-picker').value;
+    const btn  = document.querySelector('#modal-removal .btn-danger');
+    btn.disabled = true; btn.textContent = '⏳ Enviando…';
+
+    const { ok } = await fetchAPI('/raice/classroom-removals', {
+      method: 'POST',
+      body: JSON.stringify({
+        student_id: _removalStudentId,
+        course_id:  activeCourse.id,
+        date,
+        class_hour: activeHour,
+        reason
+      })
+    });
+
+    btn.disabled = false; btn.textContent = '⛔ Enviar al coordinador';
+
+    if (ok) {
+      closeModal('modal-removal');
+      showToast('⛔ Retiro enviado al coordinador', 'success');
+    } else {
+      showToast('Error al enviar el retiro', 'error');
+    }
+  }
+
+  // =====================================================
+  // CORREGIR LISTA (UNLOCK)
+  // =====================================================
+  // Show correction window info when opening unlock modal
+  async function openUnlockModal() {
+    document.getElementById('unlock-reason').value = '';
+    const infoEl  = document.getElementById('unlock-window-info');
+    const textEl  = document.getElementById('unlock-window-text');
+    infoEl.style.display = 'none';
+    openModal('modal-unlock');
+    // Load correction window info in background after modal is already open
+    try {
+      const { ok, data } = await fetchAPI('/raice/config');
+      if (ok && data.correction_window) {
+        const labels = {
+          class_duration: `Puedes corregir durante ${data.correction_window_minutes || 55} minutos desde que guardaste la lista.`,
+          same_day_hour:  `Puedes corregir hasta las ${data.correction_window_hour || '17:00'} del día de la lista.`,
+          same_day_end:   'Puedes corregir hasta las 11:59 PM del día en que tomaste la lista.',
+          next_day_end:   'Puedes corregir hasta las 11:59 PM del día siguiente a la lista.'
+        };
+        const msg = labels[data.correction_window];
+        if (msg) { textEl.textContent = msg; infoEl.style.display = ''; }
+      }
+    } catch (_) {}
+  }
+
+  async function submitUnlock() {
+    const reason = document.getElementById('unlock-reason').value.trim();
+    if (!reason) { showToast('Debes escribir el motivo de la corrección', 'warning'); return; }
+    if (!activeCourse) return;
+
+    const date = document.getElementById('att-date-picker').value;
+    const btn  = document.querySelector('#modal-unlock .btn-teal');
+    btn.disabled = true; btn.textContent = '⏳ Procesando…';
+
+    const { ok, data } = await fetchAPI('/raice/attendance/unlock', {
+      method: 'POST',
+      body: JSON.stringify({
+        course_id:  activeCourse.id,
+        date,
+        class_hour: activeHour,
+        reason
+      })
+    });
+
+    btn.disabled = false; btn.textContent = '✏️ Corregir';
+
+    if (ok) {
+      closeModal('modal-unlock');
+      if (activeCourse.saved_hours) {
+        activeCourse.saved_hours = activeCourse.saved_hours.filter(h => h !== activeHour);
+      }
+      const key = _cacheKey(activeCourse.id, date, activeHour);
+      if (_hourCache[key]) _hourCache[key].saved = false;
+      renderStudentList();
+      showToast('✏️ Lista desbloqueada — puedes corregir', 'success');
+    } else {
+      closeModal('modal-unlock');
+      if (data?.window_closed) {
+        // Show a clear, friendly message — not a generic error
+        showWindowClosedMessage(data.error);
+      } else {
+        showToast(data?.error || 'Error al desbloquear la lista', 'error');
+      }
+    }
+  }
+
+  function showWindowClosedMessage(msg) {
+    // Reuse generic confirm dialog pattern for a friendly alert
+    let dlg = document.getElementById('window-closed-alert');
+    if (!dlg) {
+      dlg = document.createElement('div');
+      dlg.id = 'window-closed-alert';
+      dlg.className = 'modal-overlay';
+      dlg.style.display = 'none';
+      dlg.innerHTML = `
+        <div class="modal" style="max-width:420px;">
+          <div class="modal-header" style="background:#fef3c7;border-bottom:1.5px solid #fde68a;">
+            <h3 style="color:#92400e;">⏰ Tiempo de corrección cerrado</h3>
+            <button class="modal-close" onclick="this.closest('.modal-overlay').style.display='none'">✕</button>
+          </div>
+          <div class="modal-body">
+            <p id="wca-msg" style="font-size:.9rem;color:#374151;line-height:1.6;"></p>
+            <div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:.75rem;margin-top:.75rem;font-size:.83rem;color:#1e40af;">
+              💡 Comunícate con el coordinador para que realice la corrección desde la plataforma.
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-primary" onclick="this.closest('.modal-overlay').style.display='none'">Entendido</button>
+          </div>
+        </div>`;
+      document.body.appendChild(dlg);
+    }
+    document.getElementById('wca-msg').textContent = msg;
+    dlg.style.display = 'flex';
+  }
+
+  // =====================================================
+  // HISTORIAL DE ASISTENCIA
+  // =====================================================
+
+  let _hattData      = null;  // raw API response
+  let _hattCourseId  = null;
+  let _hattClassesPerDay = 6;
+  let _hattPeriods   = [];    // all periods loaded from API
+
+  async function initAttHistory() {
+    // Populate course selector from myCourses (loaded already)
+    if (!myCourses.length) await loadMyCourses();
+
+    const sel = document.getElementById('hatt-course');
+    sel.innerHTML = '<option value="">— Selecciona un curso —</option>' +
+      [...myCourses].sort((a,b) => a.grade - b.grade || a.number - b.number || (a.subject||'').localeCompare(b.subject||''))
+        .map(c => `<option value="${c.id}" data-tcid="${c.teacher_course_id||''}">${c.type === 'subgroup' ? (c.name || 'Subgrupo') : `${c.grade}°${c.number}`} — ${c.subject||'Clase'}</option>`).join('');
+
+    // Keep previous course selection if possible
+    if (_hattCourseId && myCourses.find(c => c.id === _hattCourseId)) {
+      sel.value = _hattCourseId;
+    }
+
+    // Set default date range: active period
+    await setDefaultHattRange();
+
+    // Populate hour selector
+    _hattClassesPerDay = classesPerDay || 6;
+    const hourSel = document.getElementById('hatt-hour');
+    const ordinals = ['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª','10ª'];
+    hourSel.innerHTML = '<option value="all">Todas las horas</option>' +
+      Array.from({length: _hattClassesPerDay}, (_,i) => i+1)
+        .map(h => `<option value="${h}">${ordinals[h-1]||h+'ª'} hora</option>`).join('');
+
+    if (sel.value) loadAttHistory();
+  }
+
+  async function setDefaultHattRange() {
+    const { ok, data } = await fetchAPI('/raice/periods');
+    _hattPeriods = (ok && data.periods) ? data.periods : [];
+    const active = _hattPeriods.find(p => p.active);
+    const today  = todayColombia();
+
+    // Build period selector
+    const periSel = document.getElementById('hatt-period');
+    periSel.innerHTML =
+      '<option value="custom">📅 Rango personalizado</option>' +
+      _hattPeriods.map(p =>
+        `<option value="${p.id}" data-from="${p.start_date}" data-to="${p.end_date}">
+          ${p.active ? '🟢 ' : ''}${p.name}
+        </option>`
+      ).join('');
+
+    if (active) {
+      periSel.value = active.id;
+      document.getElementById('hatt-from').value = active.start_date;
+      document.getElementById('hatt-to').value   = active.end_date > today ? today : active.end_date;
+      document.getElementById('hatt-range-label').textContent = `Período: ${active.name}`;
+      document.getElementById('hatt-custom-range').style.display = 'none';
+    } else {
+      periSel.value = 'custom';
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth()+1).padStart(2,'0');
+      document.getElementById('hatt-from').value = `${y}-${m}-01`;
+      document.getElementById('hatt-to').value   = today;
+      document.getElementById('hatt-range-label').textContent = 'Sin período activo — mostrando mes actual';
+      document.getElementById('hatt-custom-range').style.display = 'flex';
+    }
+  }
+
+  function onHattPeriodChange() {
+    const sel     = document.getElementById('hatt-period');
+    const val     = sel.value;
+    const today   = todayColombia();
+    const custDiv = document.getElementById('hatt-custom-range');
+    if (val === 'custom') {
+      custDiv.style.display = 'flex';
+    } else {
+      custDiv.style.display = 'none';
+      const opt = sel.options[sel.selectedIndex];
+      const from = opt.dataset.from;
+      const to   = opt.dataset.to > today ? today : opt.dataset.to;
+      document.getElementById('hatt-from').value = from;
+      document.getElementById('hatt-to').value   = to;
+      document.getElementById('hatt-range-label').textContent = `Período: ${opt.text.trim()}`;
+    }
+    if (document.getElementById('hatt-course').value) loadAttHistory();
+  }
+
+  function onHattCourseChange() {
+    _hattCourseId = document.getElementById('hatt-course').value || null;
+    if (_hattCourseId) loadAttHistory();
+    else {
+      document.getElementById('hatt-table-wrap').innerHTML =
+        `<div style="text-align:center;padding:3rem;color:var(--gray);">
+          <div style="font-size:2.5rem;margin-bottom:.6rem;">📊</div>
+          Selecciona un curso para ver el historial.
+        </div>`;
+      document.getElementById('hatt-summary-strip').style.display = 'none';
+    }
+  }
+
+  async function loadAttHistory() {
+    const courseId = document.getElementById('hatt-course').value;
+    if (!courseId) return;
+    _hattCourseId = courseId;
+
+    const from  = document.getElementById('hatt-from').value;
+    const to    = document.getElementById('hatt-to').value;
+    const hour  = document.getElementById('hatt-hour').value;
+    if (!from || !to) return;
+
+    const wrap = document.getElementById('hatt-table-wrap');
+    wrap.innerHTML = `<div style="text-align:center;padding:2.5rem;color:var(--gray);">⏳ Cargando…</div>`;
+    document.getElementById('hatt-summary-strip').style.display = 'none';
+
+    const tcId = document.getElementById('hatt-course').selectedOptions[0]?.dataset.tcid || '';
+    const params = `course_id=${courseId}&from=${from}&to=${to}${hour !== 'all' ? '&hour='+hour : ''}${tcId ? '&tc_id='+tcId : ''}`;
+    const { ok, data } = await fetchAPI('/raice/attendance/range?' + params);
+
+    if (!ok || !data.records) {
+      wrap.innerHTML = `<div style="text-align:center;padding:2rem;color:var(--rose);">⚠️ Error al cargar el historial.</div>`;
+      return;
+    }
+
+    _hattData = data;
+    renderAttHistoryTable(data);
+    renderAttSummaryCards(data);
+    const periSel  = document.getElementById('hatt-period');
+    const periVal  = periSel?.value;
+    const periName = (periVal && periVal !== 'custom') ? periSel.options[periSel.selectedIndex].text.trim() : null;
+    const rangeStr = `${formatDateShort(from)} → ${formatDateShort(to)}${hour !== 'all' ? ` · ${hour}ª hora` : ''}`;
+    document.getElementById('hatt-range-label').textContent = periName ? `${periName} · ${rangeStr}` : rangeStr;
+  }
+
+  function renderAttHistoryTable(data) {
+    const { students, dates, records } = data;
+    const wrap = document.getElementById('hatt-table-wrap');
+
+    if (!dates.length || !students.length) {
+      wrap.innerHTML = `<div style="text-align:center;padding:2.5rem;color:var(--gray);">
+        <div style="font-size:2rem;margin-bottom:.5rem;">📭</div>Sin registros en este período.
+      </div>`;
+      return;
+    }
+
+    // Build map: student_id → date → statuses (array, one per hour)
+    const sortedStudents1 = sortStudents(students); // apply teacher sort preference
+    const map = {};
+    sortedStudents1.forEach(s => { map[s.id] = {}; dates.forEach(d => { map[s.id][d] = []; }); });
+    records.forEach(r => {
+      if (map[r.student_id] && map[r.student_id][r.date] !== undefined)
+        map[r.student_id][r.date].push(r.status);
+    });
+
+    const STATUS_ICON  = { P:'✅', A:'❌', T:'⏰', PE:'🤒', S:'📌' };
+    const STATUS_COLOR = { P:'#dcfce7', A:'#fee2e2', T:'#fff7ed', PE:'#dbeafe', S:'#fef9c3' };
+    const STATUS_TEXT  = { P:'Presente', A:'Ausente', T:'Tarde', PE:'Con permiso', S:'Actividad especial' };
+
+    function cellStatus(statuses) {
+      if (!statuses.length) return { icon:'·', bg:'#f8fafc', title:'Sin registro', code:null };
+      // If multiple hours: show worst (A > T > PE > P)
+      const priority = ['A','T','PE','P'];
+      const worst = priority.find(s => statuses.includes(s)) || statuses[0];
+      return { icon: STATUS_ICON[worst]||worst, bg: STATUS_COLOR[worst]||'#f8fafc',
+               title: STATUS_TEXT[worst]||worst, code: worst };
+    }
+
+    // Day-column totals
+    const dayTotals = {};
+    dates.forEach(d => {
+      const all = students.flatMap(s => map[s.id][d]);
+      const countable = all.filter(x => x !== 'S').length;
+      const present   = all.filter(x => x === 'P' || x === 'T').length;
+      dayTotals[d] = countable ? Math.round(present/countable*100) : null;
+    });
+
+    const shortDate = d => {
+      const [,m,day] = d.split('-');
+      const months = ['','ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+      return `${parseInt(day)}\xa0${months[parseInt(m)]}`;
+    };
+
+    const SEP = `<td style="width:6px;background:var(--border);padding:0;"></td>`;
+
+    let html = `
+      <div style="font-size:.72rem;color:var(--gray);margin-bottom:.45rem;font-weight:600;padding-left:.2rem;">
+        * Los totales resumen <b>horas de clase</b>; la cuadrícula muestra el estado consolidado por día.
+      </div>
+      <table style="border-collapse:collapse;width:100%;font-size:.82rem;">
+      <thead>
+        <tr style="background:var(--light);">
+          <th style="padding:.6rem .9rem;text-align:left;white-space:nowrap;position:sticky;left:0;background:var(--light);z-index:2;border-right:2px solid var(--border);">Estudiante</th>
+          ${dates.map(d => `<th style="padding:.5rem .4rem;text-align:center;white-space:nowrap;min-width:52px;font-weight:600;color:var(--navy);">${shortDate(d)}</th>`).join('')}
+          ${SEP}
+          <th style="padding:.4rem .5rem;text-align:center;white-space:nowrap;color:#16a34a;min-width:36px;" title="Horas Presente">✅</th>
+          <th style="padding:.4rem .5rem;text-align:center;white-space:nowrap;color:#dc2626;min-width:36px;" title="Horas Ausente">❌</th>
+          <th style="padding:.4rem .5rem;text-align:center;white-space:nowrap;color:#c2410c;min-width:36px;" title="Horas Tarde">⏰</th>
+          <th style="padding:.4rem .5rem;text-align:center;white-space:nowrap;color:#1d4ed8;min-width:36px;" title="Horas con Permiso (PE)">🤒</th>
+          <th style="padding:.4rem .5rem;text-align:center;white-space:nowrap;color:#92400e;min-width:36px;" title="Horas Actividad Especial">📌</th>
+          <th style="padding:.5rem .7rem;text-align:center;white-space:nowrap;font-weight:700;color:var(--navy);min-width:52px;">% Asist.</th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+    sortedStudents1.forEach((s, idx) => {
+      const rowBg = idx % 2 === 0 ? '#fff' : '#fafafa';
+      const name = studentName(s);
+      const allStatuses = dates.flatMap(d => map[s.id][d]);
+      const cntP  = allStatuses.filter(x => x === 'P').length;
+      const cntA  = allStatuses.filter(x => x === 'A').length;
+      const cntT  = allStatuses.filter(x => x === 'T').length;
+      const cntPE = allStatuses.filter(x => x === 'PE').length;
+      const cntS  = allStatuses.filter(x => x === 'S').length;
+      const countable = allStatuses.length - cntS;
+      const pct   = countable ? Math.round((cntP + cntT) / countable * 100) : null;
+      const pctColor = pct === null ? '#9ca3af' : pct >= 90 ? '#16a34a' : pct >= 75 ? '#ca8a04' : '#dc2626';
+      const pctBg   = pct === null ? '#f3f4f6' : pct >= 90 ? '#dcfce7' : pct >= 75 ? '#fef9c3' : '#fee2e2';
+
+      const statCell = (val, col) =>
+        `<td style="padding:.35rem .5rem;text-align:center;font-weight:600;color:${val>0?col:'#d1d5db'};background:${rowBg};">${val}</td>`;
+
+      html += `<tr style="background:${rowBg};">
+        <td style="padding:.5rem .9rem;white-space:nowrap;position:sticky;left:0;background:${rowBg};z-index:1;border-right:2px solid var(--border);font-weight:500;">${name}</td>
+        ${dates.map(d => {
+          const cell = cellStatus(map[s.id][d]);
+          return `<td style="padding:.3rem;text-align:center;background:${cell.bg};border:1px solid #f0f0f0;" title="${cell.title} — ${d}">${cell.icon}</td>`;
+        }).join('')}
+        ${SEP}
+        ${statCell(cntP,  '#16a34a')}
+        ${statCell(cntA,  '#dc2626')}
+        ${statCell(cntT,  '#c2410c')}
+        ${statCell(cntPE, '#1d4ed8')}
+        ${statCell(cntS,  '#92400e')}
+        <td style="padding:.4rem .7rem;text-align:center;font-weight:700;background:${pctBg};color:${pctColor};">${pct !== null ? pct+'%' : '—'}</td>
+      </tr>`;
+    });
+
+    // Footer: % por día
+    const totalColspan = 6; // P + A + T + PE + S + %
+    html += `<tr style="background:var(--light);font-weight:700;border-top:2px solid var(--border);">
+      <td style="padding:.5rem .9rem;position:sticky;left:0;background:var(--light);z-index:1;border-right:2px solid var(--border);">% del día</td>
+      ${dates.map(d => {
+        const p = dayTotals[d];
+        const bg = p===null?'#f3f4f6':p>=90?'#dcfce7':p>=75?'#fef9c3':'#fee2e2';
+        const col = p===null?'#9ca3af':p>=90?'#16a34a':p>=75?'#ca8a04':'#dc2626';
+        return `<td style="padding:.4rem;text-align:center;background:${bg};color:${col};">${p!==null?p+'%':'—'}</td>`;
+      }).join('')}
+      ${SEP}
+      <td colspan="${totalColspan}"></td>
+    </tr></tbody></table>`;
+
+    wrap.innerHTML = html;
+  }
+
+  function renderAttSummaryCards(data) {
+    const { students, records } = data;
+    const strip    = document.getElementById('hatt-summary-strip');
+    const cardsTop = document.getElementById('hatt-summary-cards-top');
+    const cards    = document.getElementById('hatt-summary-cards');
+
+    const total    = records.length;
+    const present  = records.filter(r => r.status === 'P').length;
+    const absent   = records.filter(r => r.status === 'A').length;
+    const late     = records.filter(r => r.status === 'T').length;
+    const permit   = records.filter(r => r.status === 'PE').length;
+    const special  = records.filter(r => r.status === 'S').length;
+    const countable = total - special;
+    const pct      = countable ? Math.round((present + late) / countable * 100) : 0;
+
+    cardsTop.innerHTML = [
+      { label:'Asistencia general', value: pct+'%', icon:'📈',
+        bg: pct>=90?'#dcfce7':pct>=75?'#fef9c3':'#fee2e2',
+        col: pct>=90?'#16a34a':pct>=75?'#ca8a04':'#dc2626',
+        sub: `sobre ${countable} horas de clase efectivas` },
+      { label:'Presentes',  value: present, icon:'✅', bg:'#f0fdf4', col:'#16a34a', sub: '' },
+      { label:'Registros totales', value: total, icon:'📋', bg:'#f0f9ff', col:'#0369a1',
+        sub: `${students.length} estudiante${students.length!==1?'s':''}` },
+    ].map(c => `<div style="background:${c.bg};border-radius:14px;padding:.9rem 1.1rem;">
+      <div style="font-size:1.4rem;margin-bottom:.25rem;">${c.icon}</div>
+      <div style="font-size:1.6rem;font-weight:800;color:${c.col};font-family:'Fraunces',serif;">${c.value}</div>
+      <div style="font-size:.75rem;color:var(--gray);font-weight:600;margin-top:.1rem;">${c.label}</div>
+      ${c.sub ? `<div style="font-size:.7rem;color:var(--gray);margin-top:.15rem;">${c.sub}</div>` : ''}
+    </div>`).join('');
+
+    cards.innerHTML = [
+      { label:'Ausencias',          value: absent,  icon:'❌', bg:'#fee2e2', col:'#dc2626' },
+      { label:'Tardanzas',          value: late,    icon:'⏰', bg:'#fff7ed', col:'#c2410c' },
+      { label:'Con permiso (PE)',   value: permit,  icon:'🤒', bg:'#dbeafe', col:'#1d4ed8' },
+      { label:'Actividad especial', value: special, icon:'📌', bg:'#fef9c3', col:'#92400e' },
+    ].map(c => `<div style="background:${c.bg};border-radius:14px;padding:.9rem 1.1rem;">
+      <div style="font-size:1.3rem;margin-bottom:.25rem;">${c.icon}</div>
+      <div style="font-size:1.4rem;font-weight:800;color:${c.col};font-family:'Fraunces',serif;">${c.value}</div>
+      <div style="font-size:.75rem;color:var(--gray);font-weight:600;margin-top:.1rem;">${c.label}</div>
+    </div>`).join('');
+
+    strip.style.display = 'block';
+  }
+
+  function openCheckDateModal() {
+    const courseId = document.getElementById('hatt-course').value;
+    if (!courseId) { showToast('Selecciona un curso primero', 'warning'); return; }
+    const date = document.getElementById('hatt-check-date').value;
+    if (!date) { showToast('Selecciona una fecha para verificar', 'warning'); return; }
+    renderCheckDateModal(courseId, date);
+  }
+
+  async function renderCheckDateModal(courseId, date) {
+    document.getElementById('check-date-label').textContent =
+      new Date(date+'T12:00:00').toLocaleDateString('es-CO', {weekday:'long',day:'numeric',month:'long',year:'numeric'});
+    document.getElementById('check-date-body').innerHTML =
+      '<div style="text-align:center;padding:1.5rem;color:var(--gray);">⏳ Consultando…</div>';
+    openModal('modal-check-date');
+
+    const hour = document.getElementById('hatt-hour').value;
+    const params = `course_id=${courseId}&from=${date}&to=${date}${hour !== 'all' ? '&hour='+hour : ''}`;
+    const { ok, data } = await fetchAPI('/raice/attendance/range?' + params);
+
+    if (!ok || !data.students) {
+      document.getElementById('check-date-body').innerHTML =
+        '<div style="color:var(--rose);text-align:center;">⚠️ Error al consultar</div>';
+      return;
+    }
+
+    const { students, records } = data;
+    if (!records.length) {
+      document.getElementById('check-date-body').innerHTML =
+        `<div style="text-align:center;padding:1.5rem;color:var(--gray);">📭 Sin registro de asistencia para esta fecha.</div>`;
+      return;
+    }
+
+    const STATUS_LABEL = { P:'✅ Presente', A:'❌ Ausente', T:'⏰ Tarde', PE:'🤒 Con permiso' };
+    const STATUS_BG    = { P:'#dcfce7', A:'#fee2e2', T:'#fff7ed', PE:'#dbeafe' };
+
+    // Group by student, show all hours
+    const byStudent = {};
+    const sortedStudents2 = sortStudents(students); // apply teacher sort preference
+    records.forEach(r => {
+      if (!byStudent[r.student_id]) byStudent[r.student_id] = [];
+      byStudent[r.student_id].push(r);
+    });
+
+    const ordinals = ['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª','10ª'];
+
+    const rows = sortedStudents2.map(s => {
+      const recs = byStudent[s.id] || [];
+      if (!recs.length) return `<tr><td style="padding:.5rem .75rem;font-weight:500;">${studentName(s)}</td><td colspan="2" style="padding:.5rem;color:var(--gray);font-size:.82rem;">Sin registro</td></tr>`;
+      return recs.map((r, i) => `
+        <tr style="background:${STATUS_BG[r.status]||'#f8fafc'};">
+          ${i===0 ? `<td rowspan="${recs.length}" style="padding:.5rem .75rem;font-weight:500;vertical-align:middle;">${studentName(s)}</td>` : ''}
+          <td style="padding:.4rem .6rem;font-size:.8rem;color:var(--gray);">${ordinals[r.class_hour-1]||r.class_hour+'ª'} hora</td>
+          <td style="padding:.4rem .75rem;font-weight:600;font-size:.83rem;">${STATUS_LABEL[r.status]||r.status}</td>
+        </tr>`).join('');
+    }).join('');
+
+    document.getElementById('check-date-body').innerHTML =
+      `<table style="width:100%;border-collapse:collapse;font-size:.85rem;">
+        <thead><tr style="background:var(--light);">
+          <th style="padding:.5rem .75rem;text-align:left;">Estudiante</th>
+          <th style="padding:.5rem .6rem;text-align:left;">Hora</th>
+          <th style="padding:.5rem .75rem;text-align:left;">Estado</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  }
+
+  async function exportAttHistoryPDF() {
+    if (!_hattData) { showToast('Carga el historial primero', 'warning'); return; }
+    const courseId = document.getElementById('hatt-course').value;
+    const course   = myCourses.find(c => c.id === courseId);
+    const from     = document.getElementById('hatt-from').value;
+    const to       = document.getElementById('hatt-to').value;
+    const rangeLabel = document.getElementById('hatt-range-label').textContent;
+
+    const { students, dates, records } = _hattData;
+    const STATUS_ICON  = { P:'✓', A:'✗', T:'T', PE:'P' };
+    const STATUS_COLOR = { P:'#16a34a', A:'#dc2626', T:'#c2410c', PE:'#2563eb' };
+
+    const sortedStudents3 = sortStudents(students); // apply teacher sort preference
+    const map = {};
+    sortedStudents3.forEach(s => { map[s.id] = {}; dates.forEach(d => { map[s.id][d] = []; }); });
+    records.forEach(r => { if (map[r.student_id]?.[r.date]!==undefined) map[r.student_id][r.date].push(r.status); });
+
+    const shortDate = d => { const [,m,day] = d.split('-'); const mo=['','ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']; return `${parseInt(day)} ${mo[parseInt(m)]}`; };
+
+    const headerCols = dates.map(d => `<th style="padding:4px 3px;text-align:center;font-size:10px;min-width:38px;">${shortDate(d)}</th>`).join('');
+    const dataRows   = sortedStudents3.map(s => {
+      const name = studentName(s);
+      const allS = dates.flatMap(d => map[s.id][d]);
+      const s_cntS = allS.filter(x=>x==='S').length;
+      const s_cntPE = allS.filter(x=>x==='PE').length;
+      const total = allS.length - s_cntS - s_cntPE;
+      const pres = allS.filter(x=>x==='P' || x==='T').length;
+      const pct = total ? Math.round(pres/total*100) : (allS.length - s_cntS > 0 ? 100 : null);
+      const pctColor = pct===null?'#9ca3af':pct>=90?'#16a34a':pct>=75?'#ca8a04':'#dc2626';
+      const cells = dates.map(d => {
+        const st = map[s.id][d]; if (!st.length) return '<td style="padding:4px;text-align:center;font-size:11px;color:#ccc;">·</td>';
+        const w = ['A','T','PE','P'].find(x=>st.includes(x))||st[0];
+        return `<td style="padding:4px;text-align:center;font-size:11px;font-weight:700;color:${STATUS_COLOR[w]||'#333'};">${STATUS_ICON[w]||w}</td>`;
+      }).join('');
+      return `<tr><td style="padding:5px 8px;white-space:nowrap;font-size:11px;">${name}</td>${cells}<td style="padding:4px 8px;text-align:center;font-weight:700;color:${pctColor};font-size:11px;">${pct!==null?pct+'%':'—'}</td></tr>`;
+    }).join('');
+
+    const w = window.open('','_blank');
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+      <title>Historial Asistencia — ${course?.grade||''}°${course?.number||''}</title>
+      <style>
+        body{font-family:'Segoe UI',sans-serif;margin:24px;color:#1e293b;}
+        h2{margin:0 0 4px;font-size:16px;} p{margin:2px 0;font-size:11px;color:#666;}
+        table{border-collapse:collapse;width:100%;margin-top:14px;}
+        thead tr{background:#f1f5f9;} th{padding:5px 4px;text-align:left;font-size:11px;border-bottom:2px solid #cbd5e1;}
+        tbody tr:nth-child(even){background:#f8fafc;}
+        @media print{@page{size:landscape;}}
+      </style></head><body>
+      <h2>📊 Historial de asistencia — ${course?.grade||''}°${course?.number||''} ${course?.subject||''}</h2>
+      <p>${rangeLabel}</p>
+      <p>✓ Presente &nbsp; ✗ Ausente &nbsp; T Tarde &nbsp; P Con permiso</p>
+      <table><thead><tr>
+        <th style="min-width:140px;">Estudiante</th>${headerCols}
+        <th style="text-align:center;min-width:55px;">% Asist.</th>
+      </tr></thead><tbody>${dataRows}</tbody></table>
+    </body></html>`);
+    w.document.close();
+    setTimeout(() => w.print(), 400);
+  }
+
+  function formatDateShort(d) {
+    if (!d) return '';
+    const [y,m,day] = d.split('-');
+    const months = ['','ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+    return `${parseInt(day)} ${months[parseInt(m)]} ${y}`;
+  }
+
+  // ── Excusa Date Validation ────────────────────────────────
+  function validateExcusaDate(input) {
+    const val = input.value;
+    if (!val) return true;
+
+    // Weekend check
+    const d = new Date(val + 'T12:00:00Z');
+    const dow = d.getUTCDay();
+    if (dow === 0 || dow === 6) {
+      input.style.borderColor = '#ef4444';
+      showToast('No se pueden registrar excusas en fines de semana.', 'warning');
+      return false;
+    }
+
+    // Holiday check
+    if (_excusasHolidays && _excusasHolidays.includes(val)) {
+      input.style.borderColor = '#ef4444';
+      showToast('Ese día es festivo en el calendario escolar.', 'warning');
+      return false;
+    }
+
+    // Active period check
+    if (_excusasActivePeriod && _excusasActivePeriod.start_date && _excusasActivePeriod.end_date) {
+      if (val < _excusasActivePeriod.start_date || val > _excusasActivePeriod.end_date) {
+        input.style.borderColor = '#ef4444';
+        showToast(`La fecha está fuera del período académico activo (${_excusasActivePeriod.name}).`, 'warning');
+        return false;
+      }
+    }
+
+    input.style.borderColor = '';
+    return true;
+  }
+
+  // ── Excusa Tooltip ──────────────────────────────────────
+  let _tooltipEl = null;
+
+  function showExcusaTooltip(target, encodedData) {
+    hideExcusaTooltip();
+    try {
+      const excusa = JSON.parse(decodeURIComponent(encodedData));
+      const horas = excusa.horas && excusa.horas.length
+        ? `Horas: ${excusa.horas.join(', ')}`
+        : 'Todas las horas del día';
+      const quien = excusa.raice_users
+        ? `${excusa.raice_users.first_name} ${excusa.raice_users.last_name}`
+        : 'Sistema';
+
+      const tip = document.createElement('div');
+      tip.id = 'excusa-tooltip';
+      tip.style.cssText = `
+        position:fixed;z-index:9999;
+        background:#1e293b;color:#f1f5f9;
+        border-radius:10px;padding:.65rem .9rem;
+        font-size:.78rem;font-family:'DM Sans',sans-serif;
+        line-height:1.6;box-shadow:0 8px 24px rgba(0,0,0,.3);
+        pointer-events:none;max-width:240px;
+      `;
+      tip.innerHTML = `
+        <div style="font-weight:700;color:#14b8b0;margin-bottom:.25rem;">🤒 Con permiso</div>
+        <div style="margin-bottom:.2rem;">${escapeHtml(excusa.motivo || '')}</div>
+        <div style="color:#94a3b8;font-size:.73rem;">⏰ ${horas}</div>
+        <div style="color:#94a3b8;font-size:.73rem;">👤 ${escapeHtml(quien)}</div>
+      `;
+      document.body.appendChild(tip);
+      _tooltipEl = tip;
+
+      // Position near target
+      const rect = target.getBoundingClientRect();
+      let top  = rect.bottom + 8;
+      let left = rect.left;
+      // Keep within viewport
+      if (left + 250 > window.innerWidth) left = window.innerWidth - 260;
+      if (top + 120 > window.innerHeight) top = rect.top - 130;
+      tip.style.top  = top  + 'px';
+      tip.style.left = left + 'px';
+    } catch(_) {}
+  }
+
+  function hideExcusaTooltip() {
+    if (_tooltipEl) { _tooltipEl.remove(); _tooltipEl = null; }
+    const old = document.getElementById('excusa-tooltip');
+    if (old) old.remove();
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function _printObservadorWindow(d, cfg) {
+    const s = d.student, at = d.attendance || {}, obs = d.observations || [], cases = d.cases || [];
+    const schoolName = cfg.school_name || 'Institución Educativa';
+    const schoolLoc  = cfg.location || '';
+    const schoolLogo = cfg.logo_url
+      ? `<img src="${cfg.logo_url}" style="height:55px;object-fit:contain;" alt="logo">`
+      : `<div style="font-size:2.2rem;">🏫</div>`;
+    const raiceLogo = `<img src="${window.location.origin}/favicon.png" style="height:40px;object-fit:contain;" alt="RAICE" onerror="this.style.display='none'">`;
+    const now = new Date().toLocaleDateString('es-CO', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    const curso = s.grade ? `${s.grade}°${s.number || ''}` : (s.course || '—');
+
+    const typeLabel = { positive: 'Positiva', neutral: 'Neutra', negative: 'Negativa' };
+    const typeColor = { positive: '#16a34a', neutral: '#64748b', negative: '#dc2626' };
+    const statusLabel = { open: 'Abierto', tracking: 'En seguimiento', closed: 'Cerrado' };
+
+    const obsRows = obs.map(o => {
+      const fecha = new Date(o.created_at).toLocaleDateString('es-CO', { day:'numeric', month:'short', year:'numeric' });
+      const tl = typeLabel[o.type] || o.type;
+      const tc = typeColor[o.type] || '#333';
+      return `<tr>
+        <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${fecha}</td>
+        <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;font-weight:600;color:${tc};">${tl}</td>
+        <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${o.text || ''}</td>
+        <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${o.teacher_name || '—'}</td>
+      </tr>`;
+    }).join('');
+
+    const casesRows = cases.map(c => {
+      const fecha = new Date(c.created_at).toLocaleDateString('es-CO', { day:'numeric', month:'short', year:'numeric' });
+      const st = statusLabel[c.status] || c.status;
+      return `<tr>
+        <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${fecha}</td>
+        <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;text-align:center;">Tipo ${c.type}</td>
+        <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${(c.description || '').substring(0, 120)}</td>
+        <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;text-align:center;">${st}</td>
+        <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${c.teacher_name || '—'}</td>
+      </tr>`;
+    }).join('');
+
+    const w = window.open('', '_blank');
+    w.document.write(`<!DOCTYPE html><html><head><title>Observador — ${s.first_name} ${s.last_name}</title>
+    <style>
+      @page{size:A4;margin:15mm}
+      body{font-family:Arial,sans-serif;font-size:10pt;color:#1e293b;line-height:1.5;}
+      table{width:100%;border-collapse:collapse;}
+      th{background:#f1f5f9;border:1px solid #ccc;padding:5px 8px;font-size:8.5pt;text-transform:uppercase;letter-spacing:.03em;text-align:left;}
+      tr:nth-child(even){background:#fafbfc;}
+      .header{display:flex;align-items:center;justify-content:space-between;border-bottom:2.5px solid #1e293b;padding-bottom:.8rem;margin-bottom:1.2rem;}
+      .header-center{text-align:center;flex:1;}
+      .header-center h1{margin:0;font-size:13pt;font-weight:800;}
+      .header-center .loc{font-size:8.5pt;color:#555;margin-top:2px;}
+      .section-title{font-size:11pt;font-weight:800;color:#1e293b;margin:1.2rem 0 .5rem;padding-bottom:.3rem;border-bottom:1.5px solid #e2e8f0;}
+      .student-info{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem .8rem;margin-bottom:1rem;background:#f8fafc;padding:.7rem 1rem;border-radius:6px;border:1px solid #e2e8f0;}
+      .si-label{font-size:8pt;color:#64748b;text-transform:uppercase;letter-spacing:.04em;}
+      .si-value{font-size:10pt;font-weight:700;color:#1e293b;}
+      .att-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:.5rem;margin-bottom:1rem;}
+      .att-box{text-align:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:.5rem .3rem;}
+      .att-val{font-size:14pt;font-weight:800;}
+      .att-lbl{font-size:7.5pt;color:#64748b;text-transform:uppercase;}
+      .footer{text-align:center;margin-top:2rem;font-size:8pt;color:#999;border-top:1px solid #e2e8f0;padding-top:.5rem;}
+    </style></head><body>
+    <div class="header">
+      ${schoolLogo}
+      <div class="header-center">
+        <h1>${schoolName}</h1>
+        ${schoolLoc ? `<div class="loc">${schoolLoc}</div>` : ''}
+        <div style="font-size:10pt;font-weight:600;margin-top:6px;color:#0b7a75;">OBSERVADOR DEL ESTUDIANTE</div>
+      </div>
+      ${raiceLogo}
+    </div>
+
+    <div class="student-info">
+      <div><div class="si-label">Nombre completo</div><div class="si-value">${s.first_name} ${s.last_name}</div></div>
+      <div><div class="si-label">Curso</div><div class="si-value">${curso}</div></div>
+      <div><div class="si-label">Estado</div><div class="si-value">${s.status === 'inactive' ? 'Retirado' : 'Activo'}</div></div>
+    </div>
+
+    <div class="section-title">Resumen de asistencia</div>
+    <div class="att-grid">
+      <div class="att-box"><div class="att-val" style="color:${at.pct !== null && at.pct < 80 ? '#dc2626' : '#16a34a'};">${at.pct ?? '—'}%</div><div class="att-lbl">Asistencia</div></div>
+      <div class="att-box"><div class="att-val" style="color:#16a34a;">${at.present || 0}</div><div class="att-lbl">Presencias</div></div>
+      <div class="att-box"><div class="att-val" style="color:#dc2626;">${at.absent || 0}</div><div class="att-lbl">Ausencias</div></div>
+      <div class="att-box"><div class="att-val" style="color:#f59e0b;">${at.late || 0}</div><div class="att-lbl">Tardanzas</div></div>
+      <div class="att-box"><div class="att-val" style="color:#7c3aed;">${at.permit || 0}</div><div class="att-lbl">Permisos</div></div>
+    </div>
+    <div style="font-size:7.5pt;color:#94a3b8;text-align:center;margin-top:-.5rem;margin-bottom:.8rem;">* Estadísticas en horas de clase</div>
+
+    <div class="section-title">Observaciones (${obs.length})</div>
+    ${obs.length ? `<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Observación</th><th>Docente</th></tr></thead><tbody>${obsRows}</tbody></table>`
+      : '<div style="text-align:center;padding:1rem;color:#94a3b8;font-size:9pt;">Sin observaciones registradas</div>'}
+
+    <div class="section-title">Casos RAICE (${cases.length})</div>
+    ${cases.length ? `<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Descripción</th><th>Estado</th><th>Reportado por</th></tr></thead><tbody>${casesRows}</tbody></table>`
+      : '<div style="text-align:center;padding:1rem;color:#94a3b8;font-size:9pt;">Sin casos RAICE registrados</div>'}
+
+    <div class="footer">Generado el ${now} — Sistema RAICE</div>
+    </body></html>`);
+    w.document.close();
+    setTimeout(() => w.print(), 500);
+  }
+
+</script>
+
+
+<!-- Modal: Retirar de clase -->
+<div class="modal-overlay" id="modal-removal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>⛔ Retirar de clase</h3>
+      <button class="modal-close" onclick="closeModal('modal-removal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:.88rem;color:var(--gray);margin-bottom:1rem;">
+        Este evento se enviará al coordinador como alerta de convivencia.<br>
+        <strong>No afecta el registro de asistencia.</strong>
+      </p>
+      <div class="form-group">
+        <label>Estudiante</label>
+        <input type="text" id="removal-student-name" readonly style="background:var(--light);">
+      </div>
+      <div class="form-group">
+        <label>Motivo del retiro <span style="color:#f43f5e">*</span></label>
+        <textarea id="removal-reason" rows="3" placeholder="Describe brevemente el motivo del retiro…" style="width:100%;resize:vertical;"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-removal')">Cancelar</button>
+      <button class="btn btn-danger" onclick="submitRemoval()" style="background:#f43f5e;color:#fff;border:none;">⛔ Enviar al coordinador</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Corregir lista -->
+<div class="modal-overlay" id="modal-unlock">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>✏️ Corregir lista</h3>
+      <button class="modal-close" onclick="closeModal('modal-unlock')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="unlock-window-info" style="background:#fffbeb;border:1.5px solid #fde68a;border-radius:10px;padding:.65rem .85rem;margin-bottom:1rem;font-size:.83rem;color:#92400e;display:none;">
+        ⏱️ <span id="unlock-window-text"></span>
+      </div>
+      <p style="font-size:.88rem;color:var(--gray);margin-bottom:1rem;">
+        La corrección queda registrada con tu nombre, la hora y el motivo para auditoría del coordinador.
+      </p>
+      <div class="form-group">
+        <label>Motivo de la corrección <span style="color:#f43f5e">*</span></label>
+        <textarea id="unlock-reason" rows="3" placeholder="¿Por qué necesitas corregir esta lista?…" style="width:100%;resize:vertical;"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-unlock')">Cancelar</button>
+      <button class="btn btn-teal" onclick="submitUnlock()">✏️ Corregir</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Nuevo escalón Tipo I -->
+<div class="modal-overlay" id="modal-tipo1-escalon">
+  <div class="modal" style="max-width:520px;">
+    <div class="modal-header">
+      <h3 id="tipo1-escalon-title">📋 Registrar escalón</h3>
+      <button class="modal-close" onclick="closeModal('modal-tipo1-escalon')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="tipo1-escalon-badge" style="margin-bottom:1rem;padding:.6rem .9rem;border-radius:10px;font-size:.83rem;font-weight:600;"></div>
+      <div class="form-group">
+        <label>¿Qué sucedió en este escalón? *</label>
+        <textarea id="tipo1-desc" rows="3" placeholder="Describe el incidente o la situación observada…" style="width:100%;resize:vertical;"></textarea>
+      </div>
+      <div id="tipo1-descargos-group" class="form-group" style="display:none;">
+        <label>Descargos del estudiante</label>
+        <textarea id="tipo1-descargos" rows="2" placeholder="Lo que el estudiante manifiesta en su defensa…" style="width:100%;resize:vertical;"></textarea>
+      </div>
+      <div id="tipo1-compromiso-group" style="display:none;">
+        <div class="form-group">
+          <label>Compromiso acordado</label>
+          <textarea id="tipo1-compromiso" rows="2" placeholder="Acuerdo al que se llegó con el estudiante…" style="width:100%;resize:vertical;"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Fecha límite del compromiso <span style="font-weight:400;color:var(--gray);">(opcional)</span></label>
+          <input type="date" id="tipo1-compromiso-fecha" style="width:100%;">
+        </div>
+        <div id="tipo1-garante-group" class="form-group" style="display:none;">
+          <label id="tipo1-garante-label">Garante</label>
+          <input type="text" id="tipo1-garante" placeholder="Nombre del garante…" style="width:100%;">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-tipo1-escalon')">Cancelar</button>
+      <button class="btn btn-teal" id="tipo1-escalon-btn" onclick="saveTipo1Escalon()">💾 Registrar escalón</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Historial escalones Tipo I -->
+<div class="modal-overlay" id="modal-tipo1-historial">
+  <div class="modal" style="max-width:560px;">
+    <div class="modal-header">
+      <h3 id="tipo1-hist-title">📋 Proceso Tipo I</h3>
+      <button class="modal-close" onclick="closeModal('modal-tipo1-historial')">✕</button>
+    </div>
+    <div class="modal-body" id="tipo1-hist-body">
+      <div style="text-align:center;padding:2rem;color:var(--gray);">Cargando…</div>
+    </div>
+    <div class="modal-footer" id="tipo1-hist-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-tipo1-historial')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      reg.addEventListener('updatefound', () => {
+        const newSW = reg.installing;
+        newSW.addEventListener('statechange', () => {
+          if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+            showUpdateBanner();
+          }
+        });
+      });
+    } catch(e) { console.warn('SW no disponible:', e); }
+  });
+  navigator.serviceWorker.addEventListener('message', e => {
+    if (e.data?.type === 'SW_UPDATED') showUpdateBanner();
+  });
+}
+function showUpdateBanner() {
+  let b = document.getElementById('pwa-update-banner');
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'pwa-update-banner';
+    b.style.cssText = 'position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);z-index:99999;background:#0f1f3d;color:#fff;border-radius:14px;padding:.75rem 1.25rem;font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:.75rem;box-shadow:0 4px 20px rgba(0,0,0,.3);';
+    b.innerHTML = '✨ Nueva versión disponible <button onclick="location.reload()" style="background:#14b8b0;border:none;color:#fff;padding:.3rem .8rem;border-radius:8px;cursor:pointer;font-weight:700;">Actualizar</button>';
+    document.body.appendChild(b);
+  }
+}
 </script>
 
 
