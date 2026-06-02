@@ -357,10 +357,46 @@ async function handleBackupImport(req, res, user) {
 
   // ── Paso 2: tablas grandes en paralelo — JWT verificado, sin re-confirmación
   if (step === 2) {
+    const [usersRes, studentsRes, coursesRes] = await Promise.all([
+      sb.from('raice_users').select('id'),
+      sb.from('raice_students').select('id'),
+      sb.from('raice_courses').select('id'),
+    ]);
+
+    const validUserIds    = new Set((usersRes.data    || []).map(u => u.id));
+    const validStudentIds = new Set((studentsRes.data || []).map(s => s.id));
+    const validCourseIds  = new Set((coursesRes.data   || []).map(c => c.id));
+
+    const attRows = (backup?.tables?.attendance || []).filter(r => {
+      return r.student_id && validStudentIds.has(r.student_id) &&
+             r.course_id && validCourseIds.has(r.course_id);
+    }).map(r => ({
+      ...r,
+      teacher_id:   r.teacher_id && validUserIds.has(r.teacher_id) ? r.teacher_id : null,
+      corrected_by: r.corrected_by && validUserIds.has(r.corrected_by) ? r.corrected_by : null,
+    }));
+
+    const obsRows = (backup?.tables?.observations || []).filter(r => {
+      return r.student_id && validStudentIds.has(r.student_id);
+    }).map(r => ({
+      ...r,
+      teacher_id: r.teacher_id && validUserIds.has(r.teacher_id) ? r.teacher_id : null,
+      course_id:  r.course_id && validCourseIds.has(r.course_id) ? r.course_id : null,
+    }));
+
+    const gradeRows = (backup?.tables?.student_grade_history || []).filter(r => {
+      return r.student_id && validStudentIds.has(r.student_id);
+    }).map(r => ({
+      ...r,
+      from_course_id: r.from_course_id && validCourseIds.has(r.from_course_id) ? r.from_course_id : null,
+      to_course_id:   r.to_course_id && validCourseIds.has(r.to_course_id) ? r.to_course_id : null,
+      changed_by:     r.changed_by && validUserIds.has(r.changed_by) ? r.changed_by : null,
+    }));
+
     const [attR, obsR, gradeHistR] = await Promise.all([
-      upsertBatch('raice_attendance',            backup?.tables?.attendance            || [], 1000),
-      upsertBatch('raice_observations',          backup?.tables?.observations          || []),
-      upsertBatch('raice_student_grade_history', backup?.tables?.student_grade_history || []),
+      upsertBatch('raice_attendance',            attRows,   1000),
+      upsertBatch('raice_observations',          obsRows,   300),
+      upsertBatch('raice_student_grade_history', gradeRows, 300),
     ]);
     results.attendance = attR; results.observations = obsR; results.student_grade_history = gradeHistR;
     return res.status(200).json({
