@@ -374,7 +374,7 @@ async function handleAttendance(req, res, user) {
       });
       const deduped = Object.values(scdMap);
 
-      const present = deduped.filter(r => ['P','PE','S'].includes(r.status)).length;
+      const present = deduped.filter(r => ['P','PE','T','S'].includes(r.status)).length;
       const absent  = deduped.filter(r => r.status === 'A').length;
       const permit  = deduped.filter(r => r.status === 'PE').length;
       const late    = deduped.filter(r => r.status === 'T').length;
@@ -406,13 +406,17 @@ async function handleAttendance(req, res, user) {
         }
         byCourse[r.course_id].total++;
         const s = r.status;
-        if (s==='P'||s==='S') byCourse[r.course_id].present++;
-        else if (s==='PE')    { byCourse[r.course_id].present++; byCourse[r.course_id].permit++; }
+        if (s==='P'||s==='S')  byCourse[r.course_id].present++;
+        else if (s==='PE')     byCourse[r.course_id].permit++;
         else if (s==='A')      byCourse[r.course_id].absent++;
         else if (s==='T')      byCourse[r.course_id].late++;
       });
       const courses = Object.values(byCourse)
-        .map(c => ({ ...c, pct: c.total>0 ? Math.round((c.present/c.total)*100) : 0 }))
+        .map(c => {
+          const countable = c.total - c.permit;
+          const pct = countable > 0 ? Math.round(((c.present + c.late) / countable) * 100) : 100;
+          return { ...c, pct };
+        })
         .sort((a,b) => a.grade - b.grade || a.course - b.course);
 
       return res.status(200).json({ present, absent, permit, late, courses, mode: 'range' });
@@ -482,7 +486,7 @@ async function handleAttendance(req, res, user) {
     });
     const deduped = Object.values(studentCourseMap);
 
-    const present = deduped.filter(r => r.status === 'P' || r.status === 'PE').length;
+    const present = deduped.filter(r => ['P', 'PE', 'T', 'S'].includes(r.status)).length;
     const absent  = deduped.filter(r => r.status === 'A').length;
     const permit  = deduped.filter(r => r.status === 'PE').length;
     const late    = deduped.filter(r => r.status === 'T').length;
@@ -538,7 +542,9 @@ async function handleAttendance(req, res, user) {
       const teachers_by_hour = Object.entries(hourMap)
         .sort((a,b) => Number(a[0]) - Number(b[0]))
         .map(([h, name]) => ({ hour: Number(h), name }));
-      return { ...c, teachers_by_hour, pct: c.total > 0 ? Math.round((c.present / c.total) * 100) : 0 };
+      const countable = c.total - c.permit;
+      const pct = countable > 0 ? Math.round(((c.present + c.late) / countable) * 100) : 100;
+      return { ...c, teachers_by_hour, pct };
     }).sort((a,b) => a.grade - b.grade || a.course - b.course);
 
     return res.status(200).json({ present, absent, permit, late, courses });

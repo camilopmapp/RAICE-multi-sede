@@ -597,30 +597,41 @@ async function getDashboardV2(req, res, user) {
       .order('created_at', { ascending:false }).limit(8), { data:[] })
   ]);
 
-  // Attendance today — only show % if real list was taken (not just PE from excusas)
+  // Deduplicate today's attendance (per student + course) keeping the latest hour's status
   const attData = attRes.data || [];
-  const cntP  = attData.filter(a => a.status === 'P').length;
-  const cntT  = attData.filter(a => a.status === 'T').length;
-  const cntPE = attData.filter(a => a.status === 'PE').length;
-  const cntS  = attData.filter(a => a.status === 'S').length;
-  const total = attData.length;
-  const countable = total - cntS - cntPE;
-  const attPct = countable > 0 ? Math.round(((cntP + cntT) / countable) * 100) : (total - cntS > 0 ? 100 : null);
+  const studentDedupMap = {};
+  attData.forEach(a => {
+    if (!a.student_id) return;
+    const key = `${a.student_id}_${a.course_id}`;
+    if (!studentDedupMap[key] || (a.class_hour || 0) > (studentDedupMap[key].class_hour || 0)) {
+      studentDedupMap[key] = a;
+    }
+  });
+  const dedupedAtt = Object.values(studentDedupMap);
+
+  const donutPresent = dedupedAtt.filter(a => a.status === 'P').length;
+  const donutAbsent  = dedupedAtt.filter(a => a.status === 'A').length;
+  const donutLate    = dedupedAtt.filter(a => a.status === 'T').length;
+  const donutPermit  = dedupedAtt.filter(a => a.status === 'PE').length;
+  const donutSpecial = dedupedAtt.filter(a => a.status === 'S').length;
+
+  const total = dedupedAtt.length;
+  const countable = total - donutPermit - donutSpecial;
+  const attPct = countable > 0 ? Math.round(((donutPresent + donutLate) / countable) * 100) : (total > 0 ? 100 : null);
 
   // Attendance by grade and course
   const gradeMap = {};
-  attData.forEach(a => {
+  dedupedAtt.forEach(a => {
     const g = a.raice_courses?.grade;
     const n = a.raice_courses?.number || '';
-    if (!g) return;
+    if (g === undefined || g === null) return;
     const key = n ? `${g}°${n}` : `${g}°`;
-    if (!gradeMap[key]) gradeMap[key] = { grade: g, number: n, present:0, total:0, hasReal:false };
-    if (a.status !== 'PE') gradeMap[key].hasReal = true;
+    if (!gradeMap[key]) gradeMap[key] = { grade: g, number: n, present: 0, total: 0 };
     gradeMap[key].total++;
-    if (a.status === 'P' || a.status === 'PE') gradeMap[key].present++;
+    if (['P', 'T', 'PE', 'S'].includes(a.status)) gradeMap[key].present++;
   });
   const att_by_grade = Object.entries(gradeMap)
-    .map(([key, v]) => ({ name: key, grade: v.grade, pct: Math.round((v.present/v.total)*100) }))
+    .map(([key, v]) => ({ name: key, grade: v.grade, pct: v.total > 0 ? Math.round((v.present / v.total) * 100) : 0 }))
     .sort((a,b) => {
       if (a.grade !== b.grade) return a.grade - b.grade;
       return String(a.name).localeCompare(String(b.name));
@@ -755,6 +766,10 @@ async function getDashboardV2(req, res, user) {
     teachers:         teachersRes.count  || 0,
     open_cases:       casesRes.count     || 0,
     attendance_today: attPct,
+    present:          donutPresent,
+    absent:           donutAbsent,
+    late:             donutLate,
+    permit:           donutPermit,
     commitments_due:  commitmentsRes.count || 0,
     att_by_grade,
     alerts,
