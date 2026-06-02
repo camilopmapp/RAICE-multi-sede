@@ -769,3 +769,199 @@ function isoWeek(dateStr) {
   return `${d.getFullYear()}-W${String(week).padStart(2,'0')}`;
 }
 
+async function getRectorInsights(req, res, user) {
+  requireRole(user, 'superadmin', 'admin', 'rector');
+  const sb = getSupabase();
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const today = todayCO();
+  const safe = async (fn, fb) => { try { return await fn(); } catch (_) { return fb; } };
+
+  // Sede filter — works for rector/superadmin (optional) and admin (required)
+  const sedeFilter = url.searchParams.get('sede_filter');
+  let sedeCourseIds = null;
+  if (user.role === 'admin') {
+    const adminSedeIds = await getAdminSedeIds(sb, user, sedeFilter);
+    sedeCourseIds = await getCourseIdsForSedes(sb, adminSedeIds);
+  } else if (sedeFilter) {
+    sedeCourseIds = await getCourseIdsForSedes(sb, [sedeFilter]);
+  }
+  // Helper to apply sede filter to attendance queries
+  const applySedeAtt = (q) => sedeCourseIds ? q.in('course_id', sedeCourseIds) : q;
+  const applySedeStudents = (q) => sedeCourseIds ? q.in('course_id', sedeCourseIds) : q;
+
+  // ── 1. Tendencia asistencia últimos 30 días ──
+  const thirtyAgo = (() => { const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().slice(0, 10); })();
+  const attTrendRaw = await safe(() =>
+    applySedeAtt(sb.from('raice_attendance').select('date, status, course_id').gte('date', thirtyAgo).lte('date', today)), { data: [] });
+  const trendMap = {};
+  (attTrendRaw.data || []).forEach(a => {
+    if (a.status === 'NR') return;
+    if (!trendMap[a.date]) trendMap[a.date] = { P: 0, A: 0, T: 0, PE: 0, S: 0 };
+    if (trendMap[a.date][a.status] !== undefined) trendMap[a.date][a.status]++;
+  });
+  const attendance_trend = Object.entries(trendMap)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, c]) => {
+      const countable = c.P + c.A + c.T;
+      const pct = countable > 0 ? Math.round(((c.P + c.T) / countable) * 100) : null;
+      return { date, pct, P: c.P, A: c.A, T: c.T, PE: c.PE };
+    });
+
+  // ── 2. Ranking grados mes actual ──
+  const monthStart = today.substring(0, 8) + '01';
+  const attMonthRaw = await safe(() =>
+    applySedeAtt(sb.from('raice_attendance').select('status, course_id, raice_courses(grade, number)').gte('date', monthStart).lte('date', today)), { data: [] });
+  const gradeMonthMap = {};
+  (attMonthRaw.data || []).forEach(a => {
+    if (a.status === 'NR' || a.status === 'S') return;
+    const g = a.raice_courses?.grade;
+    const n = a.raice_courses?.number || '';
+    if (!g) return;
+    const key = n ? `${g}°${n}` : `${g}°`;
+    if (!gradeMonthMap[key]) gradeMonthMap[key] = { grade: g, P: 0, A: 0, T: 0, PE: 0 };
+    if (gradeMonthMap[key][a.status] !== undefined) gradeMonthMap[key][a.status]++;
+  });
+  const grade_ranking = Object.entries(gradeMonthMap)
+    .map(([name, c]) => {
+      const countable = c.P + c.A + c.T;
+      const pct = countable > 0 ? Math.round(((c.P + c.T) / countable) * 100) : null;
+      return { name, grade: c.grade, pct, total: countable };
+    })
+    .filter(g => g.pct !== null)
+    .sort((a, b) => b.pct - a.pct);
+
+  // ── 3. Cumplimiento docente hoy ──
+  const dayOfWeek = dayOfWeekCO(today);
+  const schedsRes = await safe(() =>
+    sb.from('raice_schedules').select('class_hour, start_time, raice_teacher_courses(teacher_id, course_id, subject, raice_users(first_name, last_name), raice_courses(grade, number))').eq('day_of_week', dayOfWeek), { data: [] });
+  const bellsRes = await safe(() => sb.from('raice_bell_schedule').select('class_hour, start_time'), { data: [] });
+  const bellMap = {};
+  (bellsRes.data || []).forEach(b => bellMap[b.class_hour] = b.start_time);
+
+  const coDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+  const currentTime = `${coDate.getHours().toString().padStart(2, '0')}:${coDate.getMinutes().toString().padStart(2, '0')}:00`;
+
+  // Attendance taken today
+  const todayAttRes = await safe(() =>
+    applySedeAtt(sb.from('raice_attendance').select('course_id, class_hour, status').eq('date', today)), { data: [] });
+  const takenSet = new Set();
+  (todayAttRes.data || []).forEach(a => {
+    if (a.status !== 'PE' && a.status !== 'NR') takenSet.add(`${a.course_id}_${a.class_hour}`);
+  });
+
+  // Build teacher compliance
+  const sedeSet = sedeCourseIds ? new Set(sedeCourseIds) : null;
+  const teacherStats = {};
+  (schedsRes.data || []).forEach(s => {
+    const tc = s.raice_teacher_courses;
+    if (!tc || !tc.raice_users || !tc.course_id) return;
+    if (sedeSet && !sedeSet.has(tc.course_id)) return; // filter by sede
+    const st = s.start_time || bellMap[s.class_hour];
+    if (!st || st >= currentTime) return; // only past hours
+    const tid = tc.teacher_id;
+    const name = `${tc.raice_users.first_name} ${tc.raice_users.last_name}`;
+    if (!teacherStats[tid]) teacherStats[tid] = { name, scheduled: 0, taken: 0 };
+    teacherStats[tid].scheduled++;
+    if (takenSet.has(`${tc.course_id}_${s.class_hour}`)) teacherStats[tid].taken++;
+  });
+  const teacher_compliance = Object.values(teacherStats)
+    .map(t => ({ ...t, pct: t.scheduled > 0 ? Math.round((t.taken / t.scheduled) * 100) : null }))
+    .sort((a, b) => (a.pct ?? 999) - (b.pct ?? 999));
+
+  // ── 4. Resumen de casos por tipo ──
+  const casesAllRes = await safe(() => {
+    let q = sb.from('raice_cases').select('type, status, created_at, course_id');
+    if (sedeCourseIds) q = q.in('course_id', sedeCourseIds);
+    return q;
+  }, { data: [] });
+  const casesAll = casesAllRes.data || [];
+  const cases_summary = { total: casesAll.length, open: 0, closed: 0, by_type: { 1: 0, 2: 0, 3: 0 }, this_month: 0 };
+  casesAll.forEach(c => {
+    if (c.status === 'open' || c.status === 'tracking') cases_summary.open++;
+    else cases_summary.closed++;
+    if (cases_summary.by_type[c.type] !== undefined) cases_summary.by_type[c.type]++;
+    if (c.created_at && c.created_at.slice(0, 10) >= monthStart) cases_summary.this_month++;
+  });
+
+  // ── 5. Estudiantes en riesgo ──
+  // Low attendance + open cases + unfulfilled commitments
+  const [riskAttRes, riskCasesRes, riskCommRes, riskStudentsRes] = await Promise.all([
+    safe(() => applySedeAtt(sb.from('raice_attendance').select('student_id, status, course_id').gte('date', monthStart)), { data: [] }),
+    safe(() => { let q = sb.from('raice_cases').select('student_id, course_id').in('status', ['open', 'tracking']); if (sedeCourseIds) q = q.in('course_id', sedeCourseIds); return q; }, { data: [] }),
+    safe(() => sb.from('raice_commitments').select('student_id').eq('fulfilled', false), { data: [] }),
+    safe(() => applySedeStudents(sb.from('raice_students').select('id, first_name, last_name, grade, course_id, raice_courses(grade, number)').eq('status', 'active')), { data: [] })
+  ]);
+
+  // Build attendance % per student
+  const stuAttMap = {};
+  (riskAttRes.data || []).forEach(a => {
+    if (a.status === 'NR' || a.status === 'S') return;
+    if (!stuAttMap[a.student_id]) stuAttMap[a.student_id] = { countable: 0, present: 0 };
+    if (a.status !== 'PE') stuAttMap[a.student_id].countable++;
+    if (a.status === 'P' || a.status === 'T') stuAttMap[a.student_id].present++;
+  });
+
+  // Build open cases count per student
+  const stuCasesMap = {};
+  (riskCasesRes.data || []).forEach(c => { stuCasesMap[c.student_id] = (stuCasesMap[c.student_id] || 0) + 1; });
+
+  // Build unfulfilled commitments count per student
+  const stuCommMap = {};
+  (riskCommRes.data || []).forEach(c => { stuCommMap[c.student_id] = (stuCommMap[c.student_id] || 0) + 1; });
+
+  // Score students
+  const studentMap = {};
+  (riskStudentsRes.data || []).forEach(s => { studentMap[s.id] = s; });
+
+  const riskScores = Object.keys(studentMap).map(sid => {
+    const att = stuAttMap[sid];
+    const attPct = att && att.countable > 0 ? Math.round((att.present / att.countable) * 100) : null;
+    const openCases = stuCasesMap[sid] || 0;
+    const pendingComm = stuCommMap[sid] || 0;
+    // Risk score: lower attendance = higher risk, more cases = higher risk
+    let score = 0;
+    if (attPct !== null && attPct < 80) score += (80 - attPct) * 2;
+    if (attPct !== null && attPct < 60) score += 30;
+    score += openCases * 20;
+    score += pendingComm * 10;
+    if (score === 0) return null;
+    const s = studentMap[sid];
+    const courseLabel = s.raice_courses ? `${s.raice_courses.grade}°${s.raice_courses.number || ''}` : '';
+    return { id: sid, name: `${s.first_name} ${s.last_name}`, course: courseLabel, att_pct: attPct, open_cases: openCases, pending_commitments: pendingComm, risk_score: score };
+  }).filter(Boolean).sort((a, b) => b.risk_score - a.risk_score).slice(0, 15);
+
+  // ── 6. Resumen de excusas recientes ──
+  const weekAgo = (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().slice(0, 10); })();
+  const excusasRes = await safe(() => {
+    let q = sb.from('raice_excusas').select('id, student_id, course_id, date, motivo, horas, registered_by, created_at, raice_students(first_name, last_name), raice_users(first_name, last_name)').gte('created_at', weekAgo + 'T00:00:00').order('created_at', { ascending: false }).limit(30);
+    if (sedeCourseIds) q = q.in('course_id', sedeCourseIds);
+    return q;
+  }, { data: [] });
+  const excusasData = excusasRes.data || [];
+  // Classify: if horas array has items → "por horas", else "dia completo"
+  // (rango = same student appears on multiple consecutive dates, but simplified here)
+  const excusas_summary = {
+    total_week: excusasData.length,
+    by_type: { dia_completo: 0, horas: 0 },
+    recent: excusasData.slice(0, 10).map(e => ({
+      date: e.date,
+      motivo: e.motivo,
+      student_name: e.raice_students ? `${e.raice_students.first_name} ${e.raice_students.last_name}` : '—',
+      registered_by_name: e.raice_users ? `${e.raice_users.first_name} ${e.raice_users.last_name}` : '—',
+      horas: e.horas
+    }))
+  };
+  excusasData.forEach(e => {
+    if (e.horas && e.horas.length > 0) excusas_summary.by_type.horas++;
+    else excusas_summary.by_type.dia_completo++;
+  });
+
+  return res.status(200).json({
+    attendance_trend,
+    grade_ranking,
+    teacher_compliance,
+    cases_summary,
+    students_at_risk: riskScores,
+    excusas_summary
+  });
+}

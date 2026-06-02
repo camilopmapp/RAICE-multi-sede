@@ -10,6 +10,7 @@ import { SchedulesController } from '../../src/presentation/controllers/Schedule
 import { AttendanceController } from '../../src/presentation/controllers/AttendanceController.js';
 import { StudentsController } from '../../src/presentation/controllers/StudentsController.js';
 import { AlertsController } from '../../src/presentation/controllers/AlertsController.js';
+import { SedesController } from '../../src/presentation/controllers/SedesController.js';
 
 export const config = {
   api: { bodyParser: { sizeLimit: '10mb' } },
@@ -73,6 +74,8 @@ export default async function handler(req, res) {
     const route = pathParts.join('/');
 
     // ---- SUPERADMIN & ADMIN routes ----
+    if (route === 'raice/sedes')                return await SedesController.handleSedes(req, res, user);
+    if (route === 'raice/rector-insights')     return await ReportsController.getRectorInsights(req, res, user);
     if (route === 'raice/dashboard')            return await ReportsController.getDashboardV2(req, res, user);
     if (route === 'raice/alerts')               return await AlertsController.getAlertsEndpoint(req, res, user);
     if (route === 'raice/users')                return await UsersController.handleUsers(req, res, user);
