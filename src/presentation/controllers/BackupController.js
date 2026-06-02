@@ -93,6 +93,9 @@ async function handleBackupExport(req, res, user) {
       studentGradeHistory,
       logs,
       tipo1Escalones,
+      sedes,
+      userSedes,
+      subgroupMembers,
     ] = await Promise.all([
       sq(sb.from('raice_students').select('*').order('grade').order('last_name')),
       sq(sb.from('raice_cases').select('*').order('created_at', { ascending: false })),
@@ -119,6 +122,9 @@ async function handleBackupExport(req, res, user) {
       sq(sb.from('raice_student_grade_history').select('*').order('changed_at', { ascending: false })),
       sq(sb.from('raice_logs').select('*').order('created_at', { ascending: false })),
       sq(sb.from('raice_tipo1_escalones').select('*').order('created_at', { ascending: false })),
+      sq(sb.from('raice_sedes').select('*')),
+      sq(sb.from('raice_user_sedes').select('*')),
+      sq(sb.from('raice_subgroup_members').select('*')),
     ]);
 
     // Asistencia paginada (sin límite)
@@ -156,6 +162,9 @@ async function handleBackupExport(req, res, user) {
         student_grade_history: studentGradeHistory.length,
         logs:                  logs.length,
         tipo1_escalones:       tipo1Escalones.length,
+        sedes:                 sedes.length,
+        user_sedes:            userSedes.length,
+        subgroup_members:      subgroupMembers.length,
       },
       tables: {
         // Datos operativos principales
@@ -189,6 +198,9 @@ async function handleBackupExport(req, res, user) {
         student_grade_history:  studentGradeHistory,
         logs,
         tipo1_escalones:        tipo1Escalones,
+        sedes,
+        user_sedes:             userSedes,
+        subgroup_members:       subgroupMembers,
       }
     };
 
@@ -509,17 +521,25 @@ async function handleBackupImport(req, res, user) {
       student_id: e.student_id && studentIdsSet.has(e.student_id) ? e.student_id : null,
     }));
 
-    const [casesR, followupsR, citationsR, commitmentsR, suspensionsR, classroomR] = await Promise.all([
+    // Sanitize subgroup members to prevent foreign key violations on active student and course IDs
+    const subgroupMembersFixed = (tc.subgroup_members || []).filter(m => {
+      return m.student_id && studentIdsSet.has(m.student_id) &&
+             m.subgroup_course_id && courseIdsSet.has(m.subgroup_course_id);
+    });
+
+    const [casesR, followupsR, citationsR, commitmentsR, suspensionsR, classroomR, subgroupMembersR] = await Promise.all([
       upsertBatch('raice_cases',              casesFixed2),
       upsertBatch('raice_followups',          followupsFixed),
       upsertBatch('raice_citations',          citationsFixed),
       upsertBatch('raice_commitments',        commitmentsFixed),
       upsertBatch('raice_suspensions',        suspensionsFixed),
       upsertBatch('raice_classroom_removals', classroomFixed),
+      upsertBatch('raice_subgroup_members',   subgroupMembersFixed),
     ]);
     results.cases = casesR; results.followups = followupsR; results.citations = citationsR;
     results.commitments = commitmentsR; results.suspensions = suspensionsR;
     results.classroom_removals = classroomR;
+    results.subgroup_members = subgroupMembersR;
     results.tipo1_escalones = await upsertBatch('raice_tipo1_escalones', escalonesFixed);
     try { results.excusas = await upsertBatch('raice_excusas', excusasFixed); } catch (_) {}
     return res.status(200).json({ success: errors.length === 0, results, errors });
@@ -573,6 +593,7 @@ async function handleBackupImport(req, res, user) {
     if (error) errors.push('config: ' + error.message);
     else results.config = 1;
   }
+  results.sedes           = await upsertBatch('raice_sedes',           t.sedes);
   results.faltas_catalogo = await upsertBatch('raice_faltas_catalogo', t.faltas_catalogo);
   results.bell_schedule   = await upsertBatch('raice_bell_schedule',   t.bell_schedule);
   // Períodos: borrar los del mismo año antes de importar para evitar conflicto UNIQUE(year,period_num)
@@ -639,14 +660,27 @@ async function handleBackupImport(req, res, user) {
   }
 
   // ── 5. Tablas sin dependencia de estudiantes (paralelo) ──────────────────
-  const [teacherCoursesR, schedulesR, teacherAbsR, absReplR] = await Promise.all([
+  // Pre-sanitizar user_sedes para evitar FK violations
+  const { data: dbSedes } = await sb.from('raice_sedes').select('id');
+  const dbSedeIds = new Set((dbSedes || []).map(s => s.id));
+  const { data: dbUsers } = await sb.from('raice_users').select('id');
+  const dbUserIds = new Set((dbUsers || []).map(u => u.id));
+
+  const userSedesFixed = (t.user_sedes || []).filter(us => {
+    return us.user_id && dbUserIds.has(us.user_id) &&
+           us.sede_id && dbSedeIds.has(us.sede_id);
+  });
+
+  const [teacherCoursesR, schedulesR, teacherAbsR, absReplR, userSedesR] = await Promise.all([
     upsertBatch('raice_teacher_courses',      t.teacher_courses),
     upsertBatch('raice_schedules',            t.schedules),
     upsertBatch('raice_teacher_absences',     t.teacher_absences),
     upsertBatch('raice_absence_replacements', t.absence_replacements),
+    upsertBatch('raice_user_sedes',           userSedesFixed),
   ]);
   results.teacher_courses = teacherCoursesR; results.schedules = schedulesR;
   results.teacher_absences = teacherAbsR; results.absence_replacements = absReplR;
+  results.user_sedes = userSedesR;
 
   await logActivity(sb, user.id, 'backup_import',
     `Backup v${backup.version||'?'} paso-1 restaurado. Errores: ${errors.length}`);
