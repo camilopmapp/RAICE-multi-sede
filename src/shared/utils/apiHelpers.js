@@ -107,3 +107,13 @@ export async function getAllowedCourseIdsForAdmin(sb, user, sedeFilter = null) {
   const ids = (courses || []).map(c => c.id);
   return ids.length > 0 ? ids : ['00000000-0000-0000-0000-000000000000'];
 }
+
+export async function getCourseIdsForSedes(sb, sedeIds) {
+  if (!sedeIds || !sedeIds.length) return [];
+  try {
+    const { data: courses } = await sb.from('raice_courses').select('id').in('sede_id', sedeIds);
+    return (courses || []).map(c => c.id);
+  } catch (_) {
+    return [];
+  }
+}

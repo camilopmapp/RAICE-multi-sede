@@ -1,5 +1,5 @@
 import { getSupabase } from '../../data/supabaseClient.js';
-import { requireRole, logActivity, sendNotification, reevaluateEvasions, getAllowedCourseIdsForAdmin, _dbErr, getAdminSedeIds } from '../../shared/utils/apiHelpers.js';
+import { requireRole, logActivity, sendNotification, reevaluateEvasions, getAllowedCourseIdsForAdmin, _dbErr, getAdminSedeIds, getCourseIdsForSedes } from '../../shared/utils/apiHelpers.js';
 import { todayCO, dayOfWeekCO } from '../../shared/utils/date.js';
 import { checkRateLimit, checkRateLimitPortal, verifyToken } from '../../shared/utils/authHelpers.js';
 import { UserRepository } from '../../data/repositories/UserRepository.js';
@@ -994,4 +994,12 @@ async function getRectorInsights(req, res, user) {
     students_at_risk: riskScores,
     excusas_summary
   });
+}
+
+function buildStudentRows(st, attRows) {
+  return attRows.map(r => ({
+    date: r.date,
+    class_hour: r.class_hour,
+    status: r.status
+  })).sort((a,b) => a.date.localeCompare(b.date) || a.class_hour - b.class_hour);
 }
