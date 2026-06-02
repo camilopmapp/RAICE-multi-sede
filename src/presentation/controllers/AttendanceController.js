@@ -557,8 +557,8 @@ async function getAttendanceToday(sb) {
   const today = todayCO();
   const { data } = await sb.from('raice_attendance').select('status').eq('date', today);
   if (!data || !data.length) return null;
-  // Only show % if a teacher actively took list (at least one P, A or T — not just PE from excusas)
-  const hasRealList = data.some(r => r.status === 'P' || r.status === 'A' || r.status === 'T');
+  // Only show % if a teacher actively took list (at least one active status — not just PE or NR)
+  const hasRealList = data.some(r => r.status !== 'PE' && r.status !== 'NR');
   if (!hasRealList) return null;
   const present = data.filter(r => r.status === 'P' || r.status === 'PE').length;
   return Math.round((present / data.length) * 100);
@@ -608,11 +608,15 @@ async function getMissingAttendance(req, res, user) {
   // 4. Registros de asistencia que SÍ existen para esa fecha
   const { data: attRows } = await sb
     .from('raice_attendance')
-    .select('course_id, class_hour')
+    .select('course_id, class_hour, status')
     .eq('date', date);
 
-  // Set de claves "course_id::class_hour" que ya tienen registro
-  const savedSet = new Set((attRows || []).map(r => `${r.course_id}::${r.class_hour}`));
+  // Set de claves "course_id::class_hour" que ya tienen registro real
+  const savedSet = new Set(
+    (attRows || [])
+      .filter(r => r.status !== 'PE' && r.status !== 'NR')
+      .map(r => `${r.course_id}::${r.class_hour}`)
+  );
 
   // 5. Cruzar: sesiones programadas sin registro
   const missing = [];

@@ -589,7 +589,7 @@ async function getDashboardV2(req, res, user) {
     safe(() => sb.from('raice_students').select('id', { count:'exact', head:true }).eq('status','active'), { count:0 }),
     safe(() => sb.from('raice_users').select('id', { count:'exact', head:true }).eq('role','teacher').eq('active',true), { count:0 }),
     safe(() => sb.from('raice_cases').select('id', { count:'exact', head:true }).eq('status','open'), { count:0 }),
-    safe(() => sb.from('raice_attendance').select('status, course_id, class_hour, raice_courses(grade,number)').eq('date', today), { data:[] }),
+    safe(() => sb.from('raice_attendance').select('student_id, status, course_id, class_hour, raice_courses(grade,number)').eq('date', today), { data:[] }),
     safe(() => sb.from('raice_commitments').select('id', { count:'exact', head:true })
       .eq('fulfilled', false).lt('due_date', todayCO(3)), { count:0 }),
     safe(() => sb.from('raice_cases')
@@ -704,7 +704,7 @@ async function getDashboardV2(req, res, user) {
         // Armar Set de las asistencias ya tomadas HOY
         const takenSet = new Set();
         attData.forEach(a => {
-          if (a.course_id && a.class_hour) {
+          if (a.course_id && a.class_hour && a.status !== 'PE' && a.status !== 'NR') {
              takenSet.add(`${a.course_id}_${a.class_hour}`);
           }
         });

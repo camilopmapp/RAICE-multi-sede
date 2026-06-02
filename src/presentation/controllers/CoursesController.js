@@ -269,14 +269,17 @@ async function getMyCourses(req, res, user) {
     studentCountMap[m.subgroup_course_id] = (studentCountMap[m.subgroup_course_id] || 0) + 1;
   });
 
-  // Attendance map: course_id → class_hour → { present, total }
+  // Attendance map: course_id → class_hour → { present, total, hasRealCall }
   const attByCourse = {};
   (attAll.data || []).forEach(a => {
     if (!attByCourse[a.course_id]) attByCourse[a.course_id] = {};
-    if (!attByCourse[a.course_id][a.class_hour]) attByCourse[a.course_id][a.class_hour] = { present: 0, total: 0 };
+    if (!attByCourse[a.course_id][a.class_hour]) attByCourse[a.course_id][a.class_hour] = { present: 0, total: 0, hasRealCall: false };
 
     attByCourse[a.course_id][a.class_hour].total++;
     if (a.status === 'P' || a.status === 'PE') attByCourse[a.course_id][a.class_hour].present++;
+    if (a.status !== 'PE' && a.status !== 'NR') {
+      attByCourse[a.course_id][a.class_hour].hasRealCall = true;
+    }
   });
 
   const courses = (tc || []).map(row => {
@@ -286,9 +289,9 @@ async function getMyCourses(req, res, user) {
     const courseAttMap = attByCourse[c.id] || {};
     const studentsInCourse = studentCountMap[c.id] || 0;
 
-    // An hour is "saved" only if the number of attendance records matches or exceeds students count
+    // An hour is "saved" only if the number of attendance records matches or exceeds students count, AND there's a real call
     const savedHours = Object.keys(courseAttMap)
-      .filter(h => courseAttMap[h].total >= studentsInCourse)
+      .filter(h => courseAttMap[h].hasRealCall && courseAttMap[h].total >= studentsInCourse)
       .map(Number);
 
     // Per-hour attendance percentage

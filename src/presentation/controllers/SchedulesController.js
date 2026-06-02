@@ -623,11 +623,15 @@ async function getSchedulesOverview(req, res, user) {
     // 1. Fetch today's attendance to see which classes are already taken
     const { data: todayAtt, error: attErr } = await sb
       .from('raice_attendance')
-      .select('course_id, class_hour')
+      .select('course_id, class_hour, status')
       .eq('date', today);
     if (attErr) return res.status(500).json({ error: _dbErr(attErr, 'overview attendance') });
 
-    const takenSet = new Set((todayAtt || []).map(a => `${a.course_id}_${a.class_hour}`));
+    const takenSet = new Set(
+      (todayAtt || [])
+        .filter(a => a.status !== 'PE' && a.status !== 'NR')
+        .map(a => `${a.course_id}_${a.class_hour}`)
+    );
 
     // 2. Fetch all schedules with course, teacher, and user details
     const { data: schedRows, error: schedErr } = await sb

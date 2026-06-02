@@ -839,8 +839,12 @@ async function handlePurge(req, res, user) {
 
     // Sesiones que ya tienen asistencia registrada para esa fecha
     const { data: existing } = await sb.from('raice_attendance')
-      .select('course_id, class_hour').eq('date', date);
-    const takenSet = new Set((existing || []).map(a => `${a.course_id}_${a.class_hour}`));
+      .select('course_id, class_hour, status').eq('date', date);
+    const takenSet = new Set(
+      (existing || [])
+        .filter(a => a.status !== 'PE' && a.status !== 'NR')
+        .map(a => `${a.course_id}_${a.class_hour}`)
+    );
 
     // Sesiones faltantes deduplicadas por course_id + class_hour
     const sessionMap = new Map();

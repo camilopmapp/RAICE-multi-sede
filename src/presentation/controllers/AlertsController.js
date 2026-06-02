@@ -291,8 +291,12 @@ async function getAlertsEndpoint(req, res, user) {
       if (scheds && scheds.length > 0) {
         // Get today's attendance records
         const { data: todayAtt } = await sb.from('raice_attendance')
-          .select('course_id, class_hour').eq('date', today);
-        const takenSet = new Set((todayAtt || []).map(a => `${a.course_id}_${a.class_hour}`));
+          .select('course_id, class_hour, status').eq('date', today);
+        const takenSet = new Set(
+          (todayAtt || [])
+            .filter(a => a.status !== 'PE' && a.status !== 'NR')
+            .map(a => `${a.course_id}_${a.class_hour}`)
+        );
 
         const pastScheds = scheds.filter(s => {
           const st = s.start_time || bellMap[s.class_hour];
