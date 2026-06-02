@@ -895,7 +895,7 @@ function renderDash(d, alerts=[], cases=[]) {
   const absent = d.absent || 0;
   const late = d.late || 0;
   const permit = d.permit || 0;
-  const totalAtt = present + absent + late + permit;
+  const totalAtt = d.attendance_today != null ? (present + absent + late + permit) : 0;
   if (totalAtt > 0) {
     // Fórmula correcta: (P+T) / (P+A+T) — PE excluido del denominador (están excusados)
     // Usar != null en vez de || para que 0% no active el fallback

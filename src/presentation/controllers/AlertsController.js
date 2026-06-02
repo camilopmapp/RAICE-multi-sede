@@ -289,14 +289,26 @@ async function getAlertsEndpoint(req, res, user) {
       (bells || []).forEach(b => bellMap[b.class_hour] = b.start_time);
 
       if (scheds && scheds.length > 0) {
-        // Get today's attendance records
-        const { data: todayAtt } = await sb.from('raice_attendance')
-          .select('course_id, class_hour, status').eq('date', today);
+        // Get today's attendance records and student counts concurrently
+        const [attRes, studentsAll, subgroupMembersAll] = await Promise.all([
+          sb.from('raice_attendance').select('course_id, class_hour, status').eq('date', today),
+          sb.from('raice_students').select('course_id').eq('status', 'active'),
+          sb.from('raice_subgroup_members').select('subgroup_course_id')
+        ]);
+
         const takenSet = new Set(
-          (todayAtt || [])
+          (attRes.data || [])
             .filter(a => a.status !== 'PE' && a.status !== 'NR')
             .map(a => `${a.course_id}_${a.class_hour}`)
         );
+
+        const studentCountMap = {};
+        (studentsAll.data || []).forEach(s => {
+          studentCountMap[s.course_id] = (studentCountMap[s.course_id] || 0) + 1;
+        });
+        (subgroupMembersAll.data || []).forEach(m => {
+          studentCountMap[m.subgroup_course_id] = (studentCountMap[m.subgroup_course_id] || 0) + 1;
+        });
 
         const pastScheds = scheds.filter(s => {
           const st = s.start_time || bellMap[s.class_hour];
@@ -306,6 +318,8 @@ async function getAlertsEndpoint(req, res, user) {
         pastScheds.forEach(s => {
           const tc = s.raice_teacher_courses;
           if (!tc || !tc.course_id || !tc.raice_users || !tc.raice_courses) return;
+          const studentsInCourse = studentCountMap[tc.course_id] || 0;
+          if (studentsInCourse === 0) return; // skip courses or subgroups with 0 active students!
           if (!takenSet.has(`${tc.course_id}_${s.class_hour}`)) {
             const teacherName = `${tc.raice_users.first_name} ${tc.raice_users.last_name}`;
             const courseName = `${tc.raice_courses.grade}°${tc.raice_courses.number}`;

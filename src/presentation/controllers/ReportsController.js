@@ -617,7 +617,8 @@ async function getDashboardV2(req, res, user) {
 
   const total = dedupedAtt.length;
   const countable = total - donutPermit - donutSpecial;
-  const attPct = countable > 0 ? Math.round(((donutPresent + donutLate) / countable) * 100) : (total > 0 ? 100 : null);
+  const hasRealList = dedupedAtt.some(a => a.status !== 'PE' && a.status !== 'NR');
+  const attPct = hasRealList && countable > 0 ? Math.round(((donutPresent + donutLate) / countable) * 100) : null;
 
   // Attendance by grade and course
   const gradeMap = {};
@@ -689,10 +690,22 @@ async function getDashboardV2(req, res, user) {
         `)
         .eq('day_of_week', dayOfWeek);
 
-      // Traer el horario de timbres en caso de que start_time sea null en schedule
-      const { data: bells } = await sb.from('raice_bell_schedule').select('class_hour, start_time');
+      // Traer el horario de timbres y conteo de alumnos
+      const [{ data: bells }, { data: studentsAll }, { data: subgroupMembersAll }] = await Promise.all([
+        sb.from('raice_bell_schedule').select('class_hour, start_time'),
+        sb.from('raice_students').select('course_id').eq('status', 'active'),
+        sb.from('raice_subgroup_members').select('subgroup_course_id')
+      ]);
       const bellMap = {};
       (bells || []).forEach(b => bellMap[b.class_hour] = b.start_time);
+
+      const studentCountMap = {};
+      (studentsAll || []).forEach(s => {
+        studentCountMap[s.course_id] = (studentCountMap[s.course_id] || 0) + 1;
+      });
+      (subgroupMembersAll || []).forEach(m => {
+        studentCountMap[m.subgroup_course_id] = (studentCountMap[m.subgroup_course_id] || 0) + 1;
+      });
 
       if (scheds && scheds.length > 0) {
         // Filtrar solo las clases cuya hora de inicio ya es menor a la actual
@@ -714,6 +727,8 @@ async function getDashboardV2(req, res, user) {
         pastScheds.forEach(s => {
           const tc = s.raice_teacher_courses;
           if (!tc || !tc.course_id || !tc.raice_users || !tc.raice_courses) return;
+          const studentsInCourse = studentCountMap[tc.course_id] || 0;
+          if (studentsInCourse === 0) return; // skip empty subgroups/courses!
           if (!takenSet.has(`${tc.course_id}_${s.class_hour}`)) {
             const teacherName = `${tc.raice_users.first_name} ${tc.raice_users.last_name}`;
             if (!byTeacher[teacherName]) byTeacher[teacherName] = [];

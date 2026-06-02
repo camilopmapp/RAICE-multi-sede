@@ -2203,9 +2203,9 @@ async function loadDashboard() {
   // DONUT: Asistencia hoy — usa datos del dashboard (misma fuente que rector)
   const totalP = data.present || 0, totalA = data.absent || 0;
   const totalT = data.late || 0,   totalPE = data.permit || 0;
-  const totalAll = totalP + totalA + totalT + totalPE;
-
   const realPct = data.attendance_today;
+  const totalAll = realPct != null ? (totalP + totalA + totalT + totalPE) : 0;
+
   document.getElementById('chart-att-pct').textContent = realPct != null ? realPct + '%' : '—';
   document.getElementById('stat-att').textContent = realPct != null ? realPct + '%' : '—%';
 

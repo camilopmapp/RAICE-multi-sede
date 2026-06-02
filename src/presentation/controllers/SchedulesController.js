@@ -620,18 +620,28 @@ async function getSchedulesOverview(req, res, user) {
     const today = todayCO();
     const todayDow = dayOfWeekCO(today);
 
-    // 1. Fetch today's attendance to see which classes are already taken
-    const { data: todayAtt, error: attErr } = await sb
-      .from('raice_attendance')
-      .select('course_id, class_hour, status')
-      .eq('date', today);
-    if (attErr) return res.status(500).json({ error: _dbErr(attErr, 'overview attendance') });
+    // 1. Fetch today's attendance and active student counts concurrently
+    const [attRes, studentsAll, subgroupMembersAll] = await Promise.all([
+      sb.from('raice_attendance').select('course_id, class_hour, status').eq('date', today),
+      sb.from('raice_students').select('course_id').eq('status', 'active'),
+      sb.from('raice_subgroup_members').select('subgroup_course_id')
+    ]);
+
+    if (attRes.error) return res.status(500).json({ error: _dbErr(attRes.error, 'overview attendance') });
 
     const takenSet = new Set(
-      (todayAtt || [])
+      (attRes.data || [])
         .filter(a => a.status !== 'PE' && a.status !== 'NR')
         .map(a => `${a.course_id}_${a.class_hour}`)
     );
+
+    const studentCountMap = {};
+    (studentsAll.data || []).forEach(s => {
+      studentCountMap[s.course_id] = (studentCountMap[s.course_id] || 0) + 1;
+    });
+    (subgroupMembersAll.data || []).forEach(m => {
+      studentCountMap[m.subgroup_course_id] = (studentCountMap[m.subgroup_course_id] || 0) + 1;
+    });
 
     // 2. Fetch all schedules with course, teacher, and user details
     const { data: schedRows, error: schedErr } = await sb
@@ -660,7 +670,10 @@ async function getSchedulesOverview(req, res, user) {
       const c  = tc.raice_courses || {};
       const courseId = tc.course_id;
       const classHour = s.class_hour;
-      const attendance_taken = takenSet.has(`${courseId}_${classHour}`);
+      const studentsInCourse = studentCountMap[courseId] || 0;
+      
+      // If a course/subgroup has 0 active students, consider it "attendance taken" automatically
+      const attendance_taken = studentsInCourse === 0 ? true : takenSet.has(`${courseId}_${classHour}`);
       return {
         id: s.id,
         day_of_week: s.day_of_week,
