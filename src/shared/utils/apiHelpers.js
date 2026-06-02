@@ -86,7 +86,7 @@ export async function reevaluateEvasions(sb, courseId, date, studentIds) {
         .update({ type: 'evasion_retracted', read: false })
         .eq('type', 'evasion')
         .eq('link_id', sid)
-        .like('body', \`%\${date}%\`);
+        .like('body', `%${date}%`);
     }
   }
 }
