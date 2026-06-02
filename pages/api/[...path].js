@@ -121,6 +121,7 @@ export default async function handler(req, res) {
     if (route === 'raice/reports/attendance-v2') return await ReportsController.reportAttendanceV2(req, res, user);
     if (route === 'raice/reports/cases')        return await ReportsController.reportCases(req, res, user);
     if (route === 'raice/schedules')            return await SchedulesController.handleSchedules(req, res, user);
+    if (route === 'raice/schedules/overview')   return await SchedulesController.getSchedulesOverview(req, res, user);
     if (route === 'raice/bell-schedule')        return await ConfigController.handleBellSchedule(req, res, user);
     if (route === 'raice/teacher-schedule')     return await SchedulesController.getTeacherSchedule(req, res, user);
     if (route === 'raice/my-schedule')          return await SchedulesController.getTeacherSchedule(req, res, user);

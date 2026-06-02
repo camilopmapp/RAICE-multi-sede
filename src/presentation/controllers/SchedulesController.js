@@ -35,6 +35,10 @@ export class SchedulesController {
     return await getReplacementSuggestions(...args);
   }
 
+  static async getSchedulesOverview(...args) {
+    return await getSchedulesOverview(...args);
+  }
+
 }
 
 async function handleSchedules(req, res, user) {
@@ -606,5 +610,88 @@ async function getReplacementSuggestions(req, res, user) {
     absent_courses: courses_this_hour,     // FIX #1: only courses for this hour
     all_courses:    absentCoursesList
   });
+}
+
+async function getSchedulesOverview(req, res, user) {
+  requireRole(user, 'superadmin', 'admin', 'rector');
+  const sb = getSupabase();
+
+  try {
+    const today = todayCO();
+    const todayDow = dayOfWeekCO(today);
+
+    // 1. Fetch today's attendance to see which classes are already taken
+    const { data: todayAtt, error: attErr } = await sb
+      .from('raice_attendance')
+      .select('course_id, class_hour')
+      .eq('date', today);
+    if (attErr) return res.status(500).json({ error: _dbErr(attErr, 'overview attendance') });
+
+    const takenSet = new Set((todayAtt || []).map(a => `${a.course_id}_${a.class_hour}`));
+
+    // 2. Fetch all schedules with course, teacher, and user details
+    const { data: schedRows, error: schedErr } = await sb
+      .from('raice_schedules')
+      .select(`
+        id,
+        day_of_week,
+        class_hour,
+        start_time,
+        end_time,
+        teacher_course_id,
+        raice_teacher_courses (
+          subject,
+          teacher_id,
+          course_id,
+          raice_users ( id, first_name, last_name ),
+          raice_courses ( id, grade, number, section, type, name )
+        )
+      `);
+    if (schedErr) return res.status(500).json({ error: _dbErr(schedErr, 'overview schedules') });
+
+    // Format to the flat structure the frontend expects
+    const schedules = (schedRows || []).map(s => {
+      const tc = s.raice_teacher_courses || {};
+      const u  = tc.raice_users || {};
+      const c  = tc.raice_courses || {};
+      const courseId = tc.course_id;
+      const classHour = s.class_hour;
+      const attendance_taken = takenSet.has(`${courseId}_${classHour}`);
+      return {
+        id: s.id,
+        day_of_week: s.day_of_week,
+        class_hour: classHour,
+        start_time: s.start_time,
+        end_time: s.end_time,
+        teacher_course_id: s.teacher_course_id,
+        subject: tc.subject || '—',
+        teacher_id: tc.teacher_id,
+        teacher_name: u.first_name ? `${u.first_name} ${u.last_name}` : '—',
+        course_id: courseId,
+        grade: c.grade,
+        number: c.number,
+        section: c.section || String(c.number || 1),
+        type: c.type || 'regular',
+        course_name: c.name || '',
+        attendance_taken
+      };
+    });
+
+    // 3. Fetch the bell schedule
+    const { data: bell, error: bellErr } = await sb
+      .from('raice_bell_schedule')
+      .select('*')
+      .order('class_hour');
+    if (bellErr) return res.status(500).json({ error: _dbErr(bellErr, 'overview bell') });
+
+    return res.status(200).json({
+      schedules,
+      bell_schedule: bell || [],
+      today_dow: todayDow
+    });
+  } catch (err) {
+    console.error('getSchedulesOverview error:', err);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
 }
 

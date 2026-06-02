@@ -431,27 +431,97 @@ async function handleBackupImport(req, res, user) {
   // ── Cases: tablas que dependen de estudiantes (pequeñas, una sola llamada) ─
   if (step === 'cases') {
     const tc = backup?.tables || {};
-    const importedUserIds2  = new Set((tc.teachers || []).map(u => u.id));
     const validStats2 = new Set(['open', 'tracking', 'closed']);
+
+    // Query currently existing IDs in the database to prevent FK violations
+    const { data: dbUsers } = await sb.from('raice_users').select('id');
+    const { data: dbStudents } = await sb.from('raice_students').select('id');
+    const { data: dbCourses } = await sb.from('raice_courses').select('id');
+    const { data: dbFaltas } = await sb.from('raice_faltas_catalogo').select('id');
+
+    const userIdsSet = new Set((dbUsers || []).map(u => u.id));
+    const studentIdsSet = new Set((dbStudents || []).map(s => s.id));
+    const courseIdsSet = new Set((dbCourses || []).map(c => c.id));
+    const faltaIdsSet = new Set((dbFaltas || []).map(f => f.id));
+
+    // Sanitize cases
     const casesFixed2 = (tc.cases || []).map(c => ({
       ...c,
-      falta_id:  null,   // evitar FK violation si UUIDs del catálogo difieren
-      closed_by: c.closed_by && importedUserIds2.has(c.closed_by) ? c.closed_by : null,
-      status:    validStats2.has(c.status) ? c.status : 'tracking',
+      student_id: c.student_id && studentIdsSet.has(c.student_id) ? c.student_id : null,
+      course_id: c.course_id && courseIdsSet.has(c.course_id) ? c.course_id : null,
+      teacher_id: c.teacher_id && userIdsSet.has(c.teacher_id) ? c.teacher_id : null,
+      closed_by: c.closed_by && userIdsSet.has(c.closed_by) ? c.closed_by : null,
+      falta_id: c.falta_id && faltaIdsSet.has(c.falta_id) ? c.falta_id : null,
+      status: validStats2.has(c.status) ? c.status : 'tracking',
     }));
+
+    // Keep track of valid case IDs (since we are inserting them, all restored cases are valid)
+    const caseIdsSet = new Set(casesFixed2.map(c => c.id));
+
+    // Sanitize followups (discard orphans without a valid case)
+    const followupsFixed = (tc.followups || [])
+      .filter(f => f.case_id && caseIdsSet.has(f.case_id))
+      .map(f => ({
+        ...f,
+        coordinator_id: f.coordinator_id && userIdsSet.has(f.coordinator_id) ? f.coordinator_id : null,
+      }));
+
+    // Sanitize citations
+    const citationsFixed = (tc.citations || []).map(ci => ({
+      ...ci,
+      student_id: ci.student_id && studentIdsSet.has(ci.student_id) ? ci.student_id : null,
+      case_id: ci.case_id && caseIdsSet.has(ci.case_id) ? ci.case_id : null,
+      coordinator_id: ci.coordinator_id && userIdsSet.has(ci.coordinator_id) ? ci.coordinator_id : null,
+    }));
+
+    // Sanitize commitments
+    const commitmentsFixed = (tc.commitments || []).map(cm => ({
+      ...cm,
+      case_id: cm.case_id && caseIdsSet.has(cm.case_id) ? cm.case_id : null,
+      student_id: cm.student_id && studentIdsSet.has(cm.student_id) ? cm.student_id : null,
+    }));
+
+    // Sanitize suspensions (student_id & coordinator_id cannot be null/invalid due to DB constraints)
+    const suspensionsFixed = (tc.suspensions || [])
+      .filter(s => s.student_id && studentIdsSet.has(s.student_id))
+      .map(s => ({
+        ...s,
+        coordinator_id: s.coordinator_id && userIdsSet.has(s.coordinator_id) ? s.coordinator_id : user.id,
+        case_id: s.case_id && caseIdsSet.has(s.case_id) ? s.case_id : null,
+      }));
+
+    // Sanitize classroom removals (student_id, teacher_id, course_id cannot be null/invalid)
+    const classroomFixed = (tc.classroom_removals || [])
+      .filter(r => r.student_id && studentIdsSet.has(r.student_id) && r.course_id && courseIdsSet.has(r.course_id))
+      .map(r => ({
+        ...r,
+        teacher_id: r.teacher_id && userIdsSet.has(r.teacher_id) ? r.teacher_id : user.id,
+        reviewed_by: r.reviewed_by && userIdsSet.has(r.reviewed_by) ? r.reviewed_by : null,
+      }));
+
+    // Sanitize tipo1_escalones
+    const escalonesFixed = (tc.tipo1_escalones || [])
+      .filter(e => e.case_id && caseIdsSet.has(e.case_id));
+
+    // Sanitize excusas
+    const excusasFixed = (tc.excusas || []).map(e => ({
+      ...e,
+      student_id: e.student_id && studentIdsSet.has(e.student_id) ? e.student_id : null,
+    }));
+
     const [casesR, followupsR, citationsR, commitmentsR, suspensionsR, classroomR] = await Promise.all([
       upsertBatch('raice_cases',              casesFixed2),
-      upsertBatch('raice_followups',          tc.followups),
-      upsertBatch('raice_citations',          tc.citations),
-      upsertBatch('raice_commitments',        tc.commitments),
-      upsertBatch('raice_suspensions',        tc.suspensions),
-      upsertBatch('raice_classroom_removals', tc.classroom_removals),
+      upsertBatch('raice_followups',          followupsFixed),
+      upsertBatch('raice_citations',          citationsFixed),
+      upsertBatch('raice_commitments',        commitmentsFixed),
+      upsertBatch('raice_suspensions',        suspensionsFixed),
+      upsertBatch('raice_classroom_removals', classroomFixed),
     ]);
     results.cases = casesR; results.followups = followupsR; results.citations = citationsR;
     results.commitments = commitmentsR; results.suspensions = suspensionsR;
     results.classroom_removals = classroomR;
-    results.tipo1_escalones = await upsertBatch('raice_tipo1_escalones', tc.tipo1_escalones);
-    try { results.excusas = await upsertBatch('raice_excusas', tc.excusas); } catch (_) {}
+    results.tipo1_escalones = await upsertBatch('raice_tipo1_escalones', escalonesFixed);
+    try { results.excusas = await upsertBatch('raice_excusas', excusasFixed); } catch (_) {}
     return res.status(200).json({ success: errors.length === 0, results, errors });
   }
 
