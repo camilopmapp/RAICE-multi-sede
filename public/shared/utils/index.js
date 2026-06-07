@@ -142,6 +142,23 @@ R.showToast = function(msg, type) {
 };
 
 /**
+ * Verifica autenticación. Redirige al login si no hay token o el rol no coincide.
+ * @param {string|string[]} expectedRole — rol o lista de roles válidos ('admin', 'rector', ['teacher'])
+ * @returns {Object|null} — el usuario parseado, o null si redirigió
+ */
+R.checkAuth = function(expectedRole) {
+  var token = sessionStorage.getItem('raice_token');
+  var role  = sessionStorage.getItem('raice_role');
+  var user  = JSON.parse(sessionStorage.getItem('raice_user') || 'null');
+  var roles = Array.isArray(expectedRole) ? expectedRole : [expectedRole];
+  if (!token || roles.indexOf(role) === -1) {
+    window.location.href = '/login.html';
+    return null;
+  }
+  return user;
+};
+
+/**
  * Cierra sesión: limpia storage y redirige al login.
  */
 R.logout = function() {

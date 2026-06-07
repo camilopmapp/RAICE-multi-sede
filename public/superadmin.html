@@ -2279,21 +2279,13 @@
 
   // ---- AUTH ----
   function initSession() {
-    const token = sessionStorage.getItem('raice_token');
-    const role  = sessionStorage.getItem('raice_role');
-    const user  = JSON.parse(sessionStorage.getItem('raice_user') || 'null');
-
-    if (!token || role !== 'superadmin') {
-      window.location.href = '/login.html';
-      return;
-    }
+    const user = window.RAICE.checkAuth('superadmin');
+    if (!user) return;
 
     currentUser = user;
-    if (user) {
-      const initials = ((user.first_name||'S')[0] + (user.last_name||'A')[0]).toUpperCase();
-      document.getElementById('user-avatar-sb').textContent = initials;
-      document.getElementById('user-name-sb').textContent = user.name || 'Superadmin';
-    }
+    var p = window.RAICE.deriveProfileData(user, 'Superadmin');
+    document.getElementById('user-avatar-sb').textContent = p.initials;
+    document.getElementById('user-name-sb').textContent = p.fullName;
   }
 
   // logout → importado desde shared/utils

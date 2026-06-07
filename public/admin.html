@@ -2071,11 +2071,8 @@ async function _refreshSedesFromAPI() {
 }
 
 function initSession() {
-  const token = sessionStorage.getItem('raice_token');
-  const role  = sessionStorage.getItem('raice_role');
-  const user  = JSON.parse(sessionStorage.getItem('raice_user') || 'null');
-
-  if (!token || role !== 'admin') { window.location.href = '/login.html'; return; }
+  const user = window.RAICE.checkAuth('admin');
+  if (!user) return;
 
   currentUser = user;
   if (user) {

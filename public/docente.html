@@ -1249,12 +1249,8 @@
 
   // ---- AUTH ----
   function initSession() {
-    const token = sessionStorage.getItem('raice_token');
-    const role  = sessionStorage.getItem('raice_role');
-    const user  = JSON.parse(sessionStorage.getItem('raice_user') || 'null');
-    if (!token || !['teacher'].includes(role)) {
-      window.location.href = '/login.html'; return;
-    }
+    const user = window.RAICE.checkAuth(['teacher']);
+    if (!user) return;
     currentUser = user;
     updateSortButtons(); // apply saved sort preference for this user
     if (user) {

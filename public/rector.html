@@ -651,10 +651,8 @@ const api = createApiClient({
 
 // AUTH
 async function initSession() {
-  const token = sessionStorage.getItem('raice_token');
-  const role  = sessionStorage.getItem('raice_role');
-  const user  = JSON.parse(sessionStorage.getItem('raice_user') || 'null');
-  if (!token || role !== 'rector') { window.location.href = '/login.html'; return; }
+  const user = window.RAICE.checkAuth('rector');
+  if (!user) return;
   loadSchoolConfig();
   startClock();
   if (user) {
