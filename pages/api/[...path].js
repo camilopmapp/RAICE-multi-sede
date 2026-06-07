@@ -8217,31 +8217,35 @@ async function handleBackupImport(req, res, user) {
 
   // ── 5. Tablas sin dependencia de estudiantes ─────────────────────────────
   // teacher_courses ANTES de schedules (schedules tiene FK a teacher_courses)
-  // Filtrar teacher_courses con teacher_id válido y course_id válido
+  // teacher_courses requiere teacher_id Y course_id válidos (ambos NOT NULL)
   const importedUserIds = new Set((t.teachers || []).map(u => u.id));
-  
-  // Validar contra cursos que se acaban de importar
-  const validCourseIds = new Set((t.courses || []).map(c => c.id));
-
-  const safeTeacherCourses = (t.teacher_courses || []).filter(tc => 
-    importedUserIds.has(tc.teacher_id) && validCourseIds.has(tc.course_id)
+  // Cursos que realmente existen en BD (importados en el paso anterior)
+  const { data: dbCoursesForTc } = await sb.from('raice_courses').select('id');
+  const validCourseIdsTc = new Set((dbCoursesForTc || []).map(c => c.id));
+  const safeTeacherCourses = (t.teacher_courses || []).filter(
+    tc => importedUserIds.has(tc.teacher_id) && validCourseIdsTc.has(tc.course_id)
   );
-
-  // VACIAR TABLAS PARA EVITAR CONFLICTOS DE UNIQUE KEYS CON IDs NUEVOS
-  // Supabase (PostgREST) tiene un límite de 1000 filas por operación. Hacemos loop para vaciar por completo.
-  if (t.schedules?.length) {
-    let d; do { const r = await sb.from('raice_schedules').delete().neq('id', '00000000-0000-0000-0000-000000000000').select('id'); d = r.data?.length || 0; } while(d === 1000);
-  }
-  if (t.teacher_courses?.length) {
-    let d; do { const r = await sb.from('raice_teacher_courses').delete().neq('id', '00000000-0000-0000-0000-000000000000').select('id'); d = r.data?.length || 0; } while(d === 1000);
-  }
-
   results.teacher_courses = await upsertBatch('raice_teacher_courses', safeTeacherCourses);
 
-  const validTcIds = new Set(safeTeacherCourses.map(tc => tc.id));
-
-  const safeSchedules = (t.schedules || []).filter(s => !s.teacher_course_id || validTcIds.has(s.teacher_course_id));
+  // schedules: validar teacher_course_id contra los que REALMENTE quedaron en BD
+  // (no contra el filtro, que puede incluir tc que fallaron al insertar)
+  if (t.schedules?.length) {
+    await sb.from('raice_schedules').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  }
+  const { data: dbTeacherCourses } = await sb.from('raice_teacher_courses').select('id');
+  const realTcIds = new Set((dbTeacherCourses || []).map(tc => tc.id));
+  // Filtrar por tc real + deduplicar por (teacher_course_id, day_of_week, class_hour)
+  const seenSched = new Set();
+  const safeSchedules = (t.schedules || []).filter(s => {
+    if (!s.teacher_course_id || !realTcIds.has(s.teacher_course_id)) return false;
+    const key = `${s.teacher_course_id}-${s.day_of_week}-${s.class_hour}`;
+    if (seenSched.has(key)) return false;
+    seenSched.add(key);
+    return true;
+  });
   results.schedules = await upsertBatch('raice_schedules', safeSchedules);
+  const schedDropped = (t.schedules || []).length - safeSchedules.length;
+  if (schedDropped > 0) errors.push(`raice_schedules: ${schedDropped} omitidos (tc inexistente o duplicado)`);
 
   // Paralelo: absences y replacements (sin FK a schedules)
   const [teacherAbsR, absReplR] = await Promise.all([

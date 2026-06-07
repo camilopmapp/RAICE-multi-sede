@@ -134,7 +134,19 @@ El usuario re-guarda la configuración para limpiar. La app ya filtra `period_nu
 **Solución:** usar `<script src>` regular; cargar TODOS los módulos shared que el HTML use;
 `checkAuth` retorna `{}` (no null) cuando hay token válido pero sin datos de user.
 
-### 5.4 Superadmin no carga datos
+### 5.4 El historial de asistencia del DOCENTE muestra menos fechas/registros que el real
+**Causa:** `getAttendanceRange` filtra la asistencia del docente por su HORARIO
+(`raice_schedules` por `teacher_course_id`). Si el horario quedó incompleto tras un restore,
+descarta registros de asistencia que SÍ existen. El restore perdía horarios porque
+`raice_teacher_courses` requiere `course_id` válido (NOT NULL) pero solo se validaba `teacher_id`;
+los tc que fallaban dejaban sus `raice_schedules` huérfanos (FK en cascada). Síntoma: el backup
+preview muestra "Horarios clase: 650" pero el restore importa solo ~50.
+**Solución:** validar teacher_courses por teacher_id Y course_id reales en BD; validar schedules
+contra los teacher_course_id que REALMENTE quedaron en BD (query `select id`), no contra el filtro;
+deduplicar por (teacher_course_id, day_of_week, class_hour). **Diagnóstico:** comparar la misma
+vista en COORDINADOR (no filtra por horario) vs DOCENTE — si difieren, es el horario.
+
+### 5.5 Superadmin no carga datos
 **Causa:** faltaba `<script src="/shared/utils/index.js">` en el `<head>` (checkAuth no existía).
 **Solución:** confirmar que cada HTML carga los módulos shared que referencia.
 
