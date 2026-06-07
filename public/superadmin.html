@@ -5386,24 +5386,34 @@
     });
     allErrors.push(...((ok4 ? data4.errors : ['Error al importar casos']) || []));
 
-    // ── Paso 5: tablas grandes en paralelo (asistencia, observaciones, historial)
+    // ── Paso 5: tablas grandes EN CHUNKS (asistencia, observaciones, historial)
+    // Vercel limita el body a ~4.5MB, así que se envían de a 500 registros.
     const attRows   = t.attendance            || [];
     const obsRows   = t.observations          || [];
     const gradeRows = t.student_grade_history || [];
     let step2Result = { results: { attendance: 0, observations: 0, student_grade_history: 0 }, errors: [] };
-    if (attRows.length || obsRows.length || gradeRows.length) {
-      const total5 = attRows.length + obsRows.length + gradeRows.length;
-      status.innerHTML = `<span style="color:var(--navy);">⏳ Asistencia y observaciones (${total5} registros)…</span>`;
-      const { ok: ok5, data: data5 } = await fetchAPI('/raice/backup/import', {
-        method: 'POST',
-        body: JSON.stringify({
-          step: 2,
-          backup: { tables: { attendance: attRows, observations: obsRows, student_grade_history: gradeRows } },
-        })
-      });
-      if (ok5) step2Result = data5;
-      allErrors.push(...(step2Result.errors || []));
+    const BIG_CHUNK = 500;
+
+    async function importBigTable(tableName, rows, label) {
+      let total = 0;
+      for (let i = 0; i < rows.length; i += BIG_CHUNK) {
+        status.innerHTML = `<span style="color:var(--navy);">⏳ ${label}: ${Math.min(i+BIG_CHUNK, rows.length)}/${rows.length}…</span>`;
+        const { ok, data } = await fetchAPI('/raice/backup/import', {
+          method: 'POST',
+          body: JSON.stringify({
+            step: 'chunk', tableName: tableName,
+            rows: rows.slice(i, i + BIG_CHUNK), deleteFirst: false,
+          })
+        });
+        if (ok) total += data.imported || 0;
+        allErrors.push(...((ok ? data.errors : [`${tableName}_${i}: error de red`]) || []));
+      }
+      return total;
     }
+
+    if (attRows.length)   step2Result.results.attendance            = await importBigTable('raice_attendance', attRows, 'Asistencia');
+    if (obsRows.length)   step2Result.results.observations          = await importBigTable('raice_observations', obsRows, 'Observaciones');
+    if (gradeRows.length) step2Result.results.student_grade_history = await importBigTable('raice_student_grade_history', gradeRows, 'Historial de grados');
 
     // ── Combinar todos los resultados ────────────────────────────────────────
     const combinedData = {

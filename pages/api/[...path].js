@@ -7828,7 +7828,10 @@ async function handleBackupImport(req, res, user) {
 
   // ── Chunk: upsert de un lote pequeño (frontend envía de a 100) ───────────
   if (step === 'chunk') {
-    const ALLOWED = new Set(['raice_students', 'raice_acudientes']);
+    const ALLOWED = new Set([
+      'raice_students', 'raice_acudientes',
+      'raice_attendance', 'raice_observations', 'raice_student_grade_history'
+    ]);
     if (!ALLOWED.has(tableName)) return res.status(400).json({ error: 'Tabla no permitida' });
     if (deleteFirst) {
       // Para estudiantes: borrar TODAS las tablas con FK a students antes de borrar
@@ -7886,6 +7889,32 @@ async function handleBackupImport(req, res, user) {
         return true;
       });
     }
+
+    // Asistencia/observaciones/historial: filtrar por estudiantes que existen en BD
+    if (tableName === 'raice_attendance' || tableName === 'raice_observations' || tableName === 'raice_student_grade_history') {
+      const sids = [...new Set(safeRows.map(r => r.student_id).filter(Boolean))];
+      const validStudentIds = new Set();
+      // Consultar en lotes de 200 IDs para no exceder límites de query
+      for (let i = 0; i < sids.length; i += 200) {
+        const batchIds = sids.slice(i, i + 200);
+        const { data: existing } = await sb.from('raice_students').select('id').in('id', batchIds);
+        (existing || []).forEach(s => validStudentIds.add(s.id));
+      }
+      const before = safeRows.length;
+      safeRows = safeRows.filter(r => validStudentIds.has(r.student_id));
+      const dropped = before - safeRows.length;
+      if (dropped > 0) errors.push(`${tableName}: ${dropped} registros omitidos (estudiante inexistente)`);
+
+      // Validar status de asistencia contra CHECK constraint
+      if (tableName === 'raice_attendance') {
+        const validAttStatus = new Set(['P','A','PE','T','S','NR']);
+        safeRows = safeRows.map(r => ({
+          ...r,
+          status: validAttStatus.has(r.status) ? r.status : 'NR',
+        }));
+      }
+    }
+
     const count = await upsertBatch(tableName, safeRows, 100);
     return res.status(200).json({ success: errors.length === 0, imported: count, errors });
   }
