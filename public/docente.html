@@ -1518,7 +1518,8 @@
 
   async function checkTodayHoliday() {
     try {
-      const { ok, data } = await fetchAPI('/raice/calendar/today');
+      const data = await window.RAICE.fetchCalendarToday(fetchAPI);
+      const ok = !!data;
       if (!ok || !data.events?.length) return;
       _todayHolidayInfo = data;
 
@@ -1582,7 +1583,8 @@
       return;
     }
 
-    const { ok, data } = await fetchAPI('/raice/my-courses');
+    const data = await window.RAICE.fetchMyCourses(fetchAPI);
+    const ok = !!data;
     myCourses = data.courses || [];
 
     // Adjust classesPerDay to the max hour in the teacher's actual schedule
@@ -1749,7 +1751,8 @@
     showSection('asistencia', document.querySelectorAll('.nav-item')[1]);
 
     // Load classes per day from config, then expand if teacher's schedule has higher hours
-    const { ok, data } = await fetchAPI('/raice/config');
+    const data = await window.RAICE.fetchConfig(fetchAPI);
+    const ok = !!data;
     if (ok && data.classes_per_day) classesPerDay = data.classes_per_day;
     let maxSlotHour = 0;
     myCourses.forEach(c => (c.week_slots || []).forEach(s => { if (s.class_hour > maxSlotHour) maxSlotHour = s.class_hour; }));
@@ -2237,10 +2240,7 @@
     const type      = document.getElementById('obs-type').value;
     const text      = document.getElementById('obs-text').value.trim();
     if (!text) { showToast('Escribe la observación', 'warning'); return; }
-    const { ok } = await fetchAPI('/raice/observations', {
-      method:'POST',
-      body: JSON.stringify({ student_id: studentId, type, text, course_id: activeCourse?.id })
-    });
+    const { ok } = await window.RAICE.createObservation(fetchAPI, { student_id: studentId, type, text, course_id: activeCourse?.id });
     if (ok) {
       showToast('Observación guardada', 'success');
       closeModal('modal-obs');
@@ -2469,7 +2469,8 @@
 
   // ---- HISTORY ----
   async function loadHistory() {
-    const { ok, data } = await fetchAPI('/raice/my-cases');
+    const data = { cases: await window.RAICE.fetchMyCases(fetchAPI) };
+    const ok = true;
     myHistory = data.cases || [];
     renderHistory(myHistory);
   }
@@ -2941,8 +2942,8 @@
     const todayLabel = document.getElementById('horario-today-label');
     body.innerHTML   = '<div style="text-align:center;padding:2rem;color:var(--gray);">Cargando…</div>';
 
-    const { ok, data } = await fetchAPI('/raice/my-schedule');
-    if (!ok || !data.schedules?.length) {
+    const data = await window.RAICE.fetchMySchedule(fetchAPI);
+    if (!data || !data.schedules?.length) {
       body.innerHTML = `<div style="text-align:center;padding:2.5rem;color:var(--gray);">
         <div style="font-size:2.5rem;margin-bottom:.75rem;">🕐</div>
         No tienes horario configurado aún.<br>
@@ -3189,7 +3190,8 @@
       return;
     }
 
-    const { ok, status, data } = await fetchAPI('/raice/attendance', { method: 'POST', body: JSON.stringify(payload) });
+    const { ok, data, error } = await window.RAICE.saveAttendance(fetchAPI, payload);
+    const status = ok ? 200 : 0;
     btn.disabled = false;
     btn.innerHTML = `💾 Guardar lista — <span id="btn-hour-label">${hourLabel} hora</span>`;
     if (ok) {
@@ -3554,8 +3556,7 @@
         : [];
     }
     if (!_excusasActivePeriod) {
-      const { ok, data } = await fetchAPI('/raice/periods');
-      const periods = ok ? (data.periods || []) : [];
+      const periods = await window.RAICE.fetchPeriods(fetchAPI);
       _excusasActivePeriod = periods.find(p => p.active) || null;
     }
 
@@ -3918,15 +3919,12 @@
     const btn  = document.querySelector('#modal-removal .btn-danger');
     btn.disabled = true; btn.textContent = '⏳ Enviando…';
 
-    const { ok } = await fetchAPI('/raice/classroom-removals', {
-      method: 'POST',
-      body: JSON.stringify({
+    const { ok } = await window.RAICE.submitClassroomRemoval(fetchAPI, {
         student_id: _removalStudentId,
         course_id:  activeCourse.id,
         date,
         class_hour: activeHour,
         reason
-      })
     });
 
     btn.disabled = false; btn.textContent = '⛔ Enviar al coordinador';
@@ -3952,8 +3950,8 @@
     openModal('modal-unlock');
     // Load correction window info in background after modal is already open
     try {
-      const { ok, data } = await fetchAPI('/raice/config');
-      if (ok && data.correction_window) {
+      const data = await window.RAICE.fetchConfig(fetchAPI);
+      if (data && data.correction_window) {
         const labels = {
           class_duration: `Puedes corregir durante ${data.correction_window_minutes || 55} minutos desde que guardaste la lista.`,
           same_day_hour:  `Puedes corregir hasta las ${data.correction_window_hour || '17:00'} del día de la lista.`,
@@ -4075,8 +4073,7 @@
   }
 
   async function setDefaultHattRange() {
-    const { ok, data } = await fetchAPI('/raice/periods');
-    _hattPeriods = (ok && data.periods) ? data.periods : [];
+    _hattPeriods = await window.RAICE.fetchPeriods(fetchAPI);
     const active = _hattPeriods.find(p => p.active);
     const today  = todayColombia();
 

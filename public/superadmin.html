@@ -2387,7 +2387,8 @@
 
   // ---- DASHBOARD ----
   async function loadDashboard() {
-    const { ok, data } = await fetchAPI('/raice/dashboard');
+    const data = await window.RAICE.fetchDashboard(fetchAPI);
+    const ok = !!data;
     if (!ok) return;
     document.getElementById('stat-students').textContent  = data.students  ?? '—';
     document.getElementById('stat-teachers').textContent  = data.teachers  ?? '—';
@@ -2456,12 +2457,9 @@
   async function loadStudents() {
     // Asegurar que las sedes estén cargadas para el filtrado
     if (!allSedes || !allSedes.length) {
-      const { ok: sOk, data: sData } = await fetchAPI('/raice/sedes');
-      if (sOk) allSedes = sData.sedes || [];
+      allSedes = await window.RAICE.fetchSedes(fetchAPI);
     }
-    const { ok, data } = await fetchAPI('/raice/students');
-    if (!ok) { showToast('Error al cargar estudiantes', 'error'); return; }
-    allStudents = data.students || [];
+    allStudents = await window.RAICE.fetchStudents(fetchAPI);
     populateSedeFilter();
     populateGradeFilter();
     filterStudents();
@@ -2602,11 +2600,10 @@
 
   // Fetch all sedes, populate selector, then load grades for selected sede
   async function loadSedesForStudentModal(selectedSedeId, selectedGrade, selectedCourse, currentCourseId) {
-    const { data: sData } = await fetchAPI('/raice/sedes');
-    const sedes = sData?.sedes || [];
+    const sedes = await window.RAICE.fetchSedes(fetchAPI);
     // Load all non-subgroup courses for modal filtering
-    const { data: cData } = await fetchAPI('/raice/courses');
-    window._allCoursesForModal = (cData?.courses || []).filter(c => c.type !== 'subgroup');
+    const allCourses = await window.RAICE.fetchCourses(fetchAPI);
+    window._allCoursesForModal = allCourses.filter(c => c.type !== 'subgroup');
     // Auto-detect sede from the student's current course_id if not provided
     if (!selectedSedeId && currentCourseId) {
       const found = window._allCoursesForModal.find(c => c.id === currentCourseId);
@@ -3160,9 +3157,7 @@
 
   // ---- SEDES ----
   async function loadSedes() {
-    const { ok, data } = await fetchAPI('/raice/sedes');
-    if (!ok) return;
-    allSedes = data.sedes || [];
+    allSedes = await window.RAICE.fetchSedes(fetchAPI);
     renderSedes(allSedes);
     populateSedeSelects();
   }
@@ -3339,9 +3334,7 @@
 
   // ---- USERS ----
   async function loadUsers() {
-    const { ok, data } = await fetchAPI('/raice/users');
-    if (!ok) return;
-    allUsers = data.users || [];
+    allUsers = await window.RAICE.fetchUsers(fetchAPI);
     renderUsers(allUsers);
   }
 
@@ -3426,7 +3419,7 @@
       showToast('Completa los campos requeridos', 'warning');
       return;
     }
-    const { ok, data } = await fetchAPI('/raice/users', { method:'POST', body: JSON.stringify(payload) });
+    const { ok, data } = await window.RAICE.createUser(fetchAPI, payload);
     if (ok) {
       showToast(`Usuario @${payload.username} creado`, 'success');
       closeModal('modal-new-user');
@@ -3455,7 +3448,7 @@
     if (typed.trim().toUpperCase() !== 'ELIMINAR') {
       showToast('Texto incorrecto — usuario no eliminado', 'warning'); return;
     }
-    const { ok, status, data } = await fetchAPI('/raice/users', { method:'DELETE', body: JSON.stringify({ id, force }) });
+    const { ok, status, data } = await window.RAICE.deleteUser(fetchAPI, id, force);
     if (ok) {
       showToast('Usuario eliminado', 'success');
       loadUsers();
@@ -3509,7 +3502,7 @@
     if (!payload.first_name || !payload.username) {
       showToast('Nombre y usuario son requeridos', 'warning'); return;
     }
-    const { ok, data } = await fetchAPI('/raice/users', { method:'PUT', body: JSON.stringify(payload) });
+    const { ok, data } = await window.RAICE.updateUser(fetchAPI, payload);
     if (ok) {
       showToast('Usuario actualizado', 'success');
       closeModal('modal-edit-user');
@@ -3564,9 +3557,7 @@
 
   // ---- COURSES ----
   async function loadCourses() {
-    const { ok, data } = await fetchAPI('/raice/courses');
-    if (!ok) return;
-    const allCourses = data.courses || [];
+    const allCourses = await window.RAICE.fetchCourses(fetchAPI);
     const grid = document.getElementById('courses-grid');
     if (!allCourses.length) {
       grid.innerHTML = '<div class="empty-state"><div class="empty-ico">🏫</div>No hay cursos creados aún.</div>';
@@ -3672,9 +3663,7 @@
 
   // ---- CASES ----
   async function loadCases() {
-    const { ok, data } = await fetchAPI('/raice/cases');
-    if (!ok) return;
-    const cases = data.cases || [];
+    const cases = await window.RAICE.fetchCases(fetchAPI);
     _saAllCases = cases; // store for viewCaseSA
     const tbody = document.getElementById('cases-tbody');
     if (!cases.length) {
@@ -3903,9 +3892,8 @@
   }
 
   async function loadConfig() {
-    const { ok, data } = await fetchAPI('/raice/config');
-    if (!ok) return;
-    // Cache config globally so hour selectors can use classes_per_day
+    const data = await window.RAICE.fetchConfig(fetchAPI);
+    if (!data) return;
     window._schoolConfig = data;
     if (data.school_name)      document.getElementById('cfg-school-name').value      = data.school_name;
     if (data.location)         document.getElementById('cfg-location').value         = data.location;
@@ -3942,8 +3930,7 @@
   async function loadBellSchedule() {
     const wrap = document.getElementById('bell-table-wrap');
     if (!wrap) return;
-    const { ok, data } = await fetchAPI('/raice/bell-schedule');
-    const hours = ok ? (data.bell_schedule || []).sort((a,b) => a.class_hour - b.class_hour) : [];
+    const hours = (await window.RAICE.fetchBellSchedule(fetchAPI)).sort((a,b) => a.class_hour - b.class_hour);
 
     if (!hours.length) {
       wrap.innerHTML = `<div style="color:var(--gray);font-size:.84rem;font-style:italic;padding:.5rem 0;">
@@ -4403,12 +4390,12 @@
     document.getElementById('assign-subject').value           = '';
     document.getElementById('assign-teacher-id').value        = '';
 
-    const { ok, data } = await fetchAPI('/raice/teachers');
+    const teachers = await window.RAICE.fetchTeachers(fetchAPI);
     const sel = document.getElementById('assign-teacher-id');
-    if (ok && data.teachers?.length) {
+    if (teachers.length) {
       const filtered = sedeId
-        ? data.teachers.filter(t => t.sede_id === sedeId)
-        : data.teachers;
+        ? teachers.filter(t => t.sede_id === sedeId)
+        : teachers;
       sel.innerHTML = '<option value="">— Selecciona el docente —</option>' +
         filtered.map(t => `<option value="${t.id}">${t.first_name} ${t.last_name}${t.subject ? ' · ' + t.subject : ''}</option>`).join('');
     }
@@ -4566,7 +4553,7 @@
 
   async function deleteCourse(id, name) {
     if (!confirm('¿Eliminar el curso ' + name + '? Los estudiantes asignados quedarán sin curso.')) return;
-    const { ok } = await fetchAPI('/raice/courses', { method: 'DELETE', body: JSON.stringify({ id }) });
+    const { ok } = await window.RAICE.deleteCourse(fetchAPI, id);
     if (ok) { showToast('Curso eliminado', 'success'); loadCourses(); }
     else showToast('Error al eliminar curso', 'error');
   }
@@ -4631,7 +4618,7 @@
 
   async function deleteSubgroup(id, name) {
     if (!confirm('¿Eliminar el subgrupo "' + name + '"? Se perderán todos los miembros asignados.')) return;
-    const { ok } = await fetchAPI('/raice/courses', { method: 'DELETE', body: JSON.stringify({ id }) });
+    const { ok } = await window.RAICE.deleteCourse(fetchAPI, id);
     if (ok) { showToast('Subgrupo eliminado', 'success'); loadCourses(); }
     else showToast('Error al eliminar subgrupo', 'error');
   }
@@ -4821,8 +4808,7 @@
       }).join('');
 
     // Populate hour selector from bell schedule
-    const bellRes = await fetchAPI('/raice/bell-schedule');
-    const bells = bellRes.ok ? (bellRes.data.bell_schedule || []).sort((a,b) => a.class_hour - b.class_hour) : [];
+    const bells = (await window.RAICE.fetchBellSchedule(fetchAPI)).sort((a,b) => a.class_hour - b.class_hour);
     const hourSel = document.getElementById('sched-hour');
     if (bells.length) {
       hourSel.innerHTML = bells.map(b => {
@@ -5172,8 +5158,8 @@
   async function loadBackupHistory() {
     const el = document.getElementById('backup-history-list');
     if (!el) return;
-    const { ok, data } = await fetchAPI('/raice/config');
-    if (ok && data.backup_email) {
+    const data = await window.RAICE.fetchConfig(fetchAPI);
+    if (data && data.backup_email) {
       document.getElementById('backup-email').value = data.backup_email;
     }
     // Show last few backup logs

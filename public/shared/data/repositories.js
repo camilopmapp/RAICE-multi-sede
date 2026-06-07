@@ -228,4 +228,141 @@ R.removeSubgroupMember = async function(apiFn, id) {
   return { ok: r.ok, error: r.data?.error };
 };
 
+// ══════════════════════════════════════════════════════════
+// ENDPOINTS ESPECÍFICOS POR ROL
+// ══════════════════════════════════════════════════════════
+
+// ── Docente ─────────────────────────────────────────────
+R.fetchMyCourses = async function(apiFn) {
+  var r = await apiFn('/raice/my-courses');
+  return r.ok ? r.data : null;
+};
+
+R.fetchMyCases = async function(apiFn) {
+  var r = await apiFn('/raice/my-cases');
+  return r.ok ? (r.data.cases || []) : [];
+};
+
+R.fetchMySchedule = async function(apiFn) {
+  var r = await apiFn('/raice/my-schedule');
+  return r.ok ? r.data : null;
+};
+
+R.fetchGradeCases = async function(apiFn) {
+  var r = await apiFn('/raice/grade-cases');
+  return r.ok ? r.data : null;
+};
+
+R.fetchCalendarToday = async function(apiFn) {
+  var r = await apiFn('/raice/calendar/today');
+  return r.ok ? r.data : null;
+};
+
+R.createObservation = async function(apiFn, payload) {
+  var r = await apiFn('/raice/observations', { method:'POST', body: JSON.stringify(payload) });
+  return { ok: r.ok, data: r.data, error: r.data?.error };
+};
+
+R.submitClassroomRemoval = async function(apiFn, payload) {
+  var r = await apiFn('/raice/classroom-removals', { method:'POST', body: JSON.stringify(payload) });
+  return { ok: r.ok, error: r.data?.error };
+};
+
+// ── Rector ──────────────────────────────────────────────
+R.fetchSedesStats = async function(apiFn) {
+  return await R.fetchSedes(apiFn, { stats: true });
+};
+
+// ── Superadmin ──────────────────────────────────────────
+R.createUser = async function(apiFn, payload) {
+  var r = await apiFn('/raice/users', { method:'POST', body: JSON.stringify(payload) });
+  return { ok: r.ok, data: r.data, error: r.data?.error };
+};
+
+R.updateUser = async function(apiFn, payload) {
+  var r = await apiFn('/raice/users', { method:'PUT', body: JSON.stringify(payload) });
+  return { ok: r.ok, data: r.data, error: r.data?.error };
+};
+
+R.deleteUser = async function(apiFn, id, force) {
+  var r = await apiFn('/raice/users', { method:'DELETE', body: JSON.stringify({ id: id, force: force }) });
+  return { ok: r.ok, status: r.status, data: r.data, error: r.data?.error };
+};
+
+R.createCourse = async function(apiFn, payload) {
+  var r = await apiFn('/raice/courses', { method:'POST', body: JSON.stringify(payload) });
+  return { ok: r.ok, data: r.data, error: r.data?.error };
+};
+
+R.deleteCourse = async function(apiFn, id) {
+  var r = await apiFn('/raice/courses', { method:'DELETE', body: JSON.stringify({ id: id }) });
+  return { ok: r.ok, error: r.data?.error };
+};
+
+R.saveSede = async function(apiFn, payload, isNew) {
+  var r = await apiFn('/raice/sedes', { method: isNew ? 'POST' : 'PUT', body: JSON.stringify(payload) });
+  return { ok: r.ok, data: r.data, error: r.data?.error };
+};
+
+R.deleteSede = async function(apiFn, id) {
+  var r = await apiFn('/raice/sedes', { method:'DELETE', body: JSON.stringify({ id: id }) });
+  return { ok: r.ok, error: r.data?.error };
+};
+
+// ── Notifications ───────────────────────────────────────
+R.fetchNotifications = async function(apiFn) {
+  var r = await apiFn('/raice/notifications');
+  return r.ok ? r.data : null;
+};
+
+R.markNotificationRead = async function(apiFn, id) {
+  var r = await apiFn('/raice/notifications', { method:'PUT', body: JSON.stringify({ id: id, read: true }) });
+  return { ok: r.ok };
+};
+
+R.deleteNotification = async function(apiFn, id) {
+  var r = await apiFn('/raice/notifications', { method:'DELETE', body: JSON.stringify({ id: id }) });
+  return { ok: r.ok };
+};
+
+// ── Sedes CRUD ──────────────────────────────────────────
+R.fetchSedesForSelect = async function(apiFn) {
+  var r = await apiFn('/raice/sedes', { _skipSedeFilter: true });
+  return r.ok ? (r.data.sedes || []) : [];
+};
+
+// ── Bell Schedule CRUD ──────────────────────────────────
+R.saveBellHour = async function(apiFn, payload) {
+  var r = await apiFn('/raice/bell-schedule', { method:'POST', body: JSON.stringify(payload) });
+  return { ok: r.ok, data: r.data, error: r.data?.error };
+};
+
+R.deleteBellHour = async function(apiFn, id) {
+  var r = await apiFn('/raice/bell-schedule', { method:'DELETE', body: JSON.stringify({ id: id }) });
+  return { ok: r.ok };
+};
+
+// ── Citations ───────────────────────────────────────────
+R.fetchCitations = async function(apiFn) {
+  var r = await apiFn('/raice/citations');
+  return r.ok ? (r.data.citations || []) : [];
+};
+
+R.saveCitation = async function(apiFn, payload) {
+  var r = await apiFn('/raice/citations', { method:'POST', body: JSON.stringify(payload) });
+  return { ok: r.ok, error: r.data?.error };
+};
+
+// ── Commitments ─────────────────────────────────────────
+R.fetchCommitments = async function(apiFn) {
+  var r = await apiFn('/raice/commitments');
+  return r.ok ? (r.data.commitments || []) : [];
+};
+
+// ── Search ──────────────────────────────────────────────
+R.globalSearch = async function(apiFn, query) {
+  var r = await apiFn('/raice/search?q=' + encodeURIComponent(query));
+  return r.ok ? r.data : null;
+};
+
 })(window.RAICE = window.RAICE || {});

@@ -2294,8 +2294,7 @@ async function loadDashboard() {
   </div>`;
 
   // BAR: Casos por tipo
-  const { data: casesData } = await fetchAPI('/raice/cases');
-  const cases = casesData?.cases || [];
+  const cases = await window.RAICE.fetchCases(fetchAPI);
   const [t1,t2,t3] = [1,2,3].map(n => cases.filter(c=>c.type===n).length);
   const casesCtx = document.getElementById('chart-cases-bar')?.getContext('2d');
   if (casesCtx) {
@@ -2372,9 +2371,7 @@ function statusPill(s) {
 async function loadAlerts() {
   const el = document.getElementById('alerts-list');
   el.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--gray);">Cargando alertas…</div>';
-  const { ok, data } = await fetchAPI('/raice/alerts');
-  if (!ok) { el.innerHTML = '<div style="color:var(--rose);padding:1rem;">Error al cargar alertas</div>'; return; }
-  allAlerts = data.alerts || [];
+  allAlerts = await window.RAICE.fetchAlerts(fetchAPI);
   // Update badge with unread notification count
   const unread = allAlerts.filter(a => a.source === 'notification').length;
   document.getElementById('badge-alertas').textContent = allAlerts.length || 0;
@@ -2530,8 +2527,7 @@ async function registerOmission(courseId, teacherId, classHour, date) {
 async function alertOpenCaseForStudent(studentId, studentName) {
   // Pre-fill new-case modal with the student already selected, then open it
   if (!allStudents.length) {
-    const { ok, data } = await fetchAPI('/raice/students');
-    if (ok) allStudents = data.students || [];
+    allStudents = await window.RAICE.fetchStudents(fetchAPI);
   }
   document.getElementById('new-case-student-search').value = studentName;
   document.getElementById('new-case-student-results').style.display = 'none';
@@ -2796,8 +2792,7 @@ async function deleteStudentAdmin(id) {
 async function adminLoadSedesForModal(selectedSedeId, selectedGrade, selectedCourseId) {
   // _skipSedeFilter: true → carga TODAS las sedes del coordinador (no solo la activa)
   // El estudiante puede asignarse a cualquiera de las sedes del coordinador.
-  const { data: sData } = await fetchAPI('/raice/sedes', { _skipSedeFilter: true });
-  const sedes = sData?.sedes || [];
+  const sedes = await window.RAICE.fetchSedesForSelect(fetchAPI);
 
   const { data: cData } = await fetchAPI('/raice/courses', { _skipSedeFilter: true });
   window._adminCoursesForModal = (cData?.courses || []).filter(c => c.type !== 'subgroup');
@@ -3141,8 +3136,7 @@ function attRangeNav(dir) {
 
 async function _attLoadPeriods() {
   if (!_attPeriods.length) {
-    const { ok, data } = await fetchAPI('/raice/periods');
-    _attPeriods = (ok && data.periods) ? data.periods : [];
+    _attPeriods = await window.RAICE.fetchPeriods(fetchAPI);
     const sel = document.getElementById('att-period-sel');
     sel.innerHTML = '<option value="">— Selecciona período —</option>' +
       _attPeriods.map(p => `<option value="${p.id}" data-from="${p.start_date}" data-to="${p.end_date}">${p.active?'🟢 ':''}${p.name}</option>`).join('');
@@ -3551,7 +3545,8 @@ async function openAttEdit(courseId, grade, course) {
   const sel = document.getElementById('att-edit-hour');
   sel.innerHTML = '<option value="1">1ª hora</option>'; // fallback while loading
   try {
-    const { ok, data } = await fetchAPI('/raice/bell-schedule');
+    const bellData = await window.RAICE.fetchBellSchedule(fetchAPI);
+    const ok = bellData.length > 0; const data = { bell_schedule: bellData };
     const ordinals = ['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª','10ª'];
     if (ok && data.bell_schedule?.length) {
       sel.innerHTML = data.bell_schedule
@@ -4713,11 +4708,9 @@ if (document.getElementById('att-date')) document.getElementById('att-date').val
 
 // ---- STATS ----
 async function loadPeriodsForSelect() {
-  const { ok, data } = await fetchAPI('/raice/periods');
-  if (!ok) return;
+  const periods = await window.RAICE.fetchPeriods(fetchAPI);
   const sel = document.getElementById('period-select');
-  if (!sel) return;
-  const periods = data.periods || [];
+  if (!sel || !periods.length) return;
   sel.innerHTML = periods.map(p =>
     `<option value="${p.id}" ${p.active ? 'selected' : ''}>${p.name}${p.active ? ' ✅' : ''}</option>`
   ).join('') || '<option value="">Sin períodos configurados</option>';
@@ -4865,8 +4858,7 @@ let _citStudentTimer = null;
 
 async function populateCitationStudents() {
   // Pre-load students into memory for instant autocomplete
-  const { data } = await fetchAPI('/raice/students');
-  _citStudents = data.students || [];
+  _citStudents = await window.RAICE.fetchStudents(fetchAPI);
   // Reset state when modal opens
   clearCitStudent();
 }
@@ -4948,10 +4940,10 @@ async function saveCitation() {
 
 
 async function populateCitationCases() {
-  const { data } = await fetchAPI('/raice/cases');
+  const _citCases = await window.RAICE.fetchCases(fetchAPI);
   const sel = document.getElementById('cit-case');
   if (!sel) return;
-  const cases = (data.cases || []).filter(c => c.status !== 'closed');
+  const cases = _citCases.filter(c => c.status !== 'closed');
   sel.innerHTML = '<option value="">— Sin caso específico —</option>' +
     cases.map(c => `<option value="${c.id}">Tipo ${c.type} — ${c.student_name}</option>`).join('');
 }
@@ -5014,10 +5006,8 @@ function printCitation(c) {
 
 // ---- PERIODS ----
 async function loadPeriods() {
-  const { ok, data } = await fetchAPI('/raice/periods');
-  if (!ok) return;
+  const periods = await window.RAICE.fetchPeriods(fetchAPI);
   const el = document.getElementById('periods-body');
-  const periods = data.periods || [];
   if (!periods.length) {
     el.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--gray);">Sin períodos configurados.<br>Crea el primer período con el botón de arriba.</div>';
     return;
@@ -6402,9 +6392,9 @@ function adminDownloadImportTemplate() {
 // EXPORT — EXCEL-LIKE (usando SheetJS si disponible)
 // =====================================================
 async function exportStudentsExcel() {
-  const { ok, data } = await fetchAPI('/raice/students');
-  if (!ok) { showToast('Error al cargar estudiantes', 'error'); return; }
-  const rows = (data.students || []).map(s => ({
+  const _expStudents = await window.RAICE.fetchStudents(fetchAPI);
+  if (!_expStudents.length) { showToast('Sin estudiantes para exportar', 'warning'); return; }
+  const rows = _expStudents.map(s => ({
     'Nombre': s.first_name, 'Apellido': s.last_name,
     'Grado': s.grade, 'Curso': s.course,
     'Tipo Doc': s.doc_type||'', 'Documento': s.doc_number||'',
@@ -6536,9 +6526,9 @@ async function exportAttendanceReport() {
 async function exportCasesReport() {
   const el = getRptOutputEl();
   if (!el) return;
-  const { ok, data } = await fetchAPI('/raice/cases');
+  const _rptCases = await window.RAICE.fetchCases(fetchAPI);
+  const data = { cases: _rptCases };
   const school = await getSchoolName();
-  if (!ok) { el.innerHTML = '<div style="color:var(--rose);padding:1rem;">Error</div>'; return; }
   const cases = data.cases || [];
   const t1 = cases.filter(c=>c.type===1).length;
   const t2 = cases.filter(c=>c.type===2).length;
@@ -6579,8 +6569,8 @@ async function exportCasesReport() {
 }
 
 async function generateComiteReport() {
-  const { ok, data } = await fetchAPI('/raice/cases');
-  if (!ok) { showToast('Error al cargar casos', 'error'); return; }
+  const _comiteCases = await window.RAICE.fetchCases(fetchAPI);
+  const data = { cases: _comiteCases };
   const school = _schoolConfig.school_name || 'Institución Educativa';
   const logoHtml = _schoolConfig.logo_url
     ? `<img src="${_schoolConfig.logo_url}" style="height:60px;object-fit:contain;" alt="logo">`
@@ -6751,8 +6741,7 @@ document.addEventListener('visibilitychange', () => {
   async function openNewCaseModal() {
     // Ensure students are loaded before opening the modal
     if (!allStudents.length) {
-      const { ok, data } = await fetchAPI('/raice/students');
-      if (ok) allStudents = data.students || [];
+      allStudents = await window.RAICE.fetchStudents(fetchAPI);
     }
     // Reset form fields
     document.getElementById('new-case-student-search').value = '';
@@ -7086,8 +7075,7 @@ document.addEventListener('visibilitychange', () => {
       '<option value="">— Selecciona un docente —</option>' +
       teachers.map(t => `<option value="${t.id}">${t.first_name} ${t.last_name}</option>`).join('');
 
-    const bellRes = await fetchAPI('/raice/bell-schedule');
-    _bellSchedule = bellRes.ok ? (bellRes.data.bell_schedule || []).sort((a,b) => a.class_hour - b.class_hour) : [];
+    _bellSchedule = (await window.RAICE.fetchBellSchedule(fetchAPI)).sort((a,b) => a.class_hour - b.class_hour);
     renderHourCheckboxes();
     document.getElementById('ausencia-allday').checked = true;
     toggleAusenciaAllday();
@@ -7866,8 +7854,8 @@ if (!navigator.onLine) showOfflineBanner();
       return { from: today.slice(0,4) + '-01-01', to: today };
     }
     if (preset === 'period') {
-      const { ok, data } = await fetchAPI('/raice/periods');
-      const active = (data?.periods || []).find(p => p.active);
+      const _pList = await window.RAICE.fetchPeriods(fetchAPI);
+      const active = _pList.find(p => p.active);
       if (active) return { from: active.start_date, to: active.end_date > today ? today : active.end_date };
       return { from: today.slice(0,7) + '-01', to: today };
     }
@@ -9010,16 +8998,14 @@ if (!navigator.onLine) showOfflineBanner();
 
   async function getAdminBellSchedule() {
     if (_adminBellCache) return _adminBellCache;
-    const { ok, data } = await fetchAPI('/raice/bell-schedule');
-    _adminBellCache = ok ? (data.bell_schedule || []) : [];
+    _adminBellCache = await window.RAICE.fetchBellSchedule(fetchAPI);
     return _adminBellCache;
   }
 
   async function initAdminExcusas() {
     // Load students if not yet loaded
     if (!_adminExcusasAllStudents.length) {
-      const { ok, data } = await fetchAPI('/raice/students');
-      _adminExcusasAllStudents = ok ? (data.students || []) : [];
+      _adminExcusasAllStudents = await window.RAICE.fetchStudents(fetchAPI);
     }
 
     // Load holidays for current year (for client-side date validation)
@@ -9033,9 +9019,8 @@ if (!navigator.onLine) showOfflineBanner();
 
     // Load active period (for client-side date validation)
     if (!_adminActivePeriod) {
-      const { ok, data } = await fetchAPI('/raice/periods');
-      const periods = ok ? (data.periods || []) : [];
-      _adminActivePeriod = periods.find(p => p.active) || null;
+      const _epList = await window.RAICE.fetchPeriods(fetchAPI);
+      _adminActivePeriod = _epList.find(p => p.active) || null;
     }
 
     // Initialize inline form

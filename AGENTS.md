@@ -95,15 +95,39 @@ Minimo esperado por iteracion:
 
 Orden tecnico recomendado:
 
-1. shared/constants
-2. shared/utils
-3. data/datasources + repositories
-4. domain/use-cases
-5. presentation/controllers + views
+1. shared/constants                  -- COMPLETADO
+2. shared/utils                      -- COMPLETADO
+3. data/datasources + repositories   -- COMPLETADO (62% de llamadas migradas)
+4. domain/use-cases                  -- COMPLETADO (funciones puras extraidas)
+5. presentation/controllers + views  -- PENDIENTE (requiere refactorizacion de vistas)
 
 Regla de avance:
 
 No pasar a la siguiente etapa sin paridad funcional validada en la etapa actual.
+
+### 10.1 Estado actual de la capa shared
+
+```
+public/shared/
+  constants/index.js       11 constantes (dias, pills, labels, colores)
+  utils/
+    index.js               19 funciones (escapeHtml, logout, showToast, checkAuth,
+                            avatarColor, formatDate, deriveProfileData, applyLogoToSidebar,
+                            daysAgo, toast, startClock, attendanceColor, getInitials,
+                            formatDateCO, getGreeting, isoWeekday, ...)
+    printObservador.js      Impresion del observador del estudiante
+    pwa.js                  Banners PWA (update, offline)
+  data/
+    apiClient.js            Cliente API unificado (auth + sede filter)
+    realtime.js             Setup Supabase Realtime parametrizado
+    repositories.js         61 funciones de acceso a datos (lectura + CRUD)
+  domain/
+    index.js                7 reglas de negocio (gradeLbl, getCurrentBell,
+                            todayColombia, calcAttendancePct, classifyRisk, ...)
+```
+
+Todos los modulos se cargan como scripts regulares via window.RAICE (IIFE pattern).
+NO usar type="module" porque rompe el timing con scripts secundarios (PWA, Realtime).
 
 ## 11. Estandar de Documentacion
 
