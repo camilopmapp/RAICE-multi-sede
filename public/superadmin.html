@@ -2261,12 +2261,13 @@
 </div>
 
 <!-- ===== SCRIPT ===== -->
-<script>
-  const API_URL = '/api';
+<script type="module">
+  import { DAYS_OF_WEEK } from '/shared/constants/index.js';
+  import { createApiClient } from '/shared/data/apiClient.js';
+  import { gradeLbl, todayColombia } from '/shared/domain/index.js';
   let currentUser = null;
 
-  /** Formatea un número de grado: 0 → 'Transición', 1-11 → '1°'…'11°' */
-  function gradeLbl(g) { return (g === 0 || g === '0' || g === null) && g !== undefined ? 'Transición' : (g + '°'); }
+  // gradeLbl → importado desde shared/domain
   let allStudents = [], allUsers = [], allTeachers = [], allSedes = [];
   let importedData = [];
   let activeUserRoleFilter = 'all';
@@ -2298,6 +2299,10 @@
     localStorage.removeItem('raice_user');
     window.location.href = '/login.html';
   }
+
+  const fetchAPI = createApiClient({
+    onUnauthorized: () => logout()
+  });
 
   // ---- NAV ----
   function showSection(name, btn) {
@@ -2401,25 +2406,7 @@
     return `Hace ${days} día${days > 1 ? 's' : ''}`;
   }
 
-  async function fetchAPI(path, opts = {}) {
-    const token = sessionStorage.getItem('raice_token');
-    try {
-      const res = await fetch(API_URL + path, {
-        ...opts,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          ...(opts.headers || {})
-        }
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.status === 401) { logout(); return { ok: false, status: 401, data: {} }; }
-      return { ok: res.ok, status: res.status, data };
-    } catch (err) {
-      console.error('fetchAPI error:', path, err);
-      return { ok: false, status: 0, data: { error: 'Error de conexión' } };
-    }
-  }
+  // fetchAPI → creado desde shared/data/apiClient.js con createApiClient
 
   // ---- DASHBOARD ----
   async function loadDashboard() {
@@ -3727,7 +3714,8 @@
     const statusPills = {
       open:     '<span class="pill pill-red">Abierto</span>',
       tracking: '<span class="pill pill-yellow">Seguimiento</span>',
-      closed:   '<span class="pill pill-green">Cerrado</span>'
+      closed:   '<span class="pill pill-green">Cerrado</span>',
+      escalado: '<span class="pill pill-red" style="background:#fef2f2;color:#991b1b;border:1px solid #fca5a5;">Escalado</span>'
     };
     tbody.innerHTML = cases.map(c => `
       <tr>
@@ -4710,7 +4698,7 @@
             '<span style="background:var(--light);border:1px solid var(--border);border-radius:999px;padding:.18rem .55rem;font-size:.78rem;display:inline-flex;align-items:center;gap:.35rem;">'
             + m.last_name + ', ' + m.first_name
             + ' <span style="color:var(--gray);font-size:.7rem;">' + gradeLbl(m.course_grade??'?') + (m.course_number||'?') + '</span>'
-            + '<button onclick="smRemoveMember(\'' + m.student_id + '\')" style="background:none;border:none;cursor:pointer;color:var(--rose);font-size:.78rem;padding:0;line-height:1;margin-left:.1rem;">✕</button>'
+            + '<button onclick="smRemoveMember(\'' + m.student_id + '\',\'' + (m.first_name + ' ' + m.last_name).replace(/'/g,"\\'") + '\')" style="background:none;border:none;cursor:pointer;color:var(--rose);font-size:.78rem;padding:0;line-height:1;margin-left:.1rem;">✕</button>'
             + '</span>'
           ).join('') + '</div>';
       }
@@ -4806,7 +4794,8 @@
     } else showToast(data?.error || 'Error al agregar', 'error');
   }
 
-  async function smRemoveMember(studentId) {
+  async function smRemoveMember(studentId, studentName = 'este estudiante') {
+    if (!confirm('¿Estás seguro de que deseas eliminar a "' + studentName + '" del subgrupo?')) return;
     const { ok, data } = await fetchAPI('/raice/subgroup-members', {
       method: 'DELETE',
       body: JSON.stringify({ subgroup_id: _currentSubgroupId, student_id: studentId })
@@ -4830,7 +4819,7 @@
   // =====================================================
   // HORARIO DEL CURSO
   // =====================================================
-  const DAYS = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
+  const DAYS = DAYS_OF_WEEK;
   const DAY_COLORS = ['','#dbeafe','#dcfce7','#fef9c3','#f5f3ff','#fff7ed'];
   const DAY_BORDER = ['','#93c5fd','#86efac','#fde68a','#c4b5fd','#fed7aa'];
 
@@ -6258,6 +6247,68 @@
     ayeData = null; // force reload next time
   }
   // ==================== FIN NUEVO AÑO ESCOLAR ====================
+
+  // ── Exponer al scope global funciones usadas en onclick del HTML ──
+  Object.assign(window, {
+    // Nav & UI
+    showSection, toggleSidebar, openModal, closeModal, logout, showToast, fetchAPI,
+    // Users
+    createUser, editUser, updateUser, deleteUser, filterUsers, filterUserRole, resetPassword,
+    // Teachers
+    loadTeachers, filterTeachers, editTeacher, saveTeacher,
+    openAssignTeacher, saveTeacherAssignment, removeTeacherFromCourse, openNewTeacher,
+    // Students
+    loadStudents, filterStudents, onGradeFilterChange, openNewStudent,
+    editStudent, saveStudent, deleteStudent, openChangeGrade,
+    addAcudienteRow, exportStudentsExcel, downloadExcel,
+    handleFileSelect, confirmImport, cancelImport, clearImportFile,
+    downloadImportTemplate, saDownloadErrorReport,
+    // Courses
+    openNewCourse, createCourse, editCourse, deleteCourse,
+    loadCoursesForGrade, loadGradesForSede, toggleCourseField,
+    // Subgroups
+    openNewSubgroup, editSubgroup, deleteSubgroup, saveSubgroup,
+    openSubgroupMembers, smRemoveMember, smUpdateCount,
+    smFilterChecklist, smOnGradeChange, smToggleAll, smAddSelected,
+    // Sedes
+    openNewSede, saveSede, deleteSede, renderSedeField,
+    loadDirectorsSelect,
+    // Schedule
+    openCourseSchedule, saveScheduleSlot, deleteScheduleSlot,
+    saveBellHour, editBellHour, deleteBellHour, cancelBellEdit,
+    // Cases
+    filterCases, viewCaseSA, exportCases,
+    // Attendance
+    loadAttendance, exportAttendance,
+    // Config
+    saveSchoolConfig, saveSecurityConfig, savePeriodConfig, saveLogoConfig,
+    previewLogo, clearLogo, renderPeriodFields,
+    toggleCorrectionWindowFields,
+    // Faltas
+    loadFaltasCatalogAdmin, openNuevaFaltaModal, saveNuevaFalta,
+    renderFaltasAdmin, deleteFalta, editFaltaText, saveFaltaText, toggleFaltaActiva,
+    // Backup
+    saveBackupEmailConfig, sendTestBackup, triggerWeeklyReport,
+    downloadFullBackup, previewBackupFile, executeBackupImport,
+    openBackupConfirmModal, closeBackupConfirmModal, bcValidate,
+    // Logs
+    loadLogs, filterLogs,
+    // Profile
+    changeMyPassword,
+    // Purge
+    purgeData,
+    // Search
+    onSASearch,
+    // SIMAT
+    simatLoadFile, simatRunPreview, simatModeChange, simatConfirmImport,
+    simatReset, simatSelectAllCourses, simatToggleSkipPartial,
+    simatPartialConfirm, simatPartialPrev,
+    // Año escolar
+    ayeGoStep, ayeStep1Next, ayeStep2Next, ayeSetGradeAction,
+    ayeUpdateAction, ayeUpdateCourse, ayeExecute,
+    // Misc
+    initSession, gradeLbl,
+  });
 </script>
 
 <script>

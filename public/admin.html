@@ -1978,14 +1978,30 @@
   </div>
 </div>
 
-<script src="/js/shared/core.js"></script>
-<script>
-const API_URL = '/api';
-/** Formatea un número de grado: 0 → 'Transición', 1-11 → '1°'…'11°' */
-function gradeLbl(g) { return (g === 0 || g === '0' || g === null) && g !== undefined ? 'Transición' : (g + '°'); }
+<script type="module">
+import {
+  CLASS_HOUR_ORDINALS,
+  DAYS_OF_WEEK,
+  OBSERVATION_TYPE_LABELS,
+  OBSERVATION_TYPE_COLORS,
+  CASE_STATUS_LABELS
+} from '/shared/constants/index.js';
 
-// escHtml and todayColombia extracted to core.js
+import {
+  escapeHtml,
+  formatDateCO,
+  getInitials,
+  isoWeekday
+} from '/shared/utils/index.js';
+
+import { createApiClient } from '/shared/data/apiClient.js';
+import { gradeLbl, getCurrentBell, todayColombia } from '/shared/domain/index.js';
+// gradeLbl → importado desde shared/domain
+
+// escHtml → importado desde shared/utils como escapeHtml
+const escHtml = escapeHtml;
 let currentUser = null;
+  // todayColombia → importado desde shared/domain
 
 
 let allStudents = [], allCases = [], allCommitments = [], allAlerts = [];
@@ -1995,6 +2011,10 @@ let caseTypeFilter = '', caseStatusFilter = '', caseSearchQuery = '';
 // null = coordinador de 1 sola sede o superadmin (sin restricción adicional)
 // { id, name } = coordinador con 2+ sedes trabajando en una sede específica
 let activeSede = null;
+
+const fetchAPI = createApiClient({
+  getActiveSede: () => activeSede
+});
 
 // ---- AUTH ----
 
@@ -2149,8 +2169,57 @@ function showSection(name, btn) {
   }
 }
 
-// Core UI Utils (openModal, closeModal, toggleSidebar, showToast, avatarColor, formatDate, daysAgo, fetchAPI)
-// extracted to public/js/shared/core.js
+// ---- MODAL ----
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ---- SIDEBAR TOGGLE (mobile) ----
+function toggleSidebar() {
+  const sb  = document.getElementById('main-sidebar');
+  const ov  = document.getElementById('sidebar-overlay');
+  const isOpen = sb.classList.toggle('open');
+  ov.classList.toggle('open', isOpen);
+}
+// Close sidebar when a nav item is clicked on mobile
+document.querySelectorAll('.nav-item').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (window.innerWidth <= 768) {
+      document.getElementById('main-sidebar').classList.remove('open');
+      document.getElementById('sidebar-overlay').classList.remove('open');
+    }
+  });
+});
+document.addEventListener('click', e => {
+  if (e.target.classList.contains('modal-overlay')) e.target.classList.remove('open');
+});
+
+// ---- TOAST ----
+function showToast(msg, type = 'success') {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  const ico = {success:'✅',error:'❌',warning:'⚠️'}[type]||'ℹ️';
+  t.innerHTML = `<span>${ico}</span><span>${msg}</span>`;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 3800);
+}
+
+// ---- HELPERS ----
+function avatarColor(name) {
+  const c = ['#3b82f6','#10b981','#8b5cf6','#f59e0b','#ef4444','#0b7a75','#ec4899'];
+  return c[(name||'A').charCodeAt(0) % c.length];
+}
+function formatDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('es-CO', {day:'2-digit',month:'short',year:'numeric'});
+}
+function daysAgo(iso) {
+  if (!iso) return '';
+  const d = Math.floor((Date.now() - new Date(iso)) / 86400000);
+  return d === 0 ? 'hoy' : d === 1 ? 'ayer' : `hace ${d} días`;
+}
+
+// fetchAPI → creado desde shared/data/apiClient.js con createApiClient
 
 // ---- DASHBOARD ----
 // Chart instances
@@ -2203,9 +2272,9 @@ async function loadDashboard() {
   // DONUT: Asistencia hoy — usa datos del dashboard (misma fuente que rector)
   const totalP = data.present || 0, totalA = data.absent || 0;
   const totalT = data.late || 0,   totalPE = data.permit || 0;
-  const realPct = data.attendance_today;
-  const totalAll = realPct != null ? (totalP + totalA + totalT + totalPE) : 0;
+  const totalAll = totalP + totalA + totalT + totalPE;
 
+  const realPct = data.attendance_today;
   document.getElementById('chart-att-pct').textContent = realPct != null ? realPct + '%' : '—';
   document.getElementById('stat-att').textContent = realPct != null ? realPct + '%' : '—%';
 
@@ -3699,8 +3768,8 @@ function renderCases() {
     2:'<span class="type-badge t2">II</span>',
     3:'<span class="type-badge t3">III</span>'
   };
-  const statusColor = { open:'#ef4444', tracking:'#f59e0b', closed:'#22c55e' };
-  const statusLabel = { open:'Abierto', tracking:'Seguimiento', closed:'Cerrado' };
+  const statusColor = { open:'#ef4444', tracking:'#f59e0b', closed:'#22c55e', escalado:'#dc2626' };
+  const statusLabel = { open:'Abierto', tracking:'Seguimiento', closed:'Cerrado', escalado:'Escalado (Atención)' };
 
   el.innerHTML = list.map(c => `
     <div class="caso-card ${currentCaseId===c.id?'active':''}" id="ccard-${c.id}" onclick="viewCase('${c.id}')">
@@ -3760,6 +3829,8 @@ async function viewCase(id) {
     ? '<span class="pill pill-red">🔴 Abierto</span>'
     : c.status === 'tracking'
     ? '<span class="pill pill-yellow">🟡 En seguimiento</span>'
+    : c.status === 'escalado'
+    ? '<span class="pill pill-red" style="background:#fef2f2;color:#991b1b;border:1px solid #fca5a5;">⚠️ Escalado (Requiere Atención)</span>'
     : '<span class="pill pill-green">✅ Cerrado</span>';
 
   panel.innerHTML = `
@@ -3825,6 +3896,7 @@ async function viewCase(id) {
           <span style="font-size:.8rem;font-weight:600;color:#92400e;flex-shrink:0;">⚙️ Acciones rápidas:</span>
           <select onchange="updateCaseStatus('${c.id}', this.value)" style="font-size:.8rem;padding:.3rem .6rem;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;">
             <option value="">Cambiar estado…</option>
+            <option value="open" ${c.status==='open'?'disabled':''}>🔴 → Abierto</option>
             <option value="tracking" ${c.status==='tracking'?'disabled':''}>🟡 → Seguimiento</option>
             <option value="closed">✅ → Cerrar caso</option>
           </select>
@@ -4185,10 +4257,6 @@ function printIndividualCase(id) {
   });
 }
 
-// Alias for backward compat
-function printCurrentCase() {
-  if (currentCaseId) printIndividualCase(currentCaseId);
-}
 function exportCasesPDF() {
   if (currentCaseId) printIndividualCase(currentCaseId);
   else showToast('Selecciona un caso primero', 'warning');
@@ -4584,9 +4652,9 @@ function _printObservadorWindow(d, cfg) {
   const now = new Date().toLocaleDateString('es-CO', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
   const curso = s.grade ? `${s.grade}°${s.number || ''}` : (s.course || '—');
 
-  const typeLabel = { positive: 'Positiva', neutral: 'Neutra', negative: 'Negativa' };
-  const typeColor = { positive: '#16a34a', neutral: '#64748b', negative: '#dc2626' };
-  const statusLbl = { open: 'Abierto', tracking: 'En seguimiento', closed: 'Cerrado' };
+  const typeLabel = OBSERVATION_TYPE_LABELS;
+  const typeColor = OBSERVATION_TYPE_COLORS;
+  const statusLbl = CASE_STATUS_LABELS;
 
   const obsRows = obs.map(o => {
     const fecha = new Date(o.created_at).toLocaleDateString('es-CO', { day:'numeric', month:'short', year:'numeric' });
@@ -4729,7 +4797,7 @@ function printCurrentCase() {
   setTimeout(() => w.print(), 400);
 }
 
-function exportCasesPDF() { printCurrentCase(); }
+
 
 function printAttendanceReport() {
   const content = document.getElementById('att-body')?.innerHTML;
@@ -5026,25 +5094,6 @@ async function populateCitationCases() {
   const cases = (data.cases || []).filter(c => c.status !== 'closed');
   sel.innerHTML = '<option value="">— Sin caso específico —</option>' +
     cases.map(c => `<option value="${c.id}">Tipo ${c.type} — ${c.student_name}</option>`).join('');
-}
-
-async function saveCitation() {
-  const studentId = document.getElementById('cit-student').value;
-  const reason    = document.getElementById('cit-reason').value.trim();
-  const dateTime  = document.getElementById('cit-datetime').value;
-  const place     = document.getElementById('cit-place').value.trim();
-  const caseId    = document.getElementById('cit-case').value;
-  if (!studentId) { showToast('Selecciona el estudiante', 'warning'); return; }
-  if (!reason)    { showToast('Escribe el motivo de la citación', 'warning'); return; }
-  const { ok } = await fetchAPI('/raice/citations', {
-    method: 'POST',
-    body: JSON.stringify({ student_id: studentId, reason, date_time: dateTime || null, place, case_id: caseId || null })
-  });
-  if (ok) {
-    showToast('Citación creada', 'success');
-    closeModal('modal-new-citation');
-    loadCitations();
-  } else showToast('Error al crear citación', 'error');
 }
 
 async function markCitationAttended(id) {
@@ -5969,15 +6018,7 @@ function mapaSetTab(tab) {
 
 // Devuelve el objeto del horario de timbres que corresponde a la hora actual (Colombia)
 function mapaCurrentBell() {
-  if (!_mapaData?.bell_schedule?.length) return null;
-  const now = new Intl.DateTimeFormat('es-CO', {
-    timeZone:'America/Bogota', hour:'2-digit', minute:'2-digit', hour12:false
-  }).format(new Date());
-  return _mapaData.bell_schedule.find(b =>
-    b.start_time && b.end_time &&
-    now >= b.start_time.substring(0,5) &&
-    now <= b.end_time.substring(0,5)
-  ) || null;
+  return getCurrentBell(_mapaData?.bell_schedule);
 }
 
 function mapaRenderAhora() {
@@ -5985,8 +6026,8 @@ function mapaRenderAhora() {
   const { schedules, bell_schedule, today_dow } = _mapaData;
   const headerEl = document.getElementById('mapa-hora-actual');
   const gridEl   = document.getElementById('mapa-ahora-grid');
-  const ORD = ['','1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª','10ª'];
-  const DAYS = { 1:'Lunes',2:'Martes',3:'Miércoles',4:'Jueves',5:'Viernes',6:'Sábado',7:'Domingo' };
+  const ORD = CLASS_HOUR_ORDINALS;
+  const DAYS = DAYS_OF_WEEK;
 
   if (today_dow >= 6) {
     headerEl.innerHTML = '<div class="card-body" style="padding:1rem;color:var(--gray);text-align:center;">📅 Hoy es fin de semana.</div>';
@@ -6109,8 +6150,8 @@ function _mapaWeekGrid(slots, cellFn, bell_schedule, today_dow) {
     if (!slotMap[s.day_of_week]) slotMap[s.day_of_week] = {};
     slotMap[s.day_of_week][s.class_hour] = s;
   });
-  const DAYS    = {1:'Lunes',2:'Martes',3:'Miércoles',4:'Jueves',5:'Viernes'};
-  const ORD     = ['','1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª','10ª'];
+  const DAYS    = DAYS_OF_WEEK;
+  const ORD     = CLASS_HOUR_ORDINALS;
   const bellMap = {};
   bell_schedule.forEach(b => bellMap[b.class_hour] = b);
   const hours   = bell_schedule.length
@@ -6217,8 +6258,8 @@ function mapaRenderSemana() {
     slotMap[s.day_of_week][s.class_hour].push(s);
   });
 
-  const DAYS   = {1:'Lunes',2:'Martes',3:'Miércoles',4:'Jueves',5:'Viernes'};
-  const ORD    = ['','1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª','10ª'];
+  const DAYS   = DAYS_OF_WEEK;
+  const ORD    = CLASS_HOUR_ORDINALS;
   const bellMap = {};
   bell_schedule.forEach(b => bellMap[b.class_hour] = b);
   const hours = bell_schedule.length
@@ -7102,11 +7143,9 @@ document.addEventListener('visibilitychange', () => {
   let _autoProposal      = [];   // [{class_hour, teacher_id, teacher_name, course_id, course_label, affinity, covered}]
   let _showBusy          = false;
 
-  const ORD = ['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª','10ª'];
-
   function bellLabel(h) {
     const b = _bellSchedule.find(x => x.class_hour === h);
-    return (b?.label || ORD[h-1] || `${h}ª hora`) + (b?.start_time ? ` (${b.start_time.substring(0,5)})` : '');
+    return (b?.label || CLASS_HOUR_ORDINALS[h] || `${h}ª hora`) + (b?.start_time ? ` (${b.start_time.substring(0,5)})` : '');
   }
 
   function initReemplazosDate() {
@@ -7782,6 +7821,98 @@ document.addEventListener('visibilitychange', () => {
   }
 
 
+// ── Exponer al scope global funciones usadas en onclick del HTML y scripts secundarios ──
+Object.assign(window, {
+  // Nav & UI
+  showSection, toggleSidebar, openModal, closeModal, logout,
+  cambiarSedeActiva, onGlobalSearch, showToast, fetchAPI, escHtml,
+  // Dashboard
+  loadDashboard, showSection,
+  // Alerts
+  filterAlerts, loadAlerts,
+  // Students
+  filterStudents, resetStudentFilters, onGradeFilterChange, openNewStudent,
+  exportStudentsExcel, adminHandleFileSelect, adminConfirmImport, adminCancelImport,
+  adminDownloadImportTemplate, adminDownloadErrorReport,
+  addAdminAcudienteRow, loadAdminAcudientes, saveAdminAcudientes,
+  editStudentAdmin, changeGradeAdmin, deleteStudentAdmin,
+  saveStudentAdmin, adminLoadGradesForModal, adminLoadCoursesForGrade,
+  openStudentFicha, printFicha, openAcudientesModal,
+  loadAcudientesList, saveAcudiente, deleteAcudiente,
+  // Attendance
+  setAttMode, attRangeNav, attBack, attFilterGrade, loadAttendance, loadAttFull,
+  loadAttStudents, openAttEdit, loadAttEditHour, saveAttEdit,
+  _attEditShowList, _attOnPeriodChange, _attFullFilterGrade, _attFullApplyFilters,
+  updateAttEditStatus, exportAttendance, printAttendanceReport,
+  // Cases
+  loadCases, filterCases, filterCasesByType, filterCasesByStatus,
+  gotoCase, viewCase, updateCaseStatus, updateCaseType,
+  openFollowup, saveFollowup, openNewCaseModal, saveNewCase,
+  printIndividualCase, printCurrentCase, exportCasesPDF,
+  openCasosReportModal, generateCasosReportPDF, openComiteModal,
+  searchStudentsForCase, onAdminCaseTypeChange,
+  adminLoadFaltasByCategoria, adminOnFaltaSelected,
+  pickStudentForCase, toggleAdminAction,
+  showConfirmDialog,
+  // Commitments
+  loadCommitments, filterCommitments, markCommitmentFulfilled,
+  // Observer
+  loadObserver, searchObserver, filterObserver, viewStudentObs,
+  onObsGradeChange, printObservador,
+  // Teachers
+  loadTeachers, openPrintStaffModal,
+  // Profile
+  loadProfile, changeMyPassword,
+  // Stats
+  loadStats, loadPeriodsForSelect, printStats,
+  // Citations
+  loadCitations, filterCitations, saveCitation, markCitationAttended, printCitation,
+  onCitStudentSearch, clearCitStudent, populateCitationStudents,
+  // Periods
+  loadPeriods, setActivePeriod, savePeriod,
+  // Notifications
+  loadNotifications, setNotifFilter, renderNotifList,
+  markRead, markAllRead, deleteReadNotifs,
+  // Tardanzas
+  loadTardanzas,
+  // Calendar
+  loadCalendar, calChangeYear, calSwitchTab, calRangePreview,
+  saveCalendarRange, saveCalendarEvent, deleteCalendarEvent, confirmDeleteCalendarEvent,
+  // Mapa escolar
+  loadMapaEscolar, mapaSetTab, mapaCargarCursos,
+  mapaRenderGrupo, mapaRenderDocente, mapaRenderSemana,
+  // Reemplazos
+  loadReemplazos, openModalAusencia, deleteReemplazo, deleteAusencia,
+  openSugerencias, toggleBusyTeachers, acceptFullProposal,
+  changeProposalTeacher, loadAlternativesForRow, assignBusyReemplazo,
+  saveAusencia, toggleAusenciaAllday,
+  // Convivencia extra
+  loadRemovals, loadSuspensions, loadEvasions,
+  openSuspensionModal, saveSuspension, cancelSuspension,
+  markRemovalReviewed, openConfirmEvasion, confirmEvasion, dismissEvasion,
+  // Excusas
+  excusaSwitchTab, adminExcusaPopulateStudents, adminExcusaValidateDate,
+  saveAdminExcusa, loadAdminExcusasList, onExcusaFilterGradeChange,
+  showExcusaRangeDeleteModal, deleteAdminExcusa, adminUpdateExcusaInfo,
+  // Subgrupos
+  admOpenSubgroupMembers, admSmRemoveMember, admSmUpdateCount,
+  admSmFilterChecklist, admSmOnGradeChange, admSmToggleAll, admSmAddSelected,
+  // Reports
+  rptMenuSelect, rptApplyPreset, rptGenerate, rptUpdateCourses,
+  rptExportExcel, rptExportPDF, rptDrillStudent, rptFilterStudents,
+  rptExportConvivenciaPDF, rptFilterCvStudents, rptSearchIndividual,
+  rptExportStudentExcel, rptExportStudentPDF, rptToggleSection,
+  // Print
+  exportCases, generateTempPassword,
+  printStaffList, printStudentList, plSelectAll, closePrintListModal, openPrintListModal,
+  psSelectSedes,
+  // Config
+  loadSchoolConfig, buildPrintHeader,
+  // Misc
+  avatarColor, formatDate, daysAgo, gradeLbl, todayColombia,
+  startAutoRefresh, updateRefreshIndicator, startNotifPolling,
+  initSession, initAdminExcusas, initReemplazosDate, initRemovalsDate, initEvasionsDate,
+});
 
 </script>
 <!-- MODAL REGISTRAR AUSENCIA -->

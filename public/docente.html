@@ -572,7 +572,10 @@
         <div class="att-header">
           <div>
             <div class="att-title" id="att-course-title">7°1 — Matemáticas</div>
-            <div class="att-date-info" id="att-date-info">Lunes, 27 de enero de 2025</div>
+            <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-top:.15rem;">
+              <div class="att-date-info" id="att-date-info" style="margin:0;">Lunes, 27 de enero de 2025</div>
+              <span id="att-period-week-badge" style="display:none;padding:.28rem .65rem;border-radius:8px;font-size:.82rem;font-weight:700;background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;">Semana 3/12</span>
+            </div>
           </div>
           <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
             <input type="date" id="att-date-picker" style="padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:.85rem;color:var(--navy);background:var(--white);outline:none;" onchange="onDateChange()">
@@ -1165,8 +1168,23 @@
 <div id="toast-container"></div>
 
 <!-- ===== SCRIPT ===== -->
-<script>
-  const API_URL = '/api';
+<script type="module">
+  import {
+    CLASS_HOUR_ORDINALS,
+    DAYS_OF_WEEK,
+    OBSERVATION_TYPE_LABELS,
+    OBSERVATION_TYPE_COLORS,
+    CASE_STATUS_LABELS
+  } from '/shared/constants/index.js';
+
+  import {
+    escapeHtml,
+    isoWeekday
+  } from '/shared/utils/index.js';
+
+  import { createApiClient } from '/shared/data/apiClient.js';
+  import { todayColombia } from '/shared/domain/index.js';
+
   let currentUser = null;
 
   // ---- SORT PREFERENCE ----
@@ -1208,13 +1226,12 @@
       : `${s.last_name}, ${s.first_name}`;
   }
 
-  // Returns today's date in Colombia timezone (UTC-5)
-  function todayColombia() {
-    return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date());
-  }
+  // todayColombia → importado desde shared/domain
 
   let myCourses    = [];
   let activeCourse    = null;
+  let _allPeriods     = [];
+  let _allCalendarEvents = [];
   let _todayHolidayInfo = null; // resultado de /raice/calendar/today
   let studentsAtt     = [];   // [{id,name,status:'P'|'A'|'PE'|'T'}]
   let _attDirty       = false; // true when teacher has unsaved changes — prevents auto-refresh from overwriting
@@ -1284,6 +1301,10 @@
     window.location.href = '/login.html';
   }
 
+  const fetchAPI = createApiClient({
+    onUnauthorized: () => logout()
+  });
+
   // ---- NAV ----
   let currentDocenteSection = 'mis-cursos';
   function showSection(name, btn) {
@@ -1329,31 +1350,104 @@
     setTimeout(() => t.remove(), 3500);
   }
 
+  async function loadPeriods() {
+    try {
+      const { ok, data } = await fetchAPI('/raice/periods');
+      if (ok && data.periods) {
+        _allPeriods = data.periods;
+      }
+    } catch (_) {}
+  }
+
+  async function loadCalendarEvents() {
+    try {
+      const year = new Date().getFullYear();
+      const { ok, data } = await fetchAPI(`/raice/calendar?year=${year}`);
+      if (ok && data.events) {
+        _allCalendarEvents = data.events;
+      }
+    } catch (_) {}
+  }
+
+  function updatePeriodWeekBadge() {
+    const badge = document.getElementById('att-period-week-badge');
+    if (!badge) return;
+    badge.style.display = 'none';
+
+    const datePicker = document.getElementById('att-date-picker');
+    if (!datePicker || !datePicker.value) return;
+
+    const selectedDateStr = datePicker.value;
+    const selectedDate = new Date(selectedDateStr + 'T12:00:00');
+
+    const period = _allPeriods.find(p => {
+      return selectedDateStr >= p.start_date && selectedDateStr <= p.end_date;
+    });
+
+    if (period) {
+      const nonLectivos = new Set(
+        _allCalendarEvents
+          .filter(e => e.type === 'holiday' || e.type === 'vacation')
+          .map(e => e.date)
+      );
+
+      const start = new Date(period.start_date + 'T12:00:00');
+      const end = new Date(period.end_date + 'T12:00:00');
+
+      const getWeekNumber = (d) => {
+        const date = new Date(d.getTime());
+        date.setHours(0, 0, 0, 0);
+        date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
+        const week1 = new Date(date.getFullYear(), 0, 4);
+        return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+      };
+
+      const weeksMap = {};
+      let curr = new Date(start);
+      while (curr <= end) {
+        const dayNum = curr.getDay(); // 1=Mon ... 5=Fri
+        if (dayNum >= 1 && dayNum <= 5) {
+          const dateStr = curr.toISOString().slice(0, 10);
+          if (!nonLectivos.has(dateStr)) {
+            const year = curr.getFullYear();
+            const week = getWeekNumber(curr);
+            const key = `${year}_${week}`;
+            weeksMap[key] = (weeksMap[key] || 0) + 1;
+          }
+        }
+        curr.setDate(curr.getDate() + 1);
+      }
+
+      const lectiveWeeks = Object.keys(weeksMap).sort((a,b) => {
+        const [yA, wA] = a.split('_').map(Number);
+        const [yB, wB] = b.split('_').map(Number);
+        return yA !== yB ? yA - yB : wA - wB;
+      });
+
+      const currentYear = selectedDate.getFullYear();
+      const currentWeek = getWeekNumber(selectedDate);
+      const currentKey = `${currentYear}_${currentWeek}`;
+
+      const currentWeekIndex = lectiveWeeks.indexOf(currentKey);
+      const totalWeeks = lectiveWeeks.length;
+
+      if (currentWeekIndex !== -1) {
+        badge.textContent = `${period.name} · Semana ${currentWeekIndex + 1}/${totalWeeks}`;
+        badge.style.display = 'inline-block';
+      } else {
+        badge.textContent = `${period.name} · Vacaciones 🏖️`;
+        badge.style.display = 'inline-block';
+      }
+    }
+  }
+
   // ---- HELPERS ----
   function avatarColors(name) {
     const c = ['#3b82f6','#10b981','#8b5cf6','#f59e0b','#ef4444','#0b7a75','#ec4899'];
     return c[(name||'A').charCodeAt(0) % c.length];
   }
 
-  async function fetchAPI(path, opts = {}) {
-    const token = sessionStorage.getItem('raice_token');
-    try {
-      const res = await fetch(API_URL + path, {
-        ...opts,
-        headers: {
-          'Content-Type':'application/json',
-          'Authorization': `Bearer ${token}`,
-          ...(opts.headers||{})
-        }
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.status === 401) { logout(); return { ok: false, status: 401, data: {} }; }
-      return { ok: res.ok, status: res.status, data };
-    } catch (err) {
-      console.error('fetchAPI error:', path, err);
-      return { ok: false, status: 0, data: { error: 'Error de conexión' } };
-    }
-  }
+  // fetchAPI → creado desde shared/data/apiClient.js con createApiClient
 
   // ---- PASAR LISTA INTELIGENTE ----
   // Bell schedule cache para comparar horas
@@ -1533,10 +1627,8 @@
       return;
     }
 
-    const jsDay  = new Date().getDay();
-    const dayNum = jsDay === 0 ? 7 : jsDay;
-    const DAYS   = ['','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
-    const dayLabel = DAYS[dayNum] || '';
+    const dayNum = isoWeekday(new Date().getDay());
+    const dayLabel = DAYS_OF_WEEK[dayNum] || '';
     const nowMins  = new Date().getHours() * 60 + new Date().getMinutes();
     const ordinals = ['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª'];
 
@@ -1724,6 +1816,7 @@
 
     buildHourSelector(course);
     loadCourseStudents();
+    updatePeriodWeekBadge();
   }
 
   function buildHourSelector(course) {
@@ -2155,6 +2248,7 @@
     if (isHistoryMode()) activeHour = 1;
     buildHourSelector();
     loadCourseStudents(true);
+    updatePeriodWeekBadge();
   }
 
   // ---- OBSERVATION ----
@@ -2440,18 +2534,17 @@
         ? `<span style="background:#fef3c7;color:#92400e;font-size:.72rem;font-weight:700;padding:.15rem .5rem;border-radius:6px;">Falta ${c.falta_numeral}</span>`
         : '';
       const sName = (c.student_name||'').replace(/'/g,"\'");
-      const tipo1Btns = c.type === 1
-        ? (c.status === 'escalado' || c.status === 'closed')
-          ? `<div style="display:flex;gap:.4rem;margin-top:.6rem;flex-wrap:wrap;">
-               <button class="btn btn-ghost btn-sm" onclick="openTipo1Historial('${c.id}','${sName}')">🗂️ Ver proceso completo</button>
-             </div>`
-          : `<div style="display:flex;gap:.4rem;margin-top:.6rem;flex-wrap:wrap;">
+      const isType1Open = c.type === 1 && c.status !== 'escalado' && c.status !== 'closed';
+      const tipo1Btns = isType1Open
+        ? `<div style="display:flex;gap:.4rem;margin-top:.6rem;flex-wrap:wrap;">
                <button class="btn btn-ghost btn-sm" onclick="openTipo1Historial('${c.id}','${sName}')">🗂️ Ver proceso</button>
                <button class="btn btn-teal btn-sm" onclick="openTipo1EscalonModal('${c.id}','${sName}')">➕ Registrar escalón</button>
                <button class="btn btn-sm" onclick="openCierreCasoModal('${c.id}','${sName}')"
                  style="background:#f0fdf4;border:1.5px solid #86efac;color:#15803d;">✅ Cerrar caso</button>
              </div>`
-        : '';
+        : `<div style="display:flex;gap:.4rem;margin-top:.6rem;flex-wrap:wrap;">
+               <button class="btn btn-ghost btn-sm" onclick="openTipo1Historial('${c.id}','${sName}')">🗂️ Ver proceso completo</button>
+             </div>`;
       return `
       <div class="history-item ${typeClass[c.type]||''}">
         <div class="history-ico">${typeIcos[c.type]||'⚠️'}</div>
@@ -2774,9 +2867,8 @@
     const bellMap     = {};
     bellSched.forEach(b => bellMap[b.class_hour] = b);
 
-    const DAYS = ['','Lunes','Martes','Miércoles','Jueves','Viernes'];
-    const jsDay  = new Date().getDay();
-    const today  = jsDay === 0 ? 7 : jsDay;
+    const DAYS = DAYS_OF_WEEK;
+    const today  = isoWeekday(new Date().getDay());
 
     if (!schedules.length) {
       body.innerHTML = '<div style="text-align:center;padding:3rem;color:#64748b;"><div style="font-size:2rem;margin-bottom:.75rem;">📭</div>Sin horario configurado aún.<br>Pídele al coordinador que configure tu horario.</div>';
@@ -2870,7 +2962,7 @@
   // =====================================================
   // MI HORARIO SEMANAL
   // =====================================================
-  const DAYS_LABEL = ['','Lunes','Martes','Miércoles','Jueves','Viernes'];
+  const DAYS_LABEL = DAYS_OF_WEEK;
   const SCHED_DAY_COLORS = ['','#dbeafe','#dcfce7','#fef9c3','#f5f3ff','#fff7ed'];
   const SCHED_DAY_BORDER = ['','#93c5fd','#86efac','#fde68a','#c4b5fd','#fed7aa'];
 
@@ -3445,6 +3537,8 @@
 
   initSession();
   loadSchoolConfig();
+  loadPeriods();
+  loadCalendarEvents();
   handleMustChangePassword();
   // Verificar festivo ANTES de renderizar cursos (sincronización crítica)
   checkTodayHoliday().then(() => loadMyCourses());
@@ -3896,7 +3990,8 @@
   // =====================================================
   // Show correction window info when opening unlock modal
   async function openUnlockModal() {
-    document.getElementById('unlock-reason').value = '';
+    const chk = document.getElementById('unlock-confirm');
+    if (chk) chk.checked = false;
     const infoEl  = document.getElementById('unlock-window-info');
     const textEl  = document.getElementById('unlock-window-text');
     infoEl.style.display = 'none';
@@ -3918,8 +4013,8 @@
   }
 
   async function submitUnlock() {
-    const reason = document.getElementById('unlock-reason').value.trim();
-    if (!reason) { showToast('Debes escribir el motivo de la corrección', 'warning'); return; }
+    const isChecked = document.getElementById('unlock-confirm')?.checked;
+    if (!isChecked) { showToast('Debes confirmar que estás seguro marcando la casilla', 'warning'); return; }
     if (!activeCourse) return;
 
     const date = document.getElementById('att-date-picker').value;
@@ -3932,7 +4027,7 @@
         course_id:  activeCourse.id,
         date,
         class_hour: activeHour,
-        reason
+        reason:     'Confirmado por el docente'
       })
     });
 
@@ -4507,9 +4602,7 @@
     if (old) old.remove();
   }
 
-  function escapeHtml(str) {
-    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
+  // escapeHtml → importado desde shared/utils
 
   function _printObservadorWindow(d, cfg) {
     const s = d.student, at = d.attendance || {}, obs = d.observations || [], cases = d.cases || [];
@@ -4522,9 +4615,9 @@
     const now = new Date().toLocaleDateString('es-CO', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
     const curso = s.grade ? `${s.grade}°${s.number || ''}` : (s.course || '—');
 
-    const typeLabel = { positive: 'Positiva', neutral: 'Neutra', negative: 'Negativa' };
-    const typeColor = { positive: '#16a34a', neutral: '#64748b', negative: '#dc2626' };
-    const statusLabel = { open: 'Abierto', tracking: 'En seguimiento', closed: 'Cerrado' };
+    const typeLabel = OBSERVATION_TYPE_LABELS;
+    const typeColor = OBSERVATION_TYPE_COLORS;
+    const statusLabel = CASE_STATUS_LABELS;
 
     const obsRows = obs.map(o => {
       const fecha = new Date(o.created_at).toLocaleDateString('es-CO', { day:'numeric', month:'short', year:'numeric' });
@@ -4612,6 +4705,40 @@
     setTimeout(() => w.print(), 500);
   }
 
+  // ── Exponer al scope global funciones usadas en onclick del HTML ──
+  Object.assign(window, {
+    showSection, toggleSidebar, closeSidebar, logout, closeModal,
+    changePassword, showToast, fetchAPI, escapeHtml,
+    // Attendance
+    openCourseAttendance, onDateChange, switchToHour, markAll, setStatus,
+    previewAttendance, confirmAndSave, pasarListaInteligente, copyFromPrevHour,
+    printAttendance, openCheckDateModal, openUnlockModal, submitUnlock,
+    toggleActividadEspecial,
+    // Cases
+    selectType, loadStudentsForCase, submitCase, clearCaseForm,
+    loadFaltasByCategoria, onFaltaSelected, toggleAction,
+    renderGradeCases, openCierreCasoModal, saveCierreCaso,
+    openCaseForEvasion, openTipo1EscalonModal, saveTipo1Escalon, openTipo1Historial,
+    // Observations
+    openObsModal, saveObservation, printObservador,
+    // Schedule
+    openCourseScheduleModal, openMySchedule,
+    // History
+    loadAttHistory, onHattCourseChange, onHattPeriodChange, filterHistory,
+    exportAttHistoryPDF,
+    // Removal
+    openRemovalModal, submitRemoval,
+    // Sort
+    setSortPref,
+    // Excusas
+    switchExcusaTab, docenteExcusaPopulateStudents, saveExcusa,
+    loadExcusasList, deleteExcusa, updateExcusaInfoBox,
+    // Profile
+    loadProfile,
+    // Misc
+    initSession, loadPeriods, sortStudents, studentName, renderStudentList,
+  });
+
 </script>
 
 
@@ -4658,8 +4785,10 @@
         La corrección queda registrada con tu nombre, la hora y el motivo para auditoría del coordinador.
       </p>
       <div class="form-group">
-        <label>Motivo de la corrección <span style="color:#f43f5e">*</span></label>
-        <textarea id="unlock-reason" rows="3" placeholder="¿Por qué necesitas corregir esta lista?…" style="width:100%;resize:vertical;"></textarea>
+        <label style="display:flex;align-items:flex-start;gap:.65rem;cursor:pointer;font-weight:600;font-size:.85rem;color:var(--navy);line-height:1.4;">
+          <input type="checkbox" id="unlock-confirm" style="width:1.15rem;height:1.15rem;margin-top:.1rem;cursor:pointer;flex-shrink:0;">
+          <span>Confirmo que estoy seguro de realizar la modificación de la asistencia.</span>
+        </label>
       </div>
     </div>
     <div class="modal-footer">

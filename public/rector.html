@@ -621,17 +621,46 @@
   </div>
 </div>
 
-<script src="/js/shared/core.js"></script>
-<script src="/js/shared/core.js"></script>
-<script>
-const API_URL = '/api';
+<script type="module">
+import {
+  CLASS_HOUR_ORDINALS,
+  DAYS_OF_WEEK,
+  DAYS_OF_WEEK_SHORT,
+  OBSERVATION_TYPE_LABELS,
+  OBSERVATION_TYPE_COLORS,
+  CASE_STATUS_LABELS,
+  CASE_TYPE_PILL_CLASS,
+  CASE_STATUS_PILL_CLASS,
+  ESCALON_LABELS,
+  ALERT_SEVERITY_DOT_CLASS,
+  ATTENDANCE_STATUS_LABELS
+} from '/shared/constants/index.js';
+
+import {
+  escapeHtml as esc,
+  daysAgo,
+  toast,
+  startClock,
+  attendanceColor,
+  getInitials,
+  formatDateCO,
+  getGreeting,
+  isoWeekday
+} from '/shared/utils/index.js';
+
+import { createApiClient } from '/shared/data/apiClient.js';
+import { getCurrentBell, calcAttendancePct, classifyRisk } from '/shared/domain/index.js';
 let _students = [];
 let _schoolConfig = null;
 let _lastData = { dash: null, alerts: [], absences: [] };
 let _insights = null;
-let _activeSede = null; // {id, name} or null for all
-let _schedData = null; // cached schedule overview
+let _activeSede = null;
+let _schedData = null;
 let _bellSchedule = [];
+
+const api = createApiClient({
+  getActiveSede: () => _activeSede
+});
 
 // AUTH
 async function initSession() {
@@ -648,9 +677,7 @@ async function initSession() {
     document.getElementById('p-avatar').textContent = ini;
     document.getElementById('p-fullname').textContent = `${user.first_name||''} ${user.last_name||''}`.trim();
     document.getElementById('p-username').textContent = `@${user.username||'rector'}`;
-    const h = new Date().getHours();
-    const g = h<12?'Buenos dias':h<18?'Buenas tardes':'Buenas noches';
-    document.getElementById('greeting').textContent = g+', '+(user.first_name||'Rector')+' — Panel institucional';
+    document.getElementById('greeting').textContent = getGreeting()+', '+(user.first_name||'Rector')+' — Panel institucional';
   }
   const d = new Date();
   document.getElementById('top-date').textContent = d.toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
@@ -671,41 +698,9 @@ function openPerfil() {
 }
 function closePerfil() { document.getElementById('modal-perfil').classList.remove('open'); }
 
-async function api(path, opts={}) {
-  const token = sessionStorage.getItem('raice_token');
-  // Inject sede_filter for GET requests when a sede is selected
-  let fullPath = path;
-  if (_activeSede && _activeSede.id && (!opts.method || opts.method === 'GET')) {
-    const sep = path.includes('?') ? '&' : '?';
-    fullPath = path + sep + 'sede_filter=' + _activeSede.id;
-  }
-  try {
-    const r = await fetch(API_URL+fullPath, {...opts, headers:{'Content-Type':'application/json','Authorization':'Bearer '+token,...(opts.headers||{})}});
-    return { ok:r.ok, status:r.status, data: await r.json().catch(()=>({})) };
-  } catch { return { ok:false, status:0, data:{error:'Sin conexion'} }; }
-}
+// api() → creado desde shared/data/apiClient.js con createApiClient
 
-function toast(msg, type='info', ms=3500) {
-  const w = document.getElementById('t-wrap');
-  const t = document.createElement('div');
-  t.className = 'toast '+type; t.textContent = msg; w.appendChild(t);
-  setTimeout(() => t.remove(), ms);
-}
-
-function esc(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
-function startClock() {
-  function _tick() {
-    const now = new Date();
-    const hh = String(now.getHours()).padStart(2,'0');
-    const mm = String(now.getMinutes()).padStart(2,'0');
-    const el = document.getElementById('tb-clock');
-    if (el) el.textContent = hh + ':' + mm;
-  }
-  _tick();
-  setInterval(_tick, 30000);
-}
-
+// toast, esc (escapeHtml), startClock, daysAgo → importados desde shared/utils
 
 // DASHBOARD
 async function loadSchoolConfig() {
@@ -852,7 +847,7 @@ function renderDash(d, alerts=[], cases=[]) {
   document.getElementById('alerts-badge').textContent = alerts.length ? alerts.length+' activas':'';
   document.getElementById('alerts-bd').innerHTML = alerts.length
     ? alerts.map(a=>{
-        const dc=a.severity==='high'?'d-red':a.severity==='medium'?'d-orange':'d-blue';
+        const dc = ALERT_SEVERITY_DOT_CLASS[a.severity] || 'd-blue';
         return `<div class="a-row"><div class="a-dot ${dc}"></div>
           <div><div class="a-title">${esc(a.title)}</div>
           <div class="a-desc">${esc(a.description||'')}</div></div></div>`;
@@ -895,14 +890,13 @@ function renderDash(d, alerts=[], cases=[]) {
   const absent = d.absent || 0;
   const late = d.late || 0;
   const permit = d.permit || 0;
-  const totalAtt = d.attendance_today != null ? (present + absent + late + permit) : 0;
+  const totalAtt = present + absent + late + permit;
   if (totalAtt > 0) {
     // Fórmula correcta: (P+T) / (P+A+T) — PE excluido del denominador (están excusados)
     // Usar != null en vez de || para que 0% no active el fallback
-    const _countable = present + absent + late;
     const attPct = d.attendance_today != null
       ? d.attendance_today
-      : (_countable > 0 ? Math.round(((present + late) / _countable) * 100) : null);
+      : calcAttendancePct(present, absent, late);
     const CIRC = 2 * Math.PI * 65;
     const segs = [
       [present,'#0d9488'],
@@ -974,8 +968,8 @@ function renderDash(d, alerts=[], cases=[]) {
           <th style="text-align:center;padding:.4rem .3rem;font-size:.7rem;font-weight:700;color:var(--gray);text-transform:uppercase;">Estado</th>
         </tr></thead>
         <tbody>${cases.map(c=>{
-          const tp=c.type===3?'pill-t3':c.type===2?'pill-t2':'pill-t1';
-          const sc=c.status==='open'?'pill-open':'pill-closed';
+          const tp = CASE_TYPE_PILL_CLASS[c.type] || 'pill-t1';
+          const sc = CASE_STATUS_PILL_CLASS[c.status] || 'pill-closed';
           const tName = c.teacher_name && c.teacher_name!=='—' ? esc(c.teacher_name) : '—';
           return `<tr style="border-bottom:1px solid var(--border);cursor:pointer;" onclick="openFicha('${c.student_id}')">
             <td style="padding:.38rem .5rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><strong>${esc(c.student_name)}</strong></td>
@@ -1097,10 +1091,7 @@ function renderRisk(list) {
   badge.textContent = list.length ? list.length + ' identificados' : '';
   if (!list.length) { el.innerHTML = '<div class="empty"><div class="ei">&#10003;</div>No hay estudiantes en riesgo este mes.</div>'; return; }
   el.innerHTML = '<div class="risk-wrap">' + list.map(s => {
-    const level = s.risk_score >= 60 ? 'Alto' : s.risk_score >= 30 ? 'Medio' : 'Bajo';
-    const lvlColor = s.risk_score >= 60 ? '#dc2626' : s.risk_score >= 30 ? '#c2410c' : '#a16207';
-    const lvlBg = s.risk_score >= 60 ? '#fee2e2' : s.risk_score >= 30 ? '#fff7ed' : '#fef9c3';
-    const borderCol = s.risk_score >= 60 ? '#fca5a5' : s.risk_score >= 30 ? '#fed7aa' : '#fde68a';
+    const { level, color: lvlColor, bg: lvlBg, borderColor: borderCol } = classifyRisk(s.risk_score);
     const ini = (s.name||'??').split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
     const badges = [];
     if (s.att_pct !== null && s.att_pct < 80) badges.push(`<span style="background:#fee2e2;color:#dc2626;border-radius:6px;padding:.15rem .5rem;font-size:.7rem;font-weight:700;">${s.att_pct}% asist.</span>`);
@@ -1256,7 +1247,7 @@ function renderFicha(d) {
   const calHtml=rec.map(r=>{
     const cls=r.status==='P'?'mc-p':r.status==='A'?'mc-a':r.status==='T'?'mc-t':r.status==='PE'?'mc-pe':'mc-x';
     const [,m,day]=r.date.split('-');
-    const tit={P:'Presente',A:'Ausente',T:'Tarde',PE:'Con permiso'}[r.status]||r.status;
+    const tit = ATTENDANCE_STATUS_LABELS[r.status] || r.status;
     return `<div class="mc-c ${cls}" title="${tit} — ${parseInt(day)}/${parseInt(m)}">${parseInt(day)}</div>`;
   }).join('');
 
@@ -1313,9 +1304,9 @@ function _printObservadorWindow(d, cfg) {
   const now = new Date().toLocaleDateString('es-CO', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
   const curso = s.grade ? `${s.grade}°${s.number || ''}` : (s.course || '—');
 
-  const typeLabel = { positive: 'Positiva', neutral: 'Neutra', negative: 'Negativa' };
-  const typeColor = { positive: '#16a34a', neutral: '#64748b', negative: '#dc2626' };
-  const statusLbl = { open: 'Abierto', tracking: 'En seguimiento', closed: 'Cerrado' };
+  const typeLabel = OBSERVATION_TYPE_LABELS;
+  const typeColor = OBSERVATION_TYPE_COLORS;
+  const statusLbl = CASE_STATUS_LABELS;
 
   const obsRows = obs.map(o => {
     const fecha = new Date(o.created_at).toLocaleDateString('es-CO', { day:'numeric', month:'short', year:'numeric' });
@@ -1401,9 +1392,9 @@ function _printObservadorWindow(d, cfg) {
 }
 
 function renderCaseCard(c) {
-  const pt = c.type===3?'pill-t3':c.type===2?'pill-t2':'pill-t1';
-  const sc = c.status==='open'?'pill-open': c.status==='tracking'?'pill-open':'pill-closed';
-  const stLabel = c.status==='open'?'Abierto':c.status==='tracking'?'En seguimiento':'Cerrado';
+  const pt = CASE_TYPE_PILL_CLASS[c.type] || 'pill-t1';
+  const sc = CASE_STATUS_PILL_CLASS[c.status] || 'pill-closed';
+  const stLabel = CASE_STATUS_LABELS[c.status] || 'Cerrado';
   const fecha = new Date(c.created_at).toLocaleDateString('es-CO',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
 
   let html = `<div class="case-card">
@@ -1439,8 +1430,7 @@ function renderCaseCard(c) {
   if (c.escalones && c.escalones.length) {
     html += `<div class="case-section"><div class="case-section-title">Escalones</div>`;
     c.escalones.forEach(e => {
-      const labels = {'llamado_verbal':'Llamado verbal','amonestacion_escrita':'Amonestacion escrita','citacion_acudiente':'Citacion acudiente','remision_coordinacion':'Remision a coordinacion'};
-      html += `<div class="case-sub-item">${labels[e.tipo_llamado]||esc(e.tipo_llamado)} <span class="case-sub-meta">&middot; Escalon ${e.numero_escalon}</span></div>`;
+      html += `<div class="case-sub-item">${ESCALON_LABELS[e.tipo_llamado]||esc(e.tipo_llamado)} <span class="case-sub-meta">&middot; Escalon ${e.numero_escalon}</span></div>`;
     });
     html += `</div>`;
   }
@@ -1540,15 +1530,7 @@ async function loadScheduleOverview() {
 
 // ── AHORA MISMO ──────────────────────────────────────
 function rectorCurrentBell() {
-  if (!_bellSchedule?.length) return null;
-  const now = new Intl.DateTimeFormat('es-CO', {
-    timeZone:'America/Bogota', hour:'2-digit', minute:'2-digit', hour12:false
-  }).format(new Date());
-  return _bellSchedule.find(b =>
-    b.start_time && b.end_time &&
-    now >= b.start_time.slice(0,5) &&
-    now <= b.end_time.slice(0,5)
-  ) || null;
+  return getCurrentBell(_bellSchedule);
 }
 
 function renderRectorAhora() {
@@ -1557,12 +1539,7 @@ function renderRectorAhora() {
   const badgeEl  = document.getElementById('rector-ahora-badge');
   if (!headerEl || !gridEl) return;
 
-  const ORD  = ['','1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª','10ª'];
-  const DAYS = {1:'Lunes',2:'Martes',3:'Miércoles',4:'Jueves',5:'Viernes',6:'Sábado',7:'Domingo'};
-
-  // Día actual Colombia
-  const jsDay   = new Date().getDay();
-  const todayDow = jsDay === 0 ? 7 : jsDay;
+  const todayDow = isoWeekday(new Date().getDay());
 
   if (todayDow >= 6) {
     headerEl.innerHTML = '<div style="color:var(--gray);font-size:.85rem;">📅 Hoy es fin de semana.</div>';
@@ -1600,11 +1577,11 @@ function renderRectorAhora() {
   headerEl.innerHTML = `
     <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
       <div style="background:var(--navy);color:white;border-radius:10px;padding:.45rem .9rem;font-family:'Fraunces',serif;font-size:1.2rem;font-weight:900;white-space:nowrap;">
-        ${ORD[bell.class_hour] || bell.class_hour+'ª'} hora
+        ${CLASS_HOUR_ORDINALS[bell.class_hour] || bell.class_hour+'ª'} hora
       </div>
       <div>
         <div style="font-weight:700;font-size:.9rem;">${bell.start_time?.slice(0,5)||''} – ${bell.end_time?.slice(0,5)||''}</div>
-        <div style="font-size:.78rem;color:var(--gray);">${DAYS[todayDow]}</div>
+        <div style="font-size:.78rem;color:var(--gray);">${DAYS_OF_WEEK[todayDow]}</div>
       </div>
       <div style="margin-left:auto;font-size:.82rem;font-weight:700;color:${pctClr};">
         ${taken} de ${total} docente${total!==1?'s':''} ${taken===1&&total===1?'pasó':'pasaron'} lista
@@ -1697,16 +1674,14 @@ function loadTeacherSchedule() {
   const bellMap = {};
   (_bellSchedule || []).forEach(b => bellMap[b.class_hour] = b);
 
-  // Current day of week (1=Mon … 5=Fri; weekend → 6/7 = no "today" column)
-  const jsDay  = new Date().getDay(); // 0=Sun
-  const todayDow = jsDay === 0 ? 7 : jsDay; // 1=Mon … 7=Sun
+  const todayDow = isoWeekday(new Date().getDay());
 
   const DAYS = [
-    { dow:1, label:'Lunes'     },
-    { dow:2, label:'Martes'    },
-    { dow:3, label:'Miércoles' },
-    { dow:4, label:'Jueves'    },
-    { dow:5, label:'Viernes'   },
+    { dow:1, label:DAYS_OF_WEEK[1] },
+    { dow:2, label:DAYS_OF_WEEK[2] },
+    { dow:3, label:DAYS_OF_WEEK[3] },
+    { dow:4, label:DAYS_OF_WEEK[4] },
+    { dow:5, label:DAYS_OF_WEEK[5] },
   ];
 
   const hours = [...new Set(scheds.map(s => s.class_hour))].sort((a, b) => a - b);
@@ -1805,6 +1780,24 @@ async function initRealtime() {
     document.body.appendChild(script);
   } catch (err) {}
 }
+
+// ── Exponer al scope global las funciones usadas en onclick del HTML ──
+window.onSearch = onSearch;
+window.clearSearch = clearSearch;
+window.openFicha = openFicha;
+window.closeFicha = closeFicha;
+window.switchTab = switchTab;
+window.logout = logout;
+window.openPerfil = openPerfil;
+window.closePerfil = closePerfil;
+window.cambiarSede = cambiarSede;
+window.resetSede = resetSede;
+window.applyFilters = applyFilters;
+window.switchSchedView = switchSchedView;
+window.renderGradeSchedule = renderGradeSchedule;
+window.loadTeacherSchedule = loadTeacherSchedule;
+window.changeMyPassword = changeMyPassword;
+window.printObservador = printObservador;
 
 // INIT
 initSession();

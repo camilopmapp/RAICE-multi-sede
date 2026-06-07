@@ -430,9 +430,31 @@
   </div>
 </div>
 
-<script src="/js/shared/constants.js"></script>
-<script src="/js/shared/ui-utils.js"></script>
 <script>
+  const API_URL = '/api';
+function togglePass() {
+    const inp = document.getElementById('password');
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+    document.getElementById('btn-show-pass').textContent = inp.type === 'password' ? '👁️' : '🙈';
+  }
+
+  function showAlert(type, msg) {
+    const box = document.getElementById('alert-box');
+    box.className = 'alert-box ' + type;
+    document.getElementById('alert-ico').textContent = type === 'error' ? '❌' : '✅';
+    document.getElementById('alert-msg').textContent = msg;
+  }
+
+  function clearAlert() {
+    document.getElementById('alert-box').className = 'alert-box';
+  }
+
+  function setLoading(on) {
+    const btn = document.getElementById('btn-login');
+    btn.classList.toggle('loading', on);
+    btn.disabled = on;
+  }
+
   async function handleLogin(e) {
     e.preventDefault();
     clearAlert();
@@ -457,11 +479,11 @@
 
       if (res.ok && data.success) {
         // Guardar sesión solo en sessionStorage (no localStorage — cierra al cerrar pestaña)
-        [STORAGE_KEYS.TOKEN, STORAGE_KEYS.ROLE, STORAGE_KEYS.USER].forEach(k => {
+        ['raice_token','raice_role','raice_user'].forEach(k => {
           sessionStorage.removeItem(k);
           localStorage.removeItem(k); // limpiar tokens viejos si existían
         });
-        const val = { [STORAGE_KEYS.TOKEN]: data.token, [STORAGE_KEYS.ROLE]: data.role, [STORAGE_KEYS.USER]: JSON.stringify(data.user) };
+        const val = { raice_token: data.token, raice_role: data.role, raice_user: JSON.stringify(data.user) };
         Object.entries(val).forEach(([k,v]) => {
           sessionStorage.setItem(k, v);
         });
@@ -495,7 +517,7 @@
   }
 
   // Si ya hay sesión, redirigir
-  const existingRole = sessionStorage.getItem(STORAGE_KEYS.ROLE);
+  const existingRole = sessionStorage.getItem('raice_role');
   if (existingRole) {
     if (existingRole === 'superadmin')    window.location.href = '/superadmin.html';
     else if (existingRole === 'admin')    window.location.href = '/admin.html';

@@ -213,7 +213,7 @@ CREATE TABLE IF NOT EXISTS raice_students (
   birth_date DATE,
   notes      TEXT,
   status     TEXT        NOT NULL DEFAULT 'active'
-                         CHECK (status IN ('active','transferred','retired','graduated')),
+                         CHECK (status IN ('active','transferred','retired','graduated','desertor')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -584,10 +584,10 @@ ALTER TABLE raice_users DROP CONSTRAINT IF EXISTS raice_users_role_check;
 ALTER TABLE raice_users ADD CONSTRAINT raice_users_role_check
   CHECK (role IN ('superadmin','admin','rector','teacher'));
 
--- Estudiantes: incluir 'graduated' para fin de año escolar
+-- Estudiantes: incluir 'graduated' y 'desertor' para fin de año escolar y deserción
 ALTER TABLE raice_students DROP CONSTRAINT IF EXISTS raice_students_status_check;
 ALTER TABLE raice_students ADD CONSTRAINT raice_students_status_check
-  CHECK (status IN ('active','transferred','retired','graduated'));
+  CHECK (status IN ('active','transferred','retired','graduated','desertor'));
 
 -- Asistencia: incluir S (actividad especial) y NR (sin registro / omisión)
 ALTER TABLE raice_attendance DROP CONSTRAINT IF EXISTS raice_attendance_status_check;

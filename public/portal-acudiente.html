@@ -332,7 +332,9 @@
 
 </div><!-- /dashboard -->
 
-<script>
+<script type="module">
+import { CLASS_HOUR_ORDINALS } from '/shared/constants/index.js';
+
 const API = '/api';
 let _data = null;
 
@@ -436,8 +438,22 @@ function renderDashboard(data) {
 }
 
 function renderAsistencia(att) {
-  // ── Deduplicar por DÍA: peor estado gana (A > T > PE > P/S) ─────────
-  // S se trata como Presente (equivalente a P)
+  // ── Estadísticas POR HORA DE CLASE (igual que el rol coordinador) ──
+  // Las tardanzas (T) cuentan como ASISTENCIA, no como falta. Permisos (PE)
+  // y especiales (S) se excluyen del denominador. Solo las ausencias (A) bajan el %.
+  const cntP  = att.filter(a => a.status === 'P').length;
+  const cntA  = att.filter(a => a.status === 'A').length;
+  const cntT  = att.filter(a => a.status === 'T').length;
+  const cntPE = att.filter(a => a.status === 'PE').length;
+  const cntS  = att.filter(a => a.status === 'S').length;
+  const totalH    = att.length;
+  const countable = totalH - cntS - cntPE;
+  const pct = countable > 0 ? Math.round(((cntP + cntT) / countable) * 100) : (totalH - cntS > 0 ? 100 : 0);
+  const A = cntA;   // ausencias (en horas de clase)
+  const T = cntT;   // tardanzas (en horas de clase)
+
+  // ── Deduplicar por DÍA solo para el calendario visual ──────────────
+  // (el color del día usa el peor estado de la jornada). S = Presente.
   const statusPriority = { A:4, T:3, PE:2, P:1, S:1 };
   const dayMap = {};
   for (const r of att) {
@@ -447,18 +463,8 @@ function renderAsistencia(att) {
     }
   }
 
-  const days  = Object.values(dayMap);
-  const total = days.length;
-  // P: días donde el peor estado sigue siendo positivo (P, S, PE)
-  const P   = days.filter(d => d.status === 'P' || d.status === 'PE' || d.status === 'S').length;
-  const A   = days.filter(d => d.status === 'A').length;
-  const T   = days.filter(d => d.status === 'T').length;
-  const pct = total > 0 ? Math.round(P / total * 100) : 0;
-
-  // Rango de fechas cubierto
-  const sortedDates = days.map(d => d.date).sort();
-  const periodLbl = total > 0
-    ? `${total} día${total !== 1 ? 's' : ''} registrado${total !== 1 ? 's' : ''}`
+  const periodLbl = totalH > 0
+    ? `${totalH} hora${totalH !== 1 ? 's' : ''} de clase`
     : 'Sin registros';
 
   document.getElementById('att-stats').innerHTML = `
@@ -501,7 +507,8 @@ function renderAsistencia(att) {
     for (let d = 0; d < 5; d++) {
       const date = new Date(monday);
       date.setDate(monday.getDate() + d);
-      const key  = date.toISOString().slice(0,10);
+      // Fecha LOCAL (no UTC) para no correr el día en horario de Colombia
+      const key  = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
       const isFuture = date > today;
       const rec  = dayMap[key];
       const st   = rec?.status;
@@ -515,25 +522,26 @@ function renderAsistencia(att) {
   }
   document.getElementById('att-cal').innerHTML = calHtml;
 
-  // ── Detalle de días con inasistencia / tardanza ───────────────────
-  const absenceDays = days
-    .filter(d => d.status === 'A' || d.status === 'T')
-    .sort((a,b) => b.date.localeCompare(a.date))
-    .slice(0, 20);
+  // ── Detalle POR HORA: muestra la clase específica (no el día completo) ──
+  const ORD = CLASS_HOUR_ORDINALS;
+  const detail = att
+    .filter(a => a.status === 'A' || a.status === 'T')
+    .sort((a,b) => b.date.localeCompare(a.date) || (a.class_hour||0) - (b.class_hour||0))
+    .slice(0, 30);
 
-  if (!absenceDays.length) {
+  if (!detail.length) {
     document.getElementById('att-detail').innerHTML =
       `<div class="empty-state">✅ Sin inasistencias ni tardanzas registradas</div>`;
     return;
   }
 
-  const stLabel = { A:'Ausente', T:'Tardanza', PE:'Excusa justificada' };
+  const stLabel = { A:'Ausente', T:'Tardanza' };
   document.getElementById('att-detail').innerHTML = `<div class="att-list">` +
-    absenceDays.map(r => `<div class="att-row">
+    detail.map(r => `<div class="att-row">
       <div class="att-badge att-${r.status}">${r.status}</div>
       <div>
-        <div style="font-size:.84rem;font-weight:500;">${fmtDate(r.date)}</div>
-        <div style="font-size:.75rem;color:var(--gray);">${stLabel[r.status]||r.status}</div>
+        <div style="font-size:.84rem;font-weight:500;">${fmtDate(r.date)}${r.class_hour ? ` · ${ORD[r.class_hour] || r.class_hour+'ª'} hora` : ''}${r.subject ? ` · ${r.subject}` : ''}</div>
+        <div style="font-size:.75rem;color:var(--gray);">${stLabel[r.status]||r.status}${r.teacher_name ? ` · 👤 ${r.teacher_name}` : ''}</div>
       </div>
     </div>`).join('') + `</div>`;
 }
@@ -571,7 +579,7 @@ function renderObservaciones(obs) {
       <div class="obs-dot obs-${o.type === 'positive' ? 'pos' : o.type === 'negative' ? 'neg' : 'neu'}"></div>
       <div>
         <div class="obs-text">${o.text}</div>
-        <div class="obs-date">${typeLabel[o.type]||o.type} · ${fmtDate(o.created_at?.slice(0,10))}</div>
+        <div class="obs-date">${typeLabel[o.type]||o.type} · ${fmtDate(o.created_at?.slice(0,10))}${o.teacher_name ? ` · 👤 ${o.teacher_name}` : ''}</div>
       </div>
     </div>`).join('') + `</div>`;
 }
@@ -644,7 +652,8 @@ function renderCompromisos(commitments) {
     el.innerHTML = `<div class="empty-state">✅ Sin compromisos registrados</div>`;
     return;
   }
-  const today = new Date().toISOString().slice(0,10);
+  const _now  = new Date();  // fecha LOCAL (no UTC) para "Vencido" correcto
+  const today = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}`;
   el.innerHTML = commitments.map(c => {
     const overdue = !c.fulfilled && c.due_date && c.due_date < today;
     const cls = c.fulfilled ? 'commit-done' : overdue ? 'commit-overdue' : 'commit-pending';
@@ -710,6 +719,9 @@ async function initRealtime() {
 }
 
 window.addEventListener('load', () => { setTimeout(initRealtime, 2000); });
+
+// ── Exponer al scope global funciones usadas en onclick del HTML ──
+Object.assign(window, { showTab, consultar, cerrarSesion });
 
 </script>
 <script>
