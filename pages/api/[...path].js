@@ -7952,16 +7952,35 @@ async function handleBackupImport(req, res, user) {
 
     // ── Miembros de subgrupos (depende de estudiantes y cursos ya importados) ──
     if (tc.subgroup_members?.length) {
-      const validStudentIds = new Set((tc.students || []).map(s => s.id));
-      const validCourseIds  = new Set((tc.courses  || []).map(c => c.id));
+      // Usar IDs reales de BD, no los del backup
+      const { data: dbStudents } = await sb.from('raice_students').select('id');
+      const { data: dbCourses }  = await sb.from('raice_courses').select('id');
+      const realStudentIds = new Set((dbStudents || []).map(s => s.id));
+      const realCourseIds  = new Set((dbCourses  || []).map(c => c.id));
       const safeMembers = tc.subgroup_members.filter(
-        m => validStudentIds.has(m.student_id) && validCourseIds.has(m.subgroup_course_id)
+        m => realStudentIds.has(m.student_id) && realCourseIds.has(m.subgroup_course_id)
       );
       if (safeMembers.length) {
-        const { error } = await sb.from('raice_subgroup_members')
-          .upsert(safeMembers, { onConflict: 'id', ignoreDuplicates: true });
-        if (error) errors.push('subgroup_members: ' + error.message);
-        else results.subgroup_members = safeMembers.length;
+        // Borrar existentes para evitar UNIQUE violations
+        await sb.from('raice_subgroup_members').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        // Insertar sin onConflict de id — usar insert directo
+        const CHUNK = 200;
+        let smTotal = 0;
+        for (let i = 0; i < safeMembers.length; i += CHUNK) {
+          const batch = safeMembers.slice(i, i + CHUNK);
+          const { error } = await sb.from('raice_subgroup_members').insert(batch);
+          if (error) {
+            // Reintentar uno a uno
+            for (const m of batch) {
+              const { error: sErr } = await sb.from('raice_subgroup_members')
+                .upsert(m, { onConflict: 'subgroup_course_id,student_id', ignoreDuplicates: true });
+              if (!sErr) smTotal++;
+            }
+          } else {
+            smTotal += batch.length;
+          }
+        }
+        results.subgroup_members = smTotal;
       }
     }
 
