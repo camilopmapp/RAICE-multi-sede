@@ -7937,8 +7937,15 @@ async function handleBackupImport(req, res, user) {
 
         const validAttStatus = new Set(['P','A','PE','T','S','NR']);
         const beforeC = safeRows.length;
+        const seenAtt = new Set();
         safeRows = safeRows
           .filter(r => r.course_id && validCourseIds.has(r.course_id)) // course_id es NOT NULL
+          .filter(r => { // dedup por la llave única (evita 23505 al reenviar/duplicados)
+            const k = `${r.student_id}|${r.date}|${r.course_id}|${r.class_hour}`;
+            if (seenAtt.has(k)) return false;
+            seenAtt.add(k);
+            return true;
+          })
           .map(r => ({
             ...r,
             teacher_id: (r.teacher_id && validTeacherIds.has(r.teacher_id)) ? r.teacher_id : null,
@@ -7946,7 +7953,7 @@ async function handleBackupImport(req, res, user) {
             status: validAttStatus.has(r.status) ? r.status : 'NR',
           }));
         const droppedC = beforeC - safeRows.length;
-        if (droppedC > 0) errors.push(`raice_attendance: ${droppedC} registros omitidos (curso inexistente)`);
+        if (droppedC > 0) errors.push(`raice_attendance: ${droppedC} omitidos (curso inexistente o duplicado)`);
       }
 
       // Observaciones: limpiar teacher_id y course_id inválidos (ambos nullable) + validar type
@@ -7973,7 +7980,30 @@ async function handleBackupImport(req, res, user) {
       }
     }
 
-    const count = await upsertBatch(tableName, safeRows, 100);
+    // Para asistencia, upsert por la llave única compuesta (idempotente: reenviar
+    // un lote no falla por duplicado, actualiza). Para el resto, upsert por id.
+    let count;
+    if (tableName === 'raice_attendance') {
+      count = 0;
+      for (let i = 0; i < safeRows.length; i += 100) {
+        const batch = safeRows.slice(i, i + 100);
+        const { error } = await sb.from('raice_attendance')
+          .upsert(batch, { onConflict: 'student_id,date,course_id,class_hour', ignoreDuplicates: false });
+        if (error) {
+          // reintentar uno a uno para salvar lo que se pueda
+          for (const row of batch) {
+            const { error: e2 } = await sb.from('raice_attendance')
+              .upsert(row, { onConflict: 'student_id,date,course_id,class_hour', ignoreDuplicates: false });
+            if (!e2) count++;
+          }
+          errors.push(`raice_attendance: lote con error (${error.message})`);
+        } else {
+          count += batch.length;
+        }
+      }
+    } else {
+      count = await upsertBatch(tableName, safeRows, 100);
+    }
     return res.status(200).json({ success: errors.length === 0, imported: count, errors });
   }
 
