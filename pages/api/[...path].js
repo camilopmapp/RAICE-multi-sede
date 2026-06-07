@@ -7819,19 +7819,35 @@ async function handleBackupImport(req, res, user) {
     const ALLOWED = new Set(['raice_students', 'raice_acudientes']);
     if (!ALLOWED.has(tableName)) return res.status(400).json({ error: 'Tabla no permitida' });
     if (deleteFirst) {
+      // Para estudiantes: borrar attendance primero para evitar FK violation
+      if (tableName === 'raice_students') {
+        await sb.from('raice_attendance').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        await sb.from('raice_observations').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      }
       const { error: dErr } = await sb.from(tableName)
         .delete().neq('id', '00000000-0000-0000-0000-000000000000');
       if (dErr) errors.push(`delete_${tableName}: ${dErr.message}`);
     }
     let safeRows = rows || [];
-    // Para estudiantes: si falla por FK de course_id, reintentar con course_id=null
+    // Para estudiantes: validar status, course_id y code
     if (tableName === 'raice_students') {
+      const validStatuses = new Set(['active','transferred','retired','graduated','desertor']);
       const { data: existingCourses } = await sb.from('raice_courses').select('id');
       const validIds = new Set((existingCourses || []).map(c => c.id));
       safeRows = safeRows.map(s => ({
         ...s,
         course_id: s.course_id && validIds.has(s.course_id) ? s.course_id : null,
+        status: validStatuses.has(s.status) ? s.status : 'active',
+        code: s.code || null, // evitar empty string que viola UNIQUE
       }));
+      // Deduplicar por code (mantener el primero si hay códigos repetidos)
+      const seenCodes = new Set();
+      safeRows = safeRows.filter(s => {
+        if (!s.code) return true;
+        if (seenCodes.has(s.code)) return false;
+        seenCodes.add(s.code);
+        return true;
+      });
     }
     const count = await upsertBatch(tableName, safeRows, 100);
     return res.status(200).json({ success: errors.length === 0, imported: count, errors });
@@ -7844,23 +7860,44 @@ async function handleBackupImport(req, res, user) {
     const validStats2 = new Set(['open', 'tracking', 'closed']);
     const casesFixed2 = (tc.cases || []).map(c => ({
       ...c,
-      falta_id:  null,   // evitar FK violation si UUIDs del catálogo difieren
+      falta_id:  null,
+      teacher_id: c.teacher_id && importedUserIds2.has(c.teacher_id) ? c.teacher_id : null,
       closed_by: c.closed_by && importedUserIds2.has(c.closed_by) ? c.closed_by : null,
       status:    validStats2.has(c.status) ? c.status : 'tracking',
     }));
-    const [casesR, followupsR, citationsR, commitmentsR, suspensionsR, classroomR] = await Promise.all([
-      upsertBatch('raice_cases',              casesFixed2),
+
+    // Casos primero (las demás tablas dependen de case_id)
+    results.cases = await upsertBatch('raice_cases', casesFixed2);
+
+    // IDs de casos importados exitosamente para validar FKs
+    const validCaseIds = new Set(casesFixed2.map(c => c.id));
+
+    // Limpiar FKs de teacher_id en tablas dependientes
+    const safeSuspensions = (tc.suspensions || []).map(s => ({
+      ...s, teacher_id: s.teacher_id && importedUserIds2.has(s.teacher_id) ? s.teacher_id : null,
+    }));
+    const safeRemovals = (tc.classroom_removals || []).map(r => ({
+      ...r, teacher_id: r.teacher_id && importedUserIds2.has(r.teacher_id) ? r.teacher_id : null,
+    }));
+    const safeEscalones = (tc.tipo1_escalones || []).filter(e => validCaseIds.has(e.case_id));
+
+    const [followupsR, citationsR, commitmentsR, suspensionsR, classroomR] = await Promise.all([
       upsertBatch('raice_followups',          tc.followups),
       upsertBatch('raice_citations',          tc.citations),
       upsertBatch('raice_commitments',        tc.commitments),
-      upsertBatch('raice_suspensions',        tc.suspensions),
-      upsertBatch('raice_classroom_removals', tc.classroom_removals),
+      upsertBatch('raice_suspensions',        safeSuspensions),
+      upsertBatch('raice_classroom_removals', safeRemovals),
     ]);
-    results.cases = casesR; results.followups = followupsR; results.citations = citationsR;
+    results.followups = followupsR; results.citations = citationsR;
     results.commitments = commitmentsR; results.suspensions = suspensionsR;
     results.classroom_removals = classroomR;
-    results.tipo1_escalones = await upsertBatch('raice_tipo1_escalones', tc.tipo1_escalones);
-    try { results.excusas = await upsertBatch('raice_excusas', tc.excusas); } catch (_) {}
+    results.tipo1_escalones = await upsertBatch('raice_tipo1_escalones', safeEscalones);
+    // Excusas: limpiar registered_by FK
+    const safeExcusas = (tc.excusas || []).map(e => ({
+      ...e,
+      registered_by: e.registered_by && importedUserIds2.has(e.registered_by) ? e.registered_by : null,
+    }));
+    try { results.excusas = await upsertBatch('raice_excusas', safeExcusas); } catch (_) {}
 
     // ── Miembros de subgrupos (depende de estudiantes y cursos ya importados) ──
     if (tc.subgroup_members?.length) {
@@ -7933,6 +7970,10 @@ async function handleBackupImport(req, res, user) {
     if (error) errors.push('config: ' + error.message);
     else results.config = 1;
   }
+  // Faltas catálogo: borrar antes de importar para evitar UNIQUE(tipo,categoria,numeral)
+  if (t.faltas_catalogo?.length) {
+    await sb.from('raice_faltas_catalogo').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  }
   results.faltas_catalogo = await upsertBatch('raice_faltas_catalogo', t.faltas_catalogo);
   results.bell_schedule   = await upsertBatch('raice_bell_schedule',   t.bell_schedule);
   // Períodos: borrar los del mismo año antes de importar para evitar conflicto UNIQUE(year,period_num)
@@ -7941,7 +7982,13 @@ async function handleBackupImport(req, res, user) {
     for (const y of years) await sb.from('raice_periods').delete().eq('year', y);
   }
   results.periods = await upsertBatch('raice_periods', t.periods);
-  results.calendar        = await upsertBatch('raice_calendar',        t.calendar);
+  // Calendario: filtrar types válidos según CHECK constraint
+  const validCalTypes = new Set(['holiday','vacation','event','institutional_day']);
+  const safeCalendar = (t.calendar || []).filter(e => validCalTypes.has(e.type));
+  results.calendar = await upsertBatch('raice_calendar', safeCalendar);
+  if ((t.calendar||[]).length !== safeCalendar.length) {
+    errors.push(`raice_calendar: ${(t.calendar||[]).length - safeCalendar.length} evento(s) omitidos por tipo inválido`);
+  }
 
   // ── 2. Cursos (sin director aún) — 2 queries en vez de N ─────────────────
   if (t.courses?.length) {
@@ -7969,14 +8016,27 @@ async function handleBackupImport(req, res, user) {
       password_hash: existingMap[u.id] ?? tempHash,
     }));
 
-    // Upsert en lotes — para conflicto de email: reintentar sin email uno a uno
+    // Upsert en lotes — para conflicto de email/username: reintentar uno a uno
     for (let i = 0; i < usersToUpsert.length; i += 50) {
       const batch = usersToUpsert.slice(i, i + 50);
       const { error: uErr } = await sb.from('raice_users')
         .upsert(batch, { onConflict: 'id', ignoreDuplicates: false });
       if (uErr) {
-        if (uErr.code === '23505' && uErr.message?.toLowerCase().includes('email')) {
-          // Conflicto de email: reintentar el lote sin emails
+        if (uErr.code === '23505') {
+          // Conflicto de unique (email o username): reintentar uno a uno
+          for (const u of batch) {
+            const { error: singleErr } = await sb.from('raice_users')
+              .upsert({ ...u, email: null }, { onConflict: 'id', ignoreDuplicates: false });
+            if (singleErr) {
+              // Si sigue fallando (username duplicado), intentar actualizar sin username
+              const { error: finalErr } = await sb.from('raice_users')
+                .update({ first_name: u.first_name, last_name: u.last_name, role: u.role, active: u.active })
+                .eq('id', u.id);
+              if (finalErr) errors.push(`users_upsert(${u.username}): ${finalErr.message}`);
+            }
+          }
+        } else if (uErr.code === '23505_LEGACY' && uErr.message?.toLowerCase().includes('email')) {
+          // Ruta legacy — ya no debería entrar aquí
           const { error: retryErr } = await sb.from('raice_users')
             .upsert(batch.map(u => ({ ...u, email: null })), { onConflict: 'id' });
           if (retryErr) errors.push(`users_upsert: ${retryErr.message}`);
@@ -7998,14 +8058,23 @@ async function handleBackupImport(req, res, user) {
     );
   }
 
-  // ── 5. Tablas sin dependencia de estudiantes (paralelo) ──────────────────
-  const [teacherCoursesR, schedulesR, teacherAbsR, absReplR] = await Promise.all([
-    upsertBatch('raice_teacher_courses',      t.teacher_courses),
-    upsertBatch('raice_schedules',            t.schedules),
+  // ── 5. Tablas sin dependencia de estudiantes ─────────────────────────────
+  // teacher_courses ANTES de schedules (schedules tiene FK a teacher_courses)
+  // Filtrar teacher_courses con teacher_id válido
+  const importedUserIds = new Set((t.teachers || []).map(u => u.id));
+  const safeTeacherCourses = (t.teacher_courses || []).filter(tc => importedUserIds.has(tc.teacher_id));
+  results.teacher_courses = await upsertBatch('raice_teacher_courses', safeTeacherCourses);
+
+  // schedules: filtrar los que tienen teacher_course_id válido
+  const validTcIds = new Set(safeTeacherCourses.map(tc => tc.id));
+  const safeSchedules = (t.schedules || []).filter(s => !s.teacher_course_id || validTcIds.has(s.teacher_course_id));
+  results.schedules = await upsertBatch('raice_schedules', safeSchedules);
+
+  // Paralelo: absences y replacements (sin FK a schedules)
+  const [teacherAbsR, absReplR] = await Promise.all([
     upsertBatch('raice_teacher_absences',     t.teacher_absences),
     upsertBatch('raice_absence_replacements', t.absence_replacements),
   ]);
-  results.teacher_courses = teacherCoursesR; results.schedules = schedulesR;
   results.teacher_absences = teacherAbsR; results.absence_replacements = absReplR;
 
   // ── 6. Asignaciones de sedes a coordinadores ─────────────────────────────
