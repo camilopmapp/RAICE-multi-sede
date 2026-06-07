@@ -7980,23 +7980,31 @@ async function handleBackupImport(req, res, user) {
       }
     }
 
-    // Para asistencia, upsert por la llave única compuesta (idempotente: reenviar
-    // un lote no falla por duplicado, actualiza). Para el resto, upsert por id.
+    // Para asistencia: intentar upsert por la llave única compuesta (idempotente).
+    // Si ese constraint no existe en la BD, hacer FALLBACK a upsert por id, para
+    // NO perder registros bajo ninguna circunstancia.
     let count;
     if (tableName === 'raice_attendance') {
       count = 0;
       for (let i = 0; i < safeRows.length; i += 100) {
         const batch = safeRows.slice(i, i + 100);
-        const { error } = await sb.from('raice_attendance')
-          .upsert(batch, { onConflict: 'student_id,date,course_id,class_hour', ignoreDuplicates: false });
+        // Intento 1: por llave compuesta
+        let { error } = await sb.from('raice_attendance')
+          .upsert(batch, { onConflict: 'student_id,date,course_id,class_hour', ignoreDuplicates: true });
         if (error) {
-          // reintentar uno a uno para salvar lo que se pueda
-          for (const row of batch) {
-            const { error: e2 } = await sb.from('raice_attendance')
-              .upsert(row, { onConflict: 'student_id,date,course_id,class_hour', ignoreDuplicates: false });
-            if (!e2) count++;
+          // Intento 2 (fallback): por id (la tabla se vació antes del restore)
+          const r2 = await sb.from('raice_attendance')
+            .upsert(batch, { onConflict: 'id', ignoreDuplicates: true });
+          if (r2.error) {
+            // Intento 3: uno a uno para salvar lo máximo posible
+            for (const row of batch) {
+              const a = await sb.from('raice_attendance').upsert(row, { onConflict: 'id', ignoreDuplicates: true });
+              if (!a.error) count++;
+            }
+            errors.push(`raice_attendance: lote degradado a 1x1 (${r2.error.message})`);
+          } else {
+            count += batch.length;
           }
-          errors.push(`raice_attendance: lote con error (${error.message})`);
         } else {
           count += batch.length;
         }
