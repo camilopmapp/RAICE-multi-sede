@@ -377,6 +377,9 @@
 <script src="/shared/utils/index.js"></script>
 <script src="/shared/data/apiClient.js"></script>
 <script src="/shared/domain/index.js"></script>
+<script src="/shared/utils/printObservador.js"></script>
+<script src="/shared/utils/pwa.js"></script>
+<script src="/shared/data/realtime.js"></script>
 <body>
 
 <!-- SIDEBAR OVERLAY (mobile) -->
@@ -1987,6 +1990,7 @@ var { CLASS_HOUR_ORDINALS, DAYS_OF_WEEK, OBSERVATION_TYPE_LABELS, OBSERVATION_TY
 var { escapeHtml, formatDateCO, getInitials, isoWeekday } = window.RAICE;
 var { createApiClient } = window.RAICE;
 var { gradeLbl, getCurrentBell, todayColombia } = window.RAICE;
+var { showToast, logout, avatarColor, formatDate } = window.RAICE;
 // gradeLbl → importado desde shared/domain
 
 // escHtml → importado desde shared/utils como escapeHtml
@@ -2075,9 +2079,9 @@ function initSession() {
 
   currentUser = user;
   if (user) {
-    const ini = ((user.first_name||'C')[0]+(user.last_name||'O')[0]).toUpperCase();
-    document.getElementById('user-avatar-sb').textContent = ini;
-    document.getElementById('user-name-sb').textContent   = `${user.first_name||''} ${user.last_name||''}`.trim();
+    var _p = window.RAICE.deriveProfileData(user, 'Coordinador');
+    document.getElementById('user-avatar-sb').textContent = _p.initials;
+    document.getElementById('user-name-sb').textContent   = _p.fullName;
 
     const ids   = user.sede_ids   || [];
     const names = user.sede_names || (user.sede_name ? [user.sede_name] : []);
@@ -2104,14 +2108,7 @@ function cambiarSedeActiva(id, name) {
   showToast(`📍 Sede activa: ${cleanName}`, 'info');
 }
 
-function logout() {
-  if (!confirm('¿Cerrar sesión?')) return;
-  sessionStorage.clear();
-  localStorage.removeItem('raice_token');
-  localStorage.removeItem('raice_role');
-  localStorage.removeItem('raice_user');
-  window.location.href = '/login.html';
-}
+// logout → importado desde shared/utils
 
 // ---- NAV ----
 function showSection(name, btn) {
@@ -2184,26 +2181,10 @@ document.addEventListener('click', e => {
   if (e.target.classList.contains('modal-overlay')) e.target.classList.remove('open');
 });
 
-// ---- TOAST ----
-function showToast(msg, type = 'success') {
-  const c = document.getElementById('toast-container');
-  const t = document.createElement('div');
-  t.className = 'toast ' + type;
-  const ico = {success:'✅',error:'❌',warning:'⚠️'}[type]||'ℹ️';
-  t.innerHTML = `<span>${ico}</span><span>${msg}</span>`;
-  c.appendChild(t);
-  setTimeout(() => t.remove(), 3800);
-}
+// showToast → importado desde shared/utils
 
-// ---- HELPERS ----
-function avatarColor(name) {
-  const c = ['#3b82f6','#10b981','#8b5cf6','#f59e0b','#ef4444','#0b7a75','#ec4899'];
-  return c[(name||'A').charCodeAt(0) % c.length];
-}
-function formatDate(iso) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('es-CO', {day:'2-digit',month:'short',year:'numeric'});
-}
+// avatarColor → importado desde shared/utils
+// formatDate → importado desde shared/utils
 function daysAgo(iso) {
   if (!iso) return '';
   const d = Math.floor((Date.now() - new Date(iso)) / 86400000);
@@ -4632,103 +4613,8 @@ async function printObservador() {
   _printObservadorWindow(data, _schoolConfig || {});
 }
 
-function _printObservadorWindow(d, cfg) {
-  const s = d.student, at = d.attendance || {}, obs = d.observations || [], cases = d.cases || [];
-  const schoolName = cfg.school_name || 'Institución Educativa';
-  const schoolLoc  = cfg.location || '';
-  const schoolLogo = cfg.logo_url
-    ? `<img src="${cfg.logo_url}" style="height:55px;object-fit:contain;" alt="logo">`
-    : `<div style="font-size:2.2rem;">🏫</div>`;
-  const raiceLogo = `<img src="${window.location.origin}/favicon.png" style="height:40px;object-fit:contain;" alt="RAICE" onerror="this.style.display='none'">`;
-  const now = new Date().toLocaleDateString('es-CO', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
-  const curso = s.grade ? `${s.grade}°${s.number || ''}` : (s.course || '—');
-
-  const typeLabel = OBSERVATION_TYPE_LABELS;
-  const typeColor = OBSERVATION_TYPE_COLORS;
-  const statusLbl = CASE_STATUS_LABELS;
-
-  const obsRows = obs.map(o => {
-    const fecha = new Date(o.created_at).toLocaleDateString('es-CO', { day:'numeric', month:'short', year:'numeric' });
-    return `<tr>
-      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${fecha}</td>
-      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;font-weight:600;color:${typeColor[o.type]||'#333'};">${typeLabel[o.type]||o.type}</td>
-      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${o.text || ''}</td>
-      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${o.teacher_name || '—'}</td>
-    </tr>`;
-  }).join('');
-
-  const casesRows = cases.map(c => {
-    const fecha = new Date(c.created_at).toLocaleDateString('es-CO', { day:'numeric', month:'short', year:'numeric' });
-    return `<tr>
-      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${fecha}</td>
-      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;text-align:center;">Tipo ${c.type}</td>
-      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${(c.description || '').substring(0, 120)}</td>
-      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;text-align:center;">${statusLbl[c.status]||c.status}</td>
-      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${c.teacher_name || '—'}</td>
-    </tr>`;
-  }).join('');
-
-  const w = window.open('', '_blank');
-  w.document.write(`<!DOCTYPE html><html><head><title>Observador — ${s.first_name} ${s.last_name}</title>
-  <style>
-    @page{size:A4;margin:15mm}
-    body{font-family:Arial,sans-serif;font-size:10pt;color:#1e293b;line-height:1.5;}
-    table{width:100%;border-collapse:collapse;}
-    th{background:#f1f5f9;border:1px solid #ccc;padding:5px 8px;font-size:8.5pt;text-transform:uppercase;letter-spacing:.03em;text-align:left;}
-    tr:nth-child(even){background:#fafbfc;}
-    .header{display:flex;align-items:center;justify-content:space-between;border-bottom:2.5px solid #1e293b;padding-bottom:.8rem;margin-bottom:1.2rem;}
-    .header-center{text-align:center;flex:1;}
-    .header-center h1{margin:0;font-size:13pt;font-weight:800;}
-    .header-center .loc{font-size:8.5pt;color:#555;margin-top:2px;}
-    .section-title{font-size:11pt;font-weight:800;color:#1e293b;margin:1.2rem 0 .5rem;padding-bottom:.3rem;border-bottom:1.5px solid #e2e8f0;}
-    .student-info{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem .8rem;margin-bottom:1rem;background:#f8fafc;padding:.7rem 1rem;border-radius:6px;border:1px solid #e2e8f0;}
-    .si-label{font-size:8pt;color:#64748b;text-transform:uppercase;letter-spacing:.04em;}
-    .si-value{font-size:10pt;font-weight:700;color:#1e293b;}
-    .att-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:.5rem;margin-bottom:1rem;}
-    .att-box{text-align:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:.5rem .3rem;}
-    .att-val{font-size:14pt;font-weight:800;}
-    .att-lbl{font-size:7.5pt;color:#64748b;text-transform:uppercase;}
-    .footer{text-align:center;margin-top:2rem;font-size:8pt;color:#999;border-top:1px solid #e2e8f0;padding-top:.5rem;}
-  </style></head><body>
-  <div class="header">
-    ${schoolLogo}
-    <div class="header-center">
-      <h1>${schoolName}</h1>
-      ${schoolLoc ? `<div class="loc">${schoolLoc}</div>` : ''}
-      <div style="font-size:10pt;font-weight:600;margin-top:6px;color:#0b7a75;">OBSERVADOR DEL ESTUDIANTE</div>
-    </div>
-    ${raiceLogo}
-  </div>
-
-  <div class="student-info">
-    <div><div class="si-label">Nombre completo</div><div class="si-value">${s.first_name} ${s.last_name}</div></div>
-    <div><div class="si-label">Curso</div><div class="si-value">${curso}</div></div>
-    <div><div class="si-label">Estado</div><div class="si-value">${s.status === 'inactive' ? 'Retirado' : 'Activo'}</div></div>
-  </div>
-
-  <div class="section-title">Resumen de asistencia</div>
-  <div class="att-grid">
-    <div class="att-box"><div class="att-val" style="color:${at.pct !== null && at.pct < 80 ? '#dc2626' : '#16a34a'};">${at.pct ?? '—'}%</div><div class="att-lbl">Asistencia</div></div>
-    <div class="att-box"><div class="att-val" style="color:#16a34a;">${at.present || 0}</div><div class="att-lbl">Presencias</div></div>
-    <div class="att-box"><div class="att-val" style="color:#dc2626;">${at.absent || 0}</div><div class="att-lbl">Ausencias</div></div>
-    <div class="att-box"><div class="att-val" style="color:#f59e0b;">${at.late || 0}</div><div class="att-lbl">Tardanzas</div></div>
-    <div class="att-box"><div class="att-val" style="color:#7c3aed;">${at.permit || 0}</div><div class="att-lbl">Permisos</div></div>
-  </div>
-  <div style="font-size:7.5pt;color:#94a3b8;text-align:center;margin-top:-.5rem;margin-bottom:.8rem;">* Estadísticas en horas de clase</div>
-
-  <div class="section-title">Observaciones (${obs.length})</div>
-  ${obs.length ? `<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Observación</th><th>Docente</th></tr></thead><tbody>${obsRows}</tbody></table>`
-    : '<div style="text-align:center;padding:1rem;color:#94a3b8;font-size:9pt;">Sin observaciones registradas</div>'}
-
-  <div class="section-title">Casos RAICE (${cases.length})</div>
-  ${cases.length ? `<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Descripción</th><th>Estado</th><th>Reportado por</th></tr></thead><tbody>${casesRows}</tbody></table>`
-    : '<div style="text-align:center;padding:1rem;color:#94a3b8;font-size:9pt;">Sin casos RAICE registrados</div>'}
-
-  <div class="footer">Generado el ${now} — Sistema RAICE</div>
-  </body></html>`);
-  w.document.close();
-  setTimeout(() => w.print(), 500);
-}
+// _printObservadorWindow → importado desde shared/utils/printObservador.js
+function _printObservadorWindow(d, cfg) { window.RAICE.printObservadorWindow(d, cfg); }
 
 // ---- TEACHERS ----
 async function loadTeachers() {
@@ -4805,12 +4691,10 @@ function printAttendanceReport() {
 
 // ---- PROFILE ----
 function loadProfile() {
-  const user = currentUser;
-  if (!user) return;
-  const ini = ((user.first_name||'C')[0]+(user.last_name||'O')[0]).toUpperCase();
-  document.getElementById('profile-avatar').textContent = ini;
-  document.getElementById('profile-fullname').textContent = `${user.first_name||''} ${user.last_name||''}`.trim();
-  document.getElementById('profile-username').textContent = `@${user.username||'coordinador'}`;
+  var p = window.RAICE.deriveProfileData(currentUser, 'Coordinador');
+  document.getElementById('profile-avatar').textContent = p.initials;
+  document.getElementById('profile-fullname').textContent = p.fullName;
+  document.getElementById('profile-username').textContent = p.displayUsername;
 }
 
 async function changeMyPassword() {
@@ -7896,37 +7780,13 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// Banner sin conexión
+// PWA banners → importados desde shared/utils/pwa.js
+var showOfflineBanner = window.RAICE.showOfflineBanner;
+var hideOfflineBanner = window.RAICE.hideOfflineBanner;
 window.addEventListener('offline', showOfflineBanner);
 window.addEventListener('online',  hideOfflineBanner);
 
-function showOfflineBanner() {
-  let b = document.getElementById('pwa-offline-banner');
-  if (!b) {
-    b = document.createElement('div');
-    b.id = 'pwa-offline-banner';
-    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#b91c1c;color:#fff;text-align:center;padding:.55rem 1rem;font-size:.82rem;font-weight:700;letter-spacing:.02em;';
-    b.innerHTML = '📡 Sin conexión — mostrando datos guardados';
-    document.body.prepend(b);
-  }
-  b.style.display = 'block';
-}
-
-function hideOfflineBanner() {
-  const b = document.getElementById('pwa-offline-banner');
-  if (b) b.style.display = 'none';
-}
-
-function showUpdateBanner() {
-  let b = document.getElementById('pwa-update-banner');
-  if (!b) {
-    b = document.createElement('div');
-    b.id = 'pwa-update-banner';
-    b.style.cssText = 'position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);z-index:99999;background:#0f1f3d;color:#fff;border-radius:14px;padding:.75rem 1.25rem;font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:.75rem;box-shadow:0 4px 20px rgba(0,0,0,.3);';
-    b.innerHTML = '✨ Nueva versión disponible <button onclick="location.reload()" style="background:#14b8b0;border:none;color:#fff;padding:.3rem .8rem;border-radius:8px;cursor:pointer;font-weight:700;">Actualizar</button>';
-    document.body.appendChild(b);
-  }
-}
+var showUpdateBanner = window.RAICE.showUpdateBanner;
 
 // Si ya estaba sin conexión al cargar
 if (!navigator.onLine) showOfflineBanner();
@@ -9982,51 +9842,22 @@ if (!navigator.onLine) showOfflineBanner();
 </div>
 
 <script>
-  // Supabase Realtime Auto-Refresh for Excusas
-  async function initRealtime() {
-    try {
-      const { ok, data } = await fetchAPI('/raice/realtime-config');
-      if (!ok || !data.supabase_url || !data.supabase_anon_key) return;
-
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
-      script.onload = () => {
-        const { createClient } = window.supabase;
-        const sb = createClient(data.supabase_url, data.supabase_anon_key);
-
-        console.log('🔗 Suscribiendo a eventos en tiempo real (Global)...');
-        // Excusas
-        sb.channel('realtime:excusas')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'raice_excusas' }, payload => {
-            if (currentSection === 'sec-excusas') loadAdminExcusasList();
-          })
-          .subscribe();
-        
-        // Casos de Convivencia
-        sb.channel('realtime:casos')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'raice_cases' }, payload => {
-            if (currentSection === 'sec-casos') loadCases();
-          })
-          .subscribe();
-
-        // Alertas del Dashboard
-        sb.channel('realtime:alertas')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'raice_alerts' }, payload => {
-            if (currentSection === 'sec-dashboard') loadAlerts();
-          })
-          .subscribe();
-
-        // Asistencia
-        sb.channel('realtime:asistencia')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'raice_attendance' }, payload => {
-            if (currentSection === 'sec-asistencia') loadAttendance();
-          })
-          .subscribe();
-      };
-      document.body.appendChild(script);
-    } catch (err) {
-      console.warn('Realtime fetch error:', err);
-    }
+  // Supabase Realtime — usa shared/data/realtime.js
+  function initRealtime() {
+    window.RAICE.initRealtime(fetchAPI, [
+      { channel: 'realtime:excusas', table: 'raice_excusas', callback: function() {
+        if (currentSection === 'sec-excusas') loadAdminExcusasList();
+      }},
+      { channel: 'realtime:casos', table: 'raice_cases', callback: function() {
+        if (currentSection === 'sec-casos') loadCases();
+      }},
+      { channel: 'realtime:alertas', table: 'raice_alerts', callback: function() {
+        if (currentSection === 'sec-dashboard') loadAlerts();
+      }},
+      { channel: 'realtime:asistencia', table: 'raice_attendance', callback: function() {
+        if (currentSection === 'sec-asistencia') loadAttendance();
+      }}
+    ], 'Admin');
   }
 
   // Initialize Realtime when dashboard is ready

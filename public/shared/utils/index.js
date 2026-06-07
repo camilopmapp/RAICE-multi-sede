@@ -75,4 +75,82 @@ R.isoWeekday = function(jsDay) {
   return jsDay === 0 ? 7 : jsDay;
 };
 
+/**
+ * Color de avatar determinístico basado en el primer carácter del nombre.
+ */
+R.avatarColor = function(name) {
+  var c = ['#3b82f6','#10b981','#8b5cf6','#f59e0b','#ef4444','#0b7a75','#ec4899'];
+  return c[(name || 'A').charCodeAt(0) % c.length];
+};
+
+/**
+ * Formato de fecha corto para admin/superadmin: "06 jun 2026".
+ */
+R.formatDate = function(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('es-CO', { day:'2-digit', month:'short', year:'numeric' });
+};
+
+/**
+ * Deriva los datos de perfil de un usuario para mostrar en la UI.
+ * @param {Object} user — { first_name, last_name, username }
+ * @param {string} fallbackRole — texto por defecto si no hay nombre ('Coordinador', 'Superadmin', etc.)
+ * @returns {{ initials: string, fullName: string, displayUsername: string }}
+ */
+R.deriveProfileData = function(user, fallbackRole) {
+  fallbackRole = fallbackRole || 'Usuario';
+  if (!user) return { initials: '??', fullName: fallbackRole, displayUsername: '@' + fallbackRole.toLowerCase() };
+  var first = user.first_name || fallbackRole[0] || 'U';
+  var last  = user.last_name  || fallbackRole[1] || 'S';
+  return {
+    initials: (first[0] + last[0]).toUpperCase(),
+    fullName: ((user.first_name || '') + ' ' + (user.last_name || '')).trim() || fallbackRole,
+    displayUsername: '@' + (user.username || fallbackRole.toLowerCase())
+  };
+};
+
+/**
+ * Aplica el logo del colegio en el sidebar (usado por docente y superadmin).
+ */
+R.applyLogoToSidebar = function(logoUrl, schoolName) {
+  var logoImg = document.getElementById('sb-logo-img');
+  var markFb  = document.getElementById('sb-mark-fallback');
+  var nameEl  = document.querySelector('.sb-name');
+  if (logoUrl) {
+    if (logoImg) { logoImg.src = logoUrl; logoImg.style.display = 'block'; }
+    if (markFb) markFb.style.display = 'flex';
+  } else {
+    if (logoImg) logoImg.style.display = 'none';
+    if (markFb) markFb.style.display = 'flex';
+  }
+  if (schoolName && nameEl) nameEl.title = schoolName;
+};
+
+/**
+ * Toast con iconos para admin/docente/superadmin (container: toast-container).
+ */
+R.showToast = function(msg, type) {
+  type = type || 'success';
+  var c = document.getElementById('toast-container');
+  if (!c) return;
+  var t = document.createElement('div');
+  t.className = 'toast ' + type;
+  var ico = {success:'✅',error:'❌',warning:'⚠️'}[type] || 'ℹ️';
+  t.innerHTML = '<span>' + ico + '</span><span>' + msg + '</span>';
+  c.appendChild(t);
+  setTimeout(function() { t.remove(); }, 3800);
+};
+
+/**
+ * Cierra sesión: limpia storage y redirige al login.
+ */
+R.logout = function() {
+  if (!confirm('¿Cerrar sesión?')) return;
+  sessionStorage.clear();
+  localStorage.removeItem('raice_token');
+  localStorage.removeItem('raice_role');
+  localStorage.removeItem('raice_user');
+  window.location.href = '/login.html';
+};
+
 })(window.RAICE = window.RAICE || {});

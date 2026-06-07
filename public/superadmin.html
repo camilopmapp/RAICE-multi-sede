@@ -471,6 +471,7 @@
 <script src="/shared/constants/index.js"></script>
 <script src="/shared/data/apiClient.js"></script>
 <script src="/shared/domain/index.js"></script>
+<script src="/shared/utils/pwa.js"></script>
 </head>
 <body>
 
@@ -2268,6 +2269,7 @@
   var { DAYS_OF_WEEK } = window.RAICE;
   var { createApiClient } = window.RAICE;
   var { gradeLbl, todayColombia } = window.RAICE;
+  var { showToast, logout, avatarColor, formatDate, applyLogoToSidebar } = window.RAICE;
   let currentUser = null;
 
   // gradeLbl → importado desde shared/domain
@@ -2294,17 +2296,10 @@
     }
   }
 
-  function logout() {
-    if (!confirm('¿Cerrar sesión?')) return;
-    sessionStorage.clear();
-    localStorage.removeItem('raice_token');
-    localStorage.removeItem('raice_role');
-    localStorage.removeItem('raice_user');
-    window.location.href = '/login.html';
-  }
+  // logout → importado desde shared/utils
 
   const fetchAPI = createApiClient({
-    onUnauthorized: () => logout()
+    onUnauthorized: function() { logout(); }
   });
 
   // ---- NAV ----
@@ -2375,27 +2370,12 @@
   });
 
   // ---- TOAST ----
-  function showToast(msg, type = 'success') {
-    const c = document.getElementById('toast-container');
-    const t = document.createElement('div');
-    t.className = 'toast ' + type;
-    const ico = { success:'✅', error:'❌', warning:'⚠️' }[type] || 'ℹ️';
-    t.innerHTML = `<span>${ico}</span><span>${msg}</span>`;
-    c.appendChild(t);
-    setTimeout(() => t.remove(), 3800);
-  }
+  // showToast → importado desde shared/utils
 
   // ---- HELPERS ----
-  function avatarColor(name) {
-    const colors = ['#3b82f6','#10b981','#8b5cf6','#f59e0b','#ef4444','#0b7a75','#ec4899'];
-    const i = (name || 'A').charCodeAt(0) % colors.length;
-    return colors[i];
-  }
+  // avatarColor → importado desde shared/utils
 
-  function formatDate(iso) {
-    if (!iso) return '—';
-    return new Date(iso).toLocaleDateString('es-CO', { day:'2-digit', month:'short', year:'numeric' });
-  }
+  // formatDate → importado desde shared/utils
 
   function timeAgo(iso) {
     if (!iso) return '';
@@ -4400,12 +4380,10 @@
   }
 
   function loadProfile() {
-    const user = currentUser;
-    if (!user) return;
-    const initials = ((user.first_name||'S')[0] + (user.last_name||'A')[0]).toUpperCase();
-    document.getElementById('profile-avatar-big').textContent  = initials;
-    document.getElementById('profile-fullname').textContent    = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Superadmin';
-    document.getElementById('profile-username-disp').textContent = `@${user.username || 'superadmin'}`;
+    var p = window.RAICE.deriveProfileData(currentUser, 'Superadmin');
+    document.getElementById('profile-avatar-big').textContent = p.initials;
+    document.getElementById('profile-fullname').textContent = p.fullName;
+    document.getElementById('profile-username-disp').textContent = p.displayUsername;
   }
 
   async function changeMyPassword() {
@@ -5593,20 +5571,7 @@
   }
 
   // ---- INIT ----
-  function applyLogoToSidebar(logoUrl, schoolName) {
-    const logoImg  = document.getElementById('sb-logo-img');
-    const markFb   = document.getElementById('sb-mark-fallback');
-    const nameEl   = document.querySelector('.sb-name');
-    if (logoUrl) {
-      logoImg.src = logoUrl;
-      logoImg.style.display = 'block';
-      if (markFb) markFb.style.display = 'flex'; // mostrar ambos logos
-    } else {
-      logoImg.style.display = 'none';
-      if (markFb) markFb.style.display = 'flex';
-    }
-    if (schoolName && nameEl) nameEl.title = schoolName;
-  }
+  // applyLogoToSidebar → importado desde shared/utils
 
   async function loadSchoolConfig() {
     const { ok, data } = await fetchAPI('/raice/config');
@@ -6282,37 +6247,12 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// Banner sin conexión
+// PWA banners → importados desde shared/utils/pwa.js
+var showOfflineBanner = window.RAICE.showOfflineBanner;
+var hideOfflineBanner = window.RAICE.hideOfflineBanner;
+var showUpdateBanner = window.RAICE.showUpdateBanner;
 window.addEventListener('offline', showOfflineBanner);
 window.addEventListener('online',  hideOfflineBanner);
-
-function showOfflineBanner() {
-  let b = document.getElementById('pwa-offline-banner');
-  if (!b) {
-    b = document.createElement('div');
-    b.id = 'pwa-offline-banner';
-    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#b91c1c;color:#fff;text-align:center;padding:.55rem 1rem;font-size:.82rem;font-weight:700;letter-spacing:.02em;';
-    b.innerHTML = '📡 Sin conexión — mostrando datos guardados';
-    document.body.prepend(b);
-  }
-  b.style.display = 'block';
-}
-
-function hideOfflineBanner() {
-  const b = document.getElementById('pwa-offline-banner');
-  if (b) b.style.display = 'none';
-}
-
-function showUpdateBanner() {
-  let b = document.getElementById('pwa-update-banner');
-  if (!b) {
-    b = document.createElement('div');
-    b.id = 'pwa-update-banner';
-    b.style.cssText = 'position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);z-index:99999;background:#0f1f3d;color:#fff;border-radius:14px;padding:.75rem 1.25rem;font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:.75rem;box-shadow:0 4px 20px rgba(0,0,0,.3);';
-    b.innerHTML = '✨ Nueva versión disponible <button onclick="location.reload()" style="background:#14b8b0;border:none;color:#fff;padding:.3rem .8rem;border-radius:8px;cursor:pointer;font-weight:700;">Actualizar</button>';
-    document.body.appendChild(b);
-  }
-}
 
 // Si ya estaba sin conexión al cargar
 if (!navigator.onLine) showOfflineBanner();

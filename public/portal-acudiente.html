@@ -333,6 +333,8 @@
 </div><!-- /dashboard -->
 
 <script src="/shared/constants/index.js"></script>
+<script src="/shared/utils/pwa.js"></script>
+<script src="/shared/data/realtime.js"></script>
 <script>
 var { CLASS_HOUR_ORDINALS } = window.RAICE;
 
@@ -691,32 +693,20 @@ function renderAcudientes(acudientes) {
 }
 
 // Supabase Realtime Auto-Refresh for Acudiente Dashboard
-async function initRealtime() {
-  try {
-    const { ok, data } = await fetchAPI('/raice/realtime-config');
-    if (!ok || !data.supabase_url || !data.supabase_anon_key) return;
-
-    const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
-    script.onload = () => {
-      const { createClient } = window.supabase;
-      const sb = createClient(data.supabase_url, data.supabase_anon_key);
-
-      console.log('🔗 Suscribiendo a eventos en tiempo real (Acudiente)...');
-      
-      const handleChange = () => {
-        if (_token) consultar();
-      };
-
-      // Casos, alertas y asistencia
-      sb.channel('realtime:acudiente')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'raice_cases' }, handleChange)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'raice_alerts' }, handleChange)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'raice_attendance' }, handleChange)
-        .subscribe();
-    };
-    document.body.appendChild(script);
-  } catch (err) {}
+function initRealtime() {
+  var handleChange = function() { if (_token) consultar(); };
+  // Fetch simple sin token (portal público)
+  var simpleFetch = async function(path) {
+    try {
+      var r = await fetch('/api' + path, { headers: { 'Content-Type': 'application/json' } });
+      return { ok: r.ok, data: await r.json().catch(function() { return {}; }) };
+    } catch(e) { return { ok: false, data: {} }; }
+  };
+  window.RAICE.initRealtime(simpleFetch, [
+    { channel: 'realtime:acud-cases', table: 'raice_cases', callback: handleChange },
+    { channel: 'realtime:acud-alerts', table: 'raice_alerts', callback: handleChange },
+    { channel: 'realtime:acud-att', table: 'raice_attendance', callback: handleChange }
+  ], 'Acudiente');
 }
 
 window.addEventListener('load', () => { setTimeout(initRealtime, 2000); });
@@ -742,16 +732,7 @@ if ('serviceWorker' in navigator) {
     if (e.data?.type === 'SW_UPDATED') showUpdateBanner();
   });
 }
-function showUpdateBanner() {
-  let b = document.getElementById('pwa-update-banner');
-  if (!b) {
-    b = document.createElement('div');
-    b.id = 'pwa-update-banner';
-    b.style.cssText = 'position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);z-index:99999;background:#0f1f3d;color:#fff;border-radius:14px;padding:.75rem 1.25rem;font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:.75rem;box-shadow:0 4px 20px rgba(0,0,0,.3);';
-    b.innerHTML = '✨ Nueva versión disponible <button onclick="location.reload()" style="background:#14b8b0;border:none;color:#fff;padding:.3rem .8rem;border-radius:8px;cursor:pointer;font-weight:700;">Actualizar</button>';
-    document.body.appendChild(b);
-  }
-}
+var showUpdateBanner = window.RAICE.showUpdateBanner;
 </script>
 </body>
 </html>
