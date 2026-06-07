@@ -3210,6 +3210,17 @@ async function handleConfig(req, res, user) {
       ({ error } = await sb.from('raice_config').insert({ id: 1, ...updates }));
     }
     if (error) return res.status(500).json({ error: _dbErr(error, '') });
+
+    // Si se redujo el número de períodos, eliminar los períodos huérfanos
+    // (period_num mayor al configurado). La app ya los filtra, pero esto los
+    // borra de la BD para que el backup y los conteos reflejen la realidad.
+    if (num_periods !== undefined && num_periods !== null) {
+      const np = parseInt(num_periods);
+      if (np >= 1 && np <= 4) {
+        await sb.from('raice_periods').delete().gt('period_num', np);
+      }
+    }
+
     await logActivity(sb, user.id, 'config', `Configuración actualizada`);
     return res.status(200).json({ success: true });
   }
@@ -7905,12 +7916,59 @@ async function handleBackupImport(req, res, user) {
       const dropped = before - safeRows.length;
       if (dropped > 0) errors.push(`${tableName}: ${dropped} registros omitidos (estudiante inexistente)`);
 
-      // Validar status de asistencia contra CHECK constraint
+      // Asistencia: validar también course_id (NOT NULL) y teacher_id (nullable)
+      // para no perder registros por FK. course_id inválido → se descarta el
+      // registro; teacher_id inválido → se pone null (la columna lo permite).
       if (tableName === 'raice_attendance') {
+        // IDs de cursos válidos
+        const cids = [...new Set(safeRows.map(r => r.course_id).filter(Boolean))];
+        const validCourseIds = new Set();
+        for (let i = 0; i < cids.length; i += 200) {
+          const { data: ec } = await sb.from('raice_courses').select('id').in('id', cids.slice(i, i + 200));
+          (ec || []).forEach(c => validCourseIds.add(c.id));
+        }
+        // IDs de docentes válidos
+        const tids = [...new Set(safeRows.map(r => r.teacher_id).filter(Boolean))];
+        const validTeacherIds = new Set();
+        for (let i = 0; i < tids.length; i += 200) {
+          const { data: et } = await sb.from('raice_users').select('id').in('id', tids.slice(i, i + 200));
+          (et || []).forEach(u => validTeacherIds.add(u.id));
+        }
+
         const validAttStatus = new Set(['P','A','PE','T','S','NR']);
+        const beforeC = safeRows.length;
+        safeRows = safeRows
+          .filter(r => r.course_id && validCourseIds.has(r.course_id)) // course_id es NOT NULL
+          .map(r => ({
+            ...r,
+            teacher_id: (r.teacher_id && validTeacherIds.has(r.teacher_id)) ? r.teacher_id : null,
+            corrected_by: (r.corrected_by && validTeacherIds.has(r.corrected_by)) ? r.corrected_by : null,
+            status: validAttStatus.has(r.status) ? r.status : 'NR',
+          }));
+        const droppedC = beforeC - safeRows.length;
+        if (droppedC > 0) errors.push(`raice_attendance: ${droppedC} registros omitidos (curso inexistente)`);
+      }
+
+      // Observaciones: limpiar teacher_id y course_id inválidos (ambos nullable) + validar type
+      if (tableName === 'raice_observations') {
+        const tids = [...new Set(safeRows.map(r => r.teacher_id).filter(Boolean))];
+        const validTeacherIds = new Set();
+        for (let i = 0; i < tids.length; i += 200) {
+          const { data: et } = await sb.from('raice_users').select('id').in('id', tids.slice(i, i + 200));
+          (et || []).forEach(u => validTeacherIds.add(u.id));
+        }
+        const cids = [...new Set(safeRows.map(r => r.course_id).filter(Boolean))];
+        const validCourseIds = new Set();
+        for (let i = 0; i < cids.length; i += 200) {
+          const { data: ec } = await sb.from('raice_courses').select('id').in('id', cids.slice(i, i + 200));
+          (ec || []).forEach(c => validCourseIds.add(c.id));
+        }
+        const validObsType = new Set(['positive','neutral','negative']);
         safeRows = safeRows.map(r => ({
           ...r,
-          status: validAttStatus.has(r.status) ? r.status : 'NR',
+          teacher_id: (r.teacher_id && validTeacherIds.has(r.teacher_id)) ? r.teacher_id : null,
+          course_id:  (r.course_id && validCourseIds.has(r.course_id)) ? r.course_id : null,
+          type: validObsType.has(r.type) ? r.type : 'neutral',
         }));
       }
     }

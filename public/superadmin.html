@@ -5226,6 +5226,12 @@
         const nSubgrupos  = _courses.filter(c => c.type === 'subgroup').length;
         const n = (arr) => (arr || []).length;
 
+        // Períodos: contar solo los válidos según num_periods de la config
+        // (descarta huérfanos period_num > num_periods que la app ya ignora)
+        const _cfg        = (t.config && t.config[0]) || {};
+        const _maxPer     = _cfg.num_periods || 4;
+        const nPeriodos   = (t.periods || []).filter(p => !p.period_num || p.period_num <= _maxPer).length;
+
         // Filas: [emoji, etiqueta, cantidad]
         const rows = [
           ['🏢', 'Sedes',              n(t.sedes)],
@@ -5245,7 +5251,7 @@
           ['🚪', 'Retiros aula',      n(t.classroom_removals)],
           ['🩺', 'Excusas',           n(t.excusas)],
           ['📖', 'Faltas catálogo',   n(t.faltas_catalogo)],
-          ['🗓️', 'Períodos',          n(t.periods)],
+          ['🗓️', 'Períodos',          nPeriodos],
           ['📆', 'Calendario',        n(t.calendar)],
           ['🕐', 'Horario timbres',   n(t.bell_schedule)],
           ['📚', 'Horarios clase',    n(t.schedules)],
