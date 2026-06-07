@@ -5220,17 +5220,54 @@
           ? '<span style="color:#15803d;font-size:.77rem;margin-left:.5rem;">✓ metadatos verificados</span>'
           : '';
 
+        // Cursos normales vs subgrupos (los subgrupos son cursos con type='subgroup')
+        const _courses    = t.courses || [];
+        const nCursos     = _courses.filter(c => c.type !== 'subgroup').length;
+        const nSubgrupos  = _courses.filter(c => c.type === 'subgroup').length;
+        const n = (arr) => (arr || []).length;
+
+        // Filas: [emoji, etiqueta, cantidad]
+        const rows = [
+          ['🏢', 'Sedes',              n(t.sedes)],
+          ['👥', 'Estudiantes',       n(t.students)],
+          ['🏫', 'Cursos',            nCursos],
+          ['🔀', 'Subgrupos',         nSubgrupos],
+          ['👨‍👩‍👧', 'Miembros subgrupo', n(t.subgroup_members)],
+          ['🧑‍🤝‍🧑', 'Acudientes',        n(t.acudientes)],
+          ['📋', 'Asistencia',        n(t.attendance)],
+          ['📝', 'Observaciones',     n(t.observations)],
+          ['⚠️', 'Casos',             n(t.cases)],
+          ['🔁', 'Seguimientos',      n(t.followups)],
+          ['🪜', 'Escalones T1',      n(t.tipo1_escalones)],
+          ['📅', 'Citaciones',        n(t.citations)],
+          ['🤝', 'Compromisos',       n(t.commitments)],
+          ['🏠', 'Suspensiones',      n(t.suspensions)],
+          ['🚪', 'Retiros aula',      n(t.classroom_removals)],
+          ['🩺', 'Excusas',           n(t.excusas)],
+          ['📖', 'Faltas catálogo',   n(t.faltas_catalogo)],
+          ['🗓️', 'Períodos',          n(t.periods)],
+          ['📆', 'Calendario',        n(t.calendar)],
+          ['🕐', 'Horario timbres',   n(t.bell_schedule)],
+          ['📚', 'Horarios clase',    n(t.schedules)],
+          ['🎓', 'Asignaciones doc.', n(t.teacher_courses)],
+          ['🤒', 'Ausencias doc.',    n(t.teacher_absences)],
+          ['🔄', 'Reemplazos',        n(t.absence_replacements)],
+          ['📊', 'Hist. grados',      n(t.student_grade_history)],
+        ];
+        const rowsHtml = rows.map(([emoji, label, count]) =>
+          `<div style="display:flex;justify-content:space-between;padding:.15rem .1rem;">
+            <span>${emoji} ${label}</span><strong>${count}</strong>
+          </div>`
+        ).join('');
+
         preview.style.display = 'block';
         preview.innerHTML = `
           <strong>📋 Contenido del archivo:</strong><br>
           Exportado: <strong>${data.exported_at ? new Date(data.exported_at).toLocaleString('es-CO') : '?'}</strong> ·
-          Versión: <strong>${data.version || '?'}</strong><br><br>
-          👥 Estudiantes: <strong>${(t.students||[]).length}</strong> ·
-          📋 Asistencia: <strong>${(t.attendance||[]).length}</strong> ·
-          ⚠️ Casos: <strong>${(t.cases||[]).length}</strong> ·
-          🏫 Cursos: <strong>${(t.courses||[]).length}</strong><br>
-          📅 Citaciones: <strong>${(t.citations||[]).length}</strong> ·
-          🤝 Compromisos: <strong>${(t.commitments||[]).length}</strong>
+          Versión: <strong>${data.version || '?'}</strong>
+          <div style="margin-top:.65rem;display:grid;grid-template-columns:1fr 1fr;gap:.1rem 1.2rem;font-size:.82rem;">
+            ${rowsHtml}
+          </div>
           <div style="margin-top:.65rem;padding:.5rem .8rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:.84rem;">
             👨‍🏫 <strong>Personal:</strong> ${nDocentes} docente${nDocentes!==1?'s':''} · ${nCoords} coordinador${nCoords!==1?'es':''} · ${nRectores} rector${nRectores!==1?'es':''}${metaVerified}
           </div>
