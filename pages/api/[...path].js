@@ -7794,8 +7794,20 @@ async function handleBackupImport(req, res, user) {
     for (let i = 0; i < rows.length; i += batchSize) {
       const batch = rows.slice(i, i + batchSize);
       const { error } = await sb.from(tableName).upsert(batch, { onConflict: 'id', ignoreDuplicates: false });
-      if (error) { errors.push(`${tableName}: ${error.message}`); }
-      else total += batch.length;
+      if (error) {
+        // Si el batch falla, reintentar uno a uno para salvar lo que se pueda
+        let recovered = 0;
+        for (const row of batch) {
+          const { error: sErr } = await sb.from(tableName).upsert(row, { onConflict: 'id', ignoreDuplicates: true });
+          if (!sErr) recovered++;
+        }
+        if (recovered < batch.length) {
+          errors.push(`${tableName}: ${error.message} (${recovered}/${batch.length} recuperados)`);
+        }
+        total += recovered;
+      } else {
+        total += batch.length;
+      }
     }
     return total;
   }
@@ -7821,15 +7833,22 @@ async function handleBackupImport(req, res, user) {
     if (deleteFirst) {
       // Para estudiantes: borrar TODAS las tablas con FK a students antes de borrar
       if (tableName === 'raice_students') {
+        // Orden de borrado: hijos antes que padres (FK cascade manual)
         const depTables = [
-          'raice_subgroup_members', 'raice_tipo1_escalones', 'raice_followups',
-          'raice_citations', 'raice_commitments', 'raice_excusas',
+          // Nivel 3: dependen de cases
+          'raice_tipo1_escalones', 'raice_followups', 'raice_citations', 'raice_commitments',
+          // Nivel 2: dependen de students directamente
+          'raice_subgroup_members', 'raice_excusas',
           'raice_classroom_removals', 'raice_suspensions',
-          'raice_cases', 'raice_observations', 'raice_attendance', 'raice_acudientes',
+          'raice_cases',
+          // Nivel 1: dependen solo de students
+          'raice_observations', 'raice_attendance', 'raice_acudientes',
           'raice_student_grade_history'
         ];
         for (const dt of depTables) {
-          await sb.from(dt).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          try {
+            await sb.from(dt).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          } catch (_) { /* tabla puede no existir */ }
         }
       }
       const { error: dErr } = await sb.from(tableName)
@@ -7840,14 +7859,24 @@ async function handleBackupImport(req, res, user) {
     // Para estudiantes: validar status, course_id y code
     if (tableName === 'raice_students') {
       const validStatuses = new Set(['active','transferred','retired','graduated','desertor']);
+      // Mapear status comunes que pueden venir del backup con nombre diferente
+      const statusMap = {
+        'inactive':'retired', 'retirado':'retired', 'activo':'active',
+        'transferido':'transferred', 'graduado':'graduated', 'deserción':'desertor',
+        'egresado':'graduated', null:'active', undefined:'active', '':'active'
+      };
       const { data: existingCourses } = await sb.from('raice_courses').select('id');
       const validIds = new Set((existingCourses || []).map(c => c.id));
-      safeRows = safeRows.map(s => ({
-        ...s,
-        course_id: s.course_id && validIds.has(s.course_id) ? s.course_id : null,
-        status: validStatuses.has(s.status) ? s.status : 'active',
-        code: s.code || null, // evitar empty string que viola UNIQUE
-      }));
+      safeRows = safeRows.map(s => {
+        let st = s.status;
+        if (!validStatuses.has(st)) st = statusMap[st] || 'active';
+        return {
+          ...s,
+          course_id: s.course_id && validIds.has(s.course_id) ? s.course_id : null,
+          status: st,
+          code: s.code || null,
+        };
+      });
       // Deduplicar por code (mantener el primero si hay códigos repetidos)
       const seenCodes = new Set();
       safeRows = safeRows.filter(s => {
