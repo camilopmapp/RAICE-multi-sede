@@ -373,6 +373,10 @@
 </head>
 <script src="/js/chart.umd.min.js"></script>
 <script src="/js/xlsx.full.min.js"></script>
+<script src="/shared/constants/index.js"></script>
+<script src="/shared/utils/index.js"></script>
+<script src="/shared/data/apiClient.js"></script>
+<script src="/shared/domain/index.js"></script>
 <body>
 
 <!-- SIDEBAR OVERLAY (mobile) -->
@@ -1978,24 +1982,11 @@
   </div>
 </div>
 
-<script type="module">
-import {
-  CLASS_HOUR_ORDINALS,
-  DAYS_OF_WEEK,
-  OBSERVATION_TYPE_LABELS,
-  OBSERVATION_TYPE_COLORS,
-  CASE_STATUS_LABELS
-} from '/shared/constants/index.js';
-
-import {
-  escapeHtml,
-  formatDateCO,
-  getInitials,
-  isoWeekday
-} from '/shared/utils/index.js';
-
-import { createApiClient } from '/shared/data/apiClient.js';
-import { gradeLbl, getCurrentBell, todayColombia } from '/shared/domain/index.js';
+<script>
+var { CLASS_HOUR_ORDINALS, DAYS_OF_WEEK, OBSERVATION_TYPE_LABELS, OBSERVATION_TYPE_COLORS, CASE_STATUS_LABELS } = window.RAICE;
+var { escapeHtml, formatDateCO, getInitials, isoWeekday } = window.RAICE;
+var { createApiClient } = window.RAICE;
+var { gradeLbl, getCurrentBell, todayColombia } = window.RAICE;
 // gradeLbl → importado desde shared/domain
 
 // escHtml → importado desde shared/utils como escapeHtml
@@ -7821,98 +7812,6 @@ document.addEventListener('visibilitychange', () => {
   }
 
 
-// ── Exponer al scope global funciones usadas en onclick del HTML y scripts secundarios ──
-Object.assign(window, {
-  // Nav & UI
-  showSection, toggleSidebar, openModal, closeModal, logout,
-  cambiarSedeActiva, onGlobalSearch, showToast, fetchAPI, escHtml,
-  // Dashboard
-  loadDashboard, showSection,
-  // Alerts
-  filterAlerts, loadAlerts,
-  // Students
-  filterStudents, resetStudentFilters, onGradeFilterChange, openNewStudent,
-  exportStudentsExcel, adminHandleFileSelect, adminConfirmImport, adminCancelImport,
-  adminDownloadImportTemplate, adminDownloadErrorReport,
-  addAdminAcudienteRow, loadAdminAcudientes, saveAdminAcudientes,
-  editStudentAdmin, changeGradeAdmin, deleteStudentAdmin,
-  saveStudentAdmin, adminLoadGradesForModal, adminLoadCoursesForGrade,
-  openStudentFicha, printFicha, openAcudientesModal,
-  loadAcudientesList, saveAcudiente, deleteAcudiente,
-  // Attendance
-  setAttMode, attRangeNav, attBack, attFilterGrade, loadAttendance, loadAttFull,
-  loadAttStudents, openAttEdit, loadAttEditHour, saveAttEdit,
-  _attEditShowList, _attOnPeriodChange, _attFullFilterGrade, _attFullApplyFilters,
-  updateAttEditStatus, exportAttendance, printAttendanceReport,
-  // Cases
-  loadCases, filterCases, filterCasesByType, filterCasesByStatus,
-  gotoCase, viewCase, updateCaseStatus, updateCaseType,
-  openFollowup, saveFollowup, openNewCaseModal, saveNewCase,
-  printIndividualCase, printCurrentCase, exportCasesPDF,
-  openCasosReportModal, generateCasosReportPDF, openComiteModal,
-  searchStudentsForCase, onAdminCaseTypeChange,
-  adminLoadFaltasByCategoria, adminOnFaltaSelected,
-  pickStudentForCase, toggleAdminAction,
-  showConfirmDialog,
-  // Commitments
-  loadCommitments, filterCommitments, markCommitmentFulfilled,
-  // Observer
-  loadObserver, searchObserver, filterObserver, viewStudentObs,
-  onObsGradeChange, printObservador,
-  // Teachers
-  loadTeachers, openPrintStaffModal,
-  // Profile
-  loadProfile, changeMyPassword,
-  // Stats
-  loadStats, loadPeriodsForSelect, printStats,
-  // Citations
-  loadCitations, filterCitations, saveCitation, markCitationAttended, printCitation,
-  onCitStudentSearch, clearCitStudent, populateCitationStudents,
-  // Periods
-  loadPeriods, setActivePeriod, savePeriod,
-  // Notifications
-  loadNotifications, setNotifFilter, renderNotifList,
-  markRead, markAllRead, deleteReadNotifs,
-  // Tardanzas
-  loadTardanzas,
-  // Calendar
-  loadCalendar, calChangeYear, calSwitchTab, calRangePreview,
-  saveCalendarRange, saveCalendarEvent, deleteCalendarEvent, confirmDeleteCalendarEvent,
-  // Mapa escolar
-  loadMapaEscolar, mapaSetTab, mapaCargarCursos,
-  mapaRenderGrupo, mapaRenderDocente, mapaRenderSemana,
-  // Reemplazos
-  loadReemplazos, openModalAusencia, deleteReemplazo, deleteAusencia,
-  openSugerencias, toggleBusyTeachers, acceptFullProposal,
-  changeProposalTeacher, loadAlternativesForRow, assignBusyReemplazo,
-  saveAusencia, toggleAusenciaAllday,
-  // Convivencia extra
-  loadRemovals, loadSuspensions, loadEvasions,
-  openSuspensionModal, saveSuspension, cancelSuspension,
-  markRemovalReviewed, openConfirmEvasion, confirmEvasion, dismissEvasion,
-  // Excusas
-  excusaSwitchTab, adminExcusaPopulateStudents, adminExcusaValidateDate,
-  saveAdminExcusa, loadAdminExcusasList, onExcusaFilterGradeChange,
-  showExcusaRangeDeleteModal, deleteAdminExcusa, adminUpdateExcusaInfo,
-  // Subgrupos
-  admOpenSubgroupMembers, admSmRemoveMember, admSmUpdateCount,
-  admSmFilterChecklist, admSmOnGradeChange, admSmToggleAll, admSmAddSelected,
-  // Reports
-  rptMenuSelect, rptApplyPreset, rptGenerate, rptUpdateCourses,
-  rptExportExcel, rptExportPDF, rptDrillStudent, rptFilterStudents,
-  rptExportConvivenciaPDF, rptFilterCvStudents, rptSearchIndividual,
-  rptExportStudentExcel, rptExportStudentPDF, rptToggleSection,
-  // Print
-  exportCases, generateTempPassword,
-  printStaffList, printStudentList, plSelectAll, closePrintListModal, openPrintListModal,
-  psSelectSedes,
-  // Config
-  loadSchoolConfig, buildPrintHeader,
-  // Misc
-  avatarColor, formatDate, daysAgo, gradeLbl, todayColombia,
-  startAutoRefresh, updateRefreshIndicator, startNotifPolling,
-  initSession, initAdminExcusas, initReemplazosDate, initRemovalsDate, initEvasionsDate,
-});
 
 </script>
 <!-- MODAL REGISTRAR AUSENCIA -->

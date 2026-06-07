@@ -436,6 +436,10 @@
     .section-header { flex-wrap:wrap; gap:.4rem; }
   }
 </style>
+<script src="/shared/constants/index.js"></script>
+<script src="/shared/utils/index.js"></script>
+<script src="/shared/data/apiClient.js"></script>
+<script src="/shared/domain/index.js"></script>
 </head>
 <body>
 
@@ -1168,22 +1172,11 @@
 <div id="toast-container"></div>
 
 <!-- ===== SCRIPT ===== -->
-<script type="module">
-  import {
-    CLASS_HOUR_ORDINALS,
-    DAYS_OF_WEEK,
-    OBSERVATION_TYPE_LABELS,
-    OBSERVATION_TYPE_COLORS,
-    CASE_STATUS_LABELS
-  } from '/shared/constants/index.js';
-
-  import {
-    escapeHtml,
-    isoWeekday
-  } from '/shared/utils/index.js';
-
-  import { createApiClient } from '/shared/data/apiClient.js';
-  import { todayColombia } from '/shared/domain/index.js';
+<script>
+  var { CLASS_HOUR_ORDINALS, DAYS_OF_WEEK, OBSERVATION_TYPE_LABELS, OBSERVATION_TYPE_COLORS, CASE_STATUS_LABELS } = window.RAICE;
+  var { escapeHtml, isoWeekday } = window.RAICE;
+  var { createApiClient } = window.RAICE;
+  var { todayColombia } = window.RAICE;
 
   let currentUser = null;
 
@@ -4705,39 +4698,6 @@
     setTimeout(() => w.print(), 500);
   }
 
-  // ── Exponer al scope global funciones usadas en onclick del HTML ──
-  Object.assign(window, {
-    showSection, toggleSidebar, closeSidebar, logout, closeModal,
-    changePassword, showToast, fetchAPI, escapeHtml,
-    // Attendance
-    openCourseAttendance, onDateChange, switchToHour, markAll, setStatus,
-    previewAttendance, confirmAndSave, pasarListaInteligente, copyFromPrevHour,
-    printAttendance, openCheckDateModal, openUnlockModal, submitUnlock,
-    toggleActividadEspecial,
-    // Cases
-    selectType, loadStudentsForCase, submitCase, clearCaseForm,
-    loadFaltasByCategoria, onFaltaSelected, toggleAction,
-    renderGradeCases, openCierreCasoModal, saveCierreCaso,
-    openCaseForEvasion, openTipo1EscalonModal, saveTipo1Escalon, openTipo1Historial,
-    // Observations
-    openObsModal, saveObservation, printObservador,
-    // Schedule
-    openCourseScheduleModal, openMySchedule,
-    // History
-    loadAttHistory, onHattCourseChange, onHattPeriodChange, filterHistory,
-    exportAttHistoryPDF,
-    // Removal
-    openRemovalModal, submitRemoval,
-    // Sort
-    setSortPref,
-    // Excusas
-    switchExcusaTab, docenteExcusaPopulateStudents, saveExcusa,
-    loadExcusasList, deleteExcusa, updateExcusaInfoBox,
-    // Profile
-    loadProfile,
-    // Misc
-    initSession, loadPeriods, sortStudents, studentName, renderStudentList,
-  });
 
 </script>
 

@@ -312,6 +312,10 @@
   .ab-av{background:linear-gradient(135deg,#fee2e2,#fecaca);box-shadow:0 0 0 2px rgba(220,38,38,.12);}
 </style>
 <script src="/js/chart.umd.min.js"></script>
+<script src="/shared/constants/index.js"></script>
+<script src="/shared/utils/index.js"></script>
+<script src="/shared/data/apiClient.js"></script>
+<script src="/shared/domain/index.js"></script>
 </head>
 <body>
 
@@ -621,35 +625,14 @@
   </div>
 </div>
 
-<script type="module">
-import {
-  CLASS_HOUR_ORDINALS,
-  DAYS_OF_WEEK,
-  DAYS_OF_WEEK_SHORT,
-  OBSERVATION_TYPE_LABELS,
-  OBSERVATION_TYPE_COLORS,
-  CASE_STATUS_LABELS,
-  CASE_TYPE_PILL_CLASS,
-  CASE_STATUS_PILL_CLASS,
-  ESCALON_LABELS,
-  ALERT_SEVERITY_DOT_CLASS,
-  ATTENDANCE_STATUS_LABELS
-} from '/shared/constants/index.js';
-
-import {
-  escapeHtml as esc,
-  daysAgo,
-  toast,
-  startClock,
-  attendanceColor,
-  getInitials,
-  formatDateCO,
-  getGreeting,
-  isoWeekday
-} from '/shared/utils/index.js';
-
-import { createApiClient } from '/shared/data/apiClient.js';
-import { getCurrentBell, calcAttendancePct, classifyRisk } from '/shared/domain/index.js';
+<script>
+var { CLASS_HOUR_ORDINALS, DAYS_OF_WEEK, OBSERVATION_TYPE_LABELS, OBSERVATION_TYPE_COLORS,
+      CASE_STATUS_LABELS, CASE_TYPE_PILL_CLASS, CASE_STATUS_PILL_CLASS, ESCALON_LABELS,
+      ALERT_SEVERITY_DOT_CLASS, ATTENDANCE_STATUS_LABELS } = window.RAICE;
+var { daysAgo, toast, startClock, attendanceColor, getInitials, formatDateCO, getGreeting, isoWeekday } = window.RAICE;
+var esc = window.RAICE.escapeHtml;
+var { createApiClient } = window.RAICE;
+var { getCurrentBell, calcAttendancePct, classifyRisk } = window.RAICE;
 let _students = [];
 let _schoolConfig = null;
 let _lastData = { dash: null, alerts: [], absences: [] };
@@ -1780,24 +1763,6 @@ async function initRealtime() {
     document.body.appendChild(script);
   } catch (err) {}
 }
-
-// ── Exponer al scope global las funciones usadas en onclick del HTML ──
-window.onSearch = onSearch;
-window.clearSearch = clearSearch;
-window.openFicha = openFicha;
-window.closeFicha = closeFicha;
-window.switchTab = switchTab;
-window.logout = logout;
-window.openPerfil = openPerfil;
-window.closePerfil = closePerfil;
-window.cambiarSede = cambiarSede;
-window.resetSede = resetSede;
-window.applyFilters = applyFilters;
-window.switchSchedView = switchSchedView;
-window.renderGradeSchedule = renderGradeSchedule;
-window.loadTeacherSchedule = loadTeacherSchedule;
-window.changeMyPassword = changeMyPassword;
-window.printObservador = printObservador;
 
 // INIT
 initSession();

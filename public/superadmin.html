@@ -468,6 +468,9 @@
   }
 </style>
 <script src="/js/xlsx.full.min.js"></script>
+<script src="/shared/constants/index.js"></script>
+<script src="/shared/data/apiClient.js"></script>
+<script src="/shared/domain/index.js"></script>
 </head>
 <body>
 
@@ -2261,10 +2264,10 @@
 </div>
 
 <!-- ===== SCRIPT ===== -->
-<script type="module">
-  import { DAYS_OF_WEEK } from '/shared/constants/index.js';
-  import { createApiClient } from '/shared/data/apiClient.js';
-  import { gradeLbl, todayColombia } from '/shared/domain/index.js';
+<script>
+  var { DAYS_OF_WEEK } = window.RAICE;
+  var { createApiClient } = window.RAICE;
+  var { gradeLbl, todayColombia } = window.RAICE;
   let currentUser = null;
 
   // gradeLbl → importado desde shared/domain
@@ -6248,67 +6251,6 @@
   }
   // ==================== FIN NUEVO AÑO ESCOLAR ====================
 
-  // ── Exponer al scope global funciones usadas en onclick del HTML ──
-  Object.assign(window, {
-    // Nav & UI
-    showSection, toggleSidebar, openModal, closeModal, logout, showToast, fetchAPI,
-    // Users
-    createUser, editUser, updateUser, deleteUser, filterUsers, filterUserRole, resetPassword,
-    // Teachers
-    loadTeachers, filterTeachers, editTeacher, saveTeacher,
-    openAssignTeacher, saveTeacherAssignment, removeTeacherFromCourse, openNewTeacher,
-    // Students
-    loadStudents, filterStudents, onGradeFilterChange, openNewStudent,
-    editStudent, saveStudent, deleteStudent, openChangeGrade,
-    addAcudienteRow, exportStudentsExcel, downloadExcel,
-    handleFileSelect, confirmImport, cancelImport, clearImportFile,
-    downloadImportTemplate, saDownloadErrorReport,
-    // Courses
-    openNewCourse, createCourse, editCourse, deleteCourse,
-    loadCoursesForGrade, loadGradesForSede, toggleCourseField,
-    // Subgroups
-    openNewSubgroup, editSubgroup, deleteSubgroup, saveSubgroup,
-    openSubgroupMembers, smRemoveMember, smUpdateCount,
-    smFilterChecklist, smOnGradeChange, smToggleAll, smAddSelected,
-    // Sedes
-    openNewSede, saveSede, deleteSede, renderSedeField,
-    loadDirectorsSelect,
-    // Schedule
-    openCourseSchedule, saveScheduleSlot, deleteScheduleSlot,
-    saveBellHour, editBellHour, deleteBellHour, cancelBellEdit,
-    // Cases
-    filterCases, viewCaseSA, exportCases,
-    // Attendance
-    loadAttendance, exportAttendance,
-    // Config
-    saveSchoolConfig, saveSecurityConfig, savePeriodConfig, saveLogoConfig,
-    previewLogo, clearLogo, renderPeriodFields,
-    toggleCorrectionWindowFields,
-    // Faltas
-    loadFaltasCatalogAdmin, openNuevaFaltaModal, saveNuevaFalta,
-    renderFaltasAdmin, deleteFalta, editFaltaText, saveFaltaText, toggleFaltaActiva,
-    // Backup
-    saveBackupEmailConfig, sendTestBackup, triggerWeeklyReport,
-    downloadFullBackup, previewBackupFile, executeBackupImport,
-    openBackupConfirmModal, closeBackupConfirmModal, bcValidate,
-    // Logs
-    loadLogs, filterLogs,
-    // Profile
-    changeMyPassword,
-    // Purge
-    purgeData,
-    // Search
-    onSASearch,
-    // SIMAT
-    simatLoadFile, simatRunPreview, simatModeChange, simatConfirmImport,
-    simatReset, simatSelectAllCourses, simatToggleSkipPartial,
-    simatPartialConfirm, simatPartialPrev,
-    // Año escolar
-    ayeGoStep, ayeStep1Next, ayeStep2Next, ayeSetGradeAction,
-    ayeUpdateAction, ayeUpdateCourse, ayeExecute,
-    // Misc
-    initSession, gradeLbl,
-  });
 </script>
 
 <script>

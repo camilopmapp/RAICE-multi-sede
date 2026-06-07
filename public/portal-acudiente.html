@@ -332,8 +332,9 @@
 
 </div><!-- /dashboard -->
 
-<script type="module">
-import { CLASS_HOUR_ORDINALS } from '/shared/constants/index.js';
+<script src="/shared/constants/index.js"></script>
+<script>
+var { CLASS_HOUR_ORDINALS } = window.RAICE;
 
 const API = '/api';
 let _data = null;
@@ -720,8 +721,6 @@ async function initRealtime() {
 
 window.addEventListener('load', () => { setTimeout(initRealtime, 2000); });
 
-// ── Exponer al scope global funciones usadas en onclick del HTML ──
-Object.assign(window, { showTab, consultar, cerrarSesion });
 
 </script>
 <script>
