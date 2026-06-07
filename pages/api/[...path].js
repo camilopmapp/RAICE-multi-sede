@@ -2642,11 +2642,20 @@ async function handleAttendance(req, res, user) {
     const allowedCourseIds = await getAllowedCourseIdsForAdmin(sb, user);
 
     if (date_from && date_to) {
-      let query = sb.from('raice_attendance')
-        .select('status, course_id, class_hour, student_id, teacher_id, date')
-        .gte('date', date_from).lte('date', date_to);
-      if (allowedCourseIds) query = query.in('course_id', allowedCourseIds);
-      const { data: attData } = await query;
+      // Paginar para traer TODOS los registros (Supabase corta en 1000 por defecto)
+      let attData = [];
+      const PAGE_R = 1000;
+      for (let off = 0; ; off += PAGE_R) {
+        let query = sb.from('raice_attendance')
+          .select('status, course_id, class_hour, student_id, teacher_id, date')
+          .gte('date', date_from).lte('date', date_to)
+          .order('date').range(off, off + PAGE_R - 1);
+        if (allowedCourseIds) query = query.in('course_id', allowedCourseIds);
+        const { data: pg } = await query;
+        if (!pg || !pg.length) break;
+        attData = attData.concat(pg);
+        if (pg.length < PAGE_R) break;
+      }
 
       // Deduplicate: per student + course + date → keep last hour's status
       const scdMap = {};
@@ -2708,11 +2717,19 @@ async function handleAttendance(req, res, user) {
 
     // ── FULL LIST MODE (lista completa estudiante × hora) ────────────
     if (full) {
-      let queryRaw = sb.from('raice_attendance')
-        .select('student_id, class_hour, status, course_id, teacher_id')
-        .eq('date', date);
-      if (allowedCourseIds) queryRaw = queryRaw.in('course_id', allowedCourseIds);
-      const { data: rawData } = await queryRaw;
+      // Paginar: un solo día con muchos cursos puede superar 1000 filas
+      let rawData = [];
+      const PAGE_F = 1000;
+      for (let off = 0; ; off += PAGE_F) {
+        let queryRaw = sb.from('raice_attendance')
+          .select('student_id, class_hour, status, course_id, teacher_id')
+          .eq('date', date).order('student_id').range(off, off + PAGE_F - 1);
+        if (allowedCourseIds) queryRaw = queryRaw.in('course_id', allowedCourseIds);
+        const { data: pg } = await queryRaw;
+        if (!pg || !pg.length) break;
+        rawData = rawData.concat(pg);
+        if (pg.length < PAGE_F) break;
+      }
 
       if (!rawData?.length) return res.status(200).json({ hours: [], students: [] });
 
@@ -2996,14 +3013,25 @@ async function getAttendanceRange(req, res, user) {
     .select('id, first_name, last_name').eq('course_id', course_id).eq('status','active')
     .order('last_name');
 
-  // Attendance records in range
-  let q = sb.from('raice_attendance')
-    .select('student_id, date, class_hour, status')
-    .eq('course_id', course_id)
-    .gte('date', from).lte('date', to)
-    .order('date').order('class_hour');
-  if (hour) q = q.eq('class_hour', parseInt(hour));
-  const { data: allRecords } = await q;
+  // Attendance records in range.
+  // IMPORTANTE: Supabase limita por defecto a 1000 filas. Un curso puede tener
+  // más (ej: 26 estudiantes × 6 horas × 20+ días). Paginamos para traerlos TODOS,
+  // de lo contrario se cortan las fechas más recientes.
+  let allRecords = [];
+  const PAGE = 1000;
+  for (let offset = 0; ; offset += PAGE) {
+    let q = sb.from('raice_attendance')
+      .select('student_id, date, class_hour, status')
+      .eq('course_id', course_id)
+      .gte('date', from).lte('date', to)
+      .order('date').order('class_hour')
+      .range(offset, offset + PAGE - 1);
+    if (hour) q = q.eq('class_hour', parseInt(hour));
+    const { data: page } = await q;
+    if (!page || !page.length) break;
+    allRecords = allRecords.concat(page);
+    if (page.length < PAGE) break;
+  }
 
   // If teacher provides tc_id, filter records to only their scheduled hours
   let records = allRecords || [];

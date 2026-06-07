@@ -134,6 +134,19 @@ El usuario re-guarda la configuración para limpiar. La app ya filtra `period_nu
 **Solución:** usar `<script src>` regular; cargar TODOS los módulos shared que el HTML use;
 `checkAuth` retorna `{}` (no null) cuando hay token válido pero sin datos de user.
 
+### 5.4b ⚠️ Una vista (asistencia, lista, reporte) muestra datos truncados / faltan fechas recientes
+**Causa REAL y más común:** Supabase/PostgREST **limita por defecto a 1000 filas** por consulta.
+Cualquier query de `raice_attendance` (u otra tabla grande) sobre un rango de fechas o muchos
+cursos puede superar 1000 filas y **cortar el resto** (las fechas más recientes si ordena por fecha ASC).
+NO es problema de restore ni de datos faltantes — los datos SÍ están en la BD.
+**Síntoma clásico:** un curso con >1000 registros de asistencia muestra solo las primeras fechas.
+**Solución:** PAGINAR la consulta con `.range(offset, offset+999)` en un loop hasta traer todo.
+Ya aplicado en `getAttendanceRange` (docente) y en el rango/lista del coordinador (`handleAttendance`).
+**Si aparece en reportes/stats:** buscar `.from('raice_attendance').select(...)` sin paginación
+y aplicar el mismo patrón. **LECCIÓN:** antes de culpar al restore/datos, verifica si el query
+puede devolver >1000 filas. Compara: si el backup tiene el dato (revísalo con un script Node leyendo
+el .json) pero la vista no lo muestra, casi siempre es el límite de 1000, no los datos.
+
 ### 5.4 El historial de asistencia del DOCENTE muestra menos fechas/registros que el real
 **Causa:** `getAttendanceRange` filtra la asistencia del docente por su HORARIO
 (`raice_schedules` por `teacher_course_id`). Si el horario quedó incompleto tras un restore,
