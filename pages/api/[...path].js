@@ -7952,35 +7952,35 @@ async function handleBackupImport(req, res, user) {
 
     // ── Miembros de subgrupos (depende de estudiantes y cursos ya importados) ──
     if (tc.subgroup_members?.length) {
-      // Usar IDs reales de BD, no los del backup
       const { data: dbStudents } = await sb.from('raice_students').select('id');
       const { data: dbCourses }  = await sb.from('raice_courses').select('id');
       const realStudentIds = new Set((dbStudents || []).map(s => s.id));
       const realCourseIds  = new Set((dbCourses  || []).map(c => c.id));
-      const safeMembers = tc.subgroup_members.filter(
+      let safeMembers = tc.subgroup_members.filter(
         m => realStudentIds.has(m.student_id) && realCourseIds.has(m.subgroup_course_id)
       );
+      // Deduplicar por student_id (DB puede tener UNIQUE en student_id)
+      const seenStudents = new Set();
+      safeMembers = safeMembers.filter(m => {
+        if (seenStudents.has(m.student_id)) return false;
+        seenStudents.add(m.student_id);
+        return true;
+      });
       if (safeMembers.length) {
-        // Borrar existentes para evitar UNIQUE violations
+        // Borrar existentes
         await sb.from('raice_subgroup_members').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-        // Insertar sin onConflict de id — usar insert directo
-        const CHUNK = 200;
+        // Insertar uno a uno para máxima resiliencia
         let smTotal = 0;
-        for (let i = 0; i < safeMembers.length; i += CHUNK) {
-          const batch = safeMembers.slice(i, i + CHUNK);
-          const { error } = await sb.from('raice_subgroup_members').insert(batch);
-          if (error) {
-            // Reintentar uno a uno
-            for (const m of batch) {
-              const { error: sErr } = await sb.from('raice_subgroup_members')
-                .upsert(m, { onConflict: 'subgroup_course_id,student_id', ignoreDuplicates: true });
-              if (!sErr) smTotal++;
-            }
-          } else {
-            smTotal += batch.length;
-          }
+        for (const m of safeMembers) {
+          // Omitir id para que Supabase genere uno nuevo (evita conflicto de PK)
+          const row = { subgroup_course_id: m.subgroup_course_id, student_id: m.student_id };
+          const { error } = await sb.from('raice_subgroup_members').insert(row);
+          if (!error) smTotal++;
         }
         results.subgroup_members = smTotal;
+        if (smTotal < safeMembers.length) {
+          errors.push(`subgroup_members: ${smTotal}/${safeMembers.length} importados`);
+        }
       }
     }
 
