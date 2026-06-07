@@ -380,6 +380,7 @@
 <script src="/shared/utils/printObservador.js"></script>
 <script src="/shared/utils/pwa.js"></script>
 <script src="/shared/data/realtime.js"></script>
+<script src="/shared/data/repositories.js"></script>
 <body>
 
 <!-- SIDEBAR OVERLAY (mobile) -->
@@ -2549,9 +2550,7 @@ async function alertOpenCaseForStudent(studentId, studentName) {
 
 // ---- STUDENTS ----
 async function loadStudents() {
-  const { ok, data } = await fetchAPI('/raice/students');
-  if (!ok) return;
-  allStudents = data.students || [];
+  allStudents = await window.RAICE.fetchStudents(fetchAPI);
   filterStudents();
   populateGradeFilter();
 }
@@ -4463,9 +4462,7 @@ async function markCommitmentFulfilled(id) {
 let _obsAllStudents = [];
 
 async function loadObserver() {
-  const { ok, data } = await fetchAPI('/raice/students');
-  if (!ok) return;
-  _obsAllStudents = data.students || [];
+  _obsAllStudents = await window.RAICE.fetchStudents(fetchAPI);
   populateObsGradeFilter();
   filterObserver();
 }
@@ -4615,14 +4612,13 @@ function _printObservadorWindow(d, cfg) { window.RAICE.printObservadorWindow(d, 
 
 // ---- TEACHERS ----
 async function loadTeachers() {
-  const { ok, data } = await fetchAPI('/raice/teachers');
-  if (!ok) return;
+  const teachers = await window.RAICE.fetchTeachers(fetchAPI);
   const tbody = document.getElementById('teachers-tbody');
-  if (!data.teachers?.length) {
+  if (!teachers.length) {
     tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--gray);">Sin docentes</td></tr>';
     return;
   }
-  tbody.innerHTML = data.teachers.map(t => `
+  tbody.innerHTML = teachers.map(t => `
     <tr>
       <td>
         <div style="display:flex;align-items:center;gap:.65rem;">
@@ -4639,7 +4635,7 @@ async function loadTeachers() {
 
 async function getSchoolName() {
   if (_schoolConfig.school_name) return _schoolConfig.school_name;
-  const { data } = await fetchAPI('/raice/config');
+  const data = await window.RAICE.fetchConfig(fetchAPI);
   if (data) _schoolConfig = data;
   return _schoolConfig.school_name || 'Institución Educativa';
 }
@@ -4701,14 +4697,12 @@ async function changeMyPassword() {
   if (!current || !newPwd) { showToast('Completa todos los campos', 'warning'); return; }
   if (newPwd !== confirm)  { showToast('Las contraseñas no coinciden', 'error'); return; }
   if (newPwd.length < 6)   { showToast('Mínimo 6 caracteres', 'warning'); return; }
-  const { ok, data } = await fetchAPI('/raice/change-password', {
-    method:'POST', body: JSON.stringify({ current_password:current, new_password:newPwd })
-  });
-  if (ok) {
+  const result = await window.RAICE.changePassword(fetchAPI, current, newPwd);
+  if (result.ok) {
     showToast('Contraseña actualizada', 'success');
     ['pwd-current','pwd-new','pwd-confirm'].forEach(id => document.getElementById(id).value = '');
   } else {
-    showToast(data?.error || 'Contraseña actual incorrecta', 'error');
+    showToast(result.error || 'Contraseña actual incorrecta', 'error');
   }
 }
 
@@ -5853,8 +5847,8 @@ async function loadMapaEscolar() {
     '<div class="card-body" style="padding:1rem;color:var(--gray);">⏳ Cargando…</div>';
   document.getElementById('mapa-ahora-grid').innerHTML = '';
 
-  const { ok, data } = await fetchAPI('/raice/schedules/overview');
-  if (!ok) { showToast('Error al cargar el mapa escolar', 'error'); return; }
+  const data = await window.RAICE.fetchSchedulesOverview(fetchAPI);
+  if (!data.schedules.length && !data.bell_schedule.length) { showToast('Error al cargar el mapa escolar', 'error'); return; }
   _mapaData = data;
 
   mapaPopulateSelectors();
@@ -5864,9 +5858,9 @@ async function loadMapaEscolar() {
   if (_mapaTimer) clearInterval(_mapaTimer);
   _mapaTimer = setInterval(async () => {
     if (currentSection !== 'mapa-escolar') return;
-    const r = await fetchAPI('/raice/schedules/overview');
-    if (r.ok) {
-      _mapaData = r.data;
+    const r = await window.RAICE.fetchSchedulesOverview(fetchAPI);
+    if (r.schedules.length) {
+      _mapaData = r;
       if (_mapaTab === 'ahora')  mapaRenderAhora();
       if (_mapaTab === 'semana') mapaRenderSemana();
       document.getElementById('mapa-last-update').textContent =
@@ -6679,7 +6673,7 @@ function appendRecoverUI() {
 let _schoolConfig = {};
 
 async function loadSchoolConfig() {
-  const { data } = await fetchAPI('/raice/config');
+  const data = await window.RAICE.fetchConfig(fetchAPI);
   if (data) {
     _schoolConfig = data;
     window._adminSchoolConfig = data; // alias for hour selector fallbacks

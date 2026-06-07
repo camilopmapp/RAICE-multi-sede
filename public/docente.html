@@ -443,6 +443,7 @@
 <script src="/shared/utils/printObservador.js"></script>
 <script src="/shared/utils/pwa.js"></script>
 <script src="/shared/data/realtime.js"></script>
+<script src="/shared/data/repositories.js"></script>
 </head>
 <body>
 
@@ -1330,10 +1331,7 @@
 
   async function loadPeriods() {
     try {
-      const { ok, data } = await fetchAPI('/raice/periods');
-      if (ok && data.periods) {
-        _allPeriods = data.periods;
-      }
+      _allPeriods = await window.RAICE.fetchPeriods(fetchAPI);
     } catch (_) {}
   }
 
@@ -1429,8 +1427,7 @@
   let _bellCache = null;
   async function getBellSchedule() {
     if (_bellCache) return _bellCache;
-    const { ok, data } = await fetchAPI('/raice/bell-schedule');
-    _bellCache = ok ? (data.bell_schedule || []) : [];
+    _bellCache = await window.RAICE.fetchBellSchedule(fetchAPI);
     return _bellCache;
   }
 
@@ -2256,14 +2253,13 @@
   async function printObservador(studentId) {
     if (!studentId) { showToast('Selecciona un estudiante', 'warning'); return; }
     showToast('Generando observador…', 'info');
-    const [fichaRes, configRes] = await Promise.all([
-      fetchAPI('/raice/student-ficha?id=' + studentId + '&all_obs=1'),
-      fetchAPI('/raice/config')
+    const R = window.RAICE;
+    const [d, cfg] = await Promise.all([
+      R.fetchStudentFicha(fetchAPI, studentId, true),
+      R.fetchConfig(fetchAPI)
     ]);
-    if (!fichaRes.ok || !fichaRes.data?.student) { showToast('Error al cargar datos del estudiante', 'error'); return; }
-    const d = fichaRes.data;
-    const cfg = configRes.ok ? configRes.data : {};
-    _printObservadorWindow(d, cfg);
+    if (!d?.student) { showToast('Error al cargar datos del estudiante', 'error'); return; }
+    _printObservadorWindow(d, cfg || {});
   }
 
   // ---- CASES ----
@@ -2772,16 +2768,14 @@
     if (!current || !newPwd)       { showToast('Completa todos los campos', 'warning'); return; }
     if (newPwd !== confirm)        { showToast('Las contraseñas no coinciden', 'error'); return; }
     if (newPwd.length < 6)         { showToast('La contraseña debe tener al menos 6 caracteres', 'warning'); return; }
-    const { ok } = await fetchAPI('/raice/change-password', {
-      method:'POST', body: JSON.stringify({ current_password:current, new_password:newPwd })
-    });
-    if (ok) {
+    const result = await window.RAICE.changePassword(fetchAPI, current, newPwd);
+    if (result.ok) {
       showToast('Contraseña actualizada', 'success');
       document.getElementById('pwd-current').value = '';
       document.getElementById('pwd-new').value = '';
       document.getElementById('pwd-confirm').value = '';
     } else {
-      showToast('Contraseña actual incorrecta', 'error');
+      showToast(result.error || 'Contraseña actual incorrecta', 'error');
     }
   }
 
@@ -3440,7 +3434,7 @@
   // applyLogoToSidebar → importado desde shared/utils
 
   async function loadSchoolConfig() {
-    const { data } = await fetchAPI('/raice/config');
+    const data = await window.RAICE.fetchConfig(fetchAPI);
     if (!data) return;
     applyLogoToSidebar(data.logo_url, data.school_name);
     if (data.classes_per_day) classesPerDay = data.classes_per_day;

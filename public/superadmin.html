@@ -473,6 +473,7 @@
 <script src="/shared/data/apiClient.js"></script>
 <script src="/shared/domain/index.js"></script>
 <script src="/shared/utils/pwa.js"></script>
+<script src="/shared/data/repositories.js"></script>
 </head>
 <body>
 
@@ -3520,9 +3521,7 @@
 
   // ---- TEACHERS ----
   async function loadTeachers() {
-    const { ok, data } = await fetchAPI('/raice/teachers');
-    if (!ok) return;
-    allTeachers = data.teachers || [];
+    allTeachers = await window.RAICE.fetchTeachers(fetchAPI);
     renderTeachers(allTeachers);
   }
 
@@ -4387,17 +4386,14 @@
     if (newPwd !== confirm)     { showToast('Las contraseñas nuevas no coinciden', 'error'); return; }
     if (newPwd.length < 6)      { showToast('La contraseña debe tener al menos 6 caracteres', 'warning'); return; }
 
-    const { ok, data } = await fetchAPI('/raice/change-password', {
-      method: 'POST',
-      body: JSON.stringify({ current_password: current, new_password: newPwd })
-    });
-    if (ok) {
+    const result = await window.RAICE.changePassword(fetchAPI, current, newPwd);
+    if (result.ok) {
       showToast('✅ Contraseña actualizada correctamente', 'success');
       document.getElementById('pwd-current').value = '';
       document.getElementById('pwd-new').value     = '';
       document.getElementById('pwd-confirm').value = '';
     } else {
-      showToast(data?.error || 'Contraseña actual incorrecta', 'error');
+      showToast(result.error || 'Contraseña actual incorrecta', 'error');
     }
   }
 
@@ -5567,8 +5563,8 @@
   // applyLogoToSidebar → importado desde shared/utils
 
   async function loadSchoolConfig() {
-    const { ok, data } = await fetchAPI('/raice/config');
-    if (!ok || !data) return;
+    const data = await window.RAICE.fetchConfig(fetchAPI);
+    if (!data) return;
     applyLogoToSidebar(data.logo_url, data.school_name);
   }
 

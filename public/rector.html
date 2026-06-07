@@ -319,6 +319,7 @@
 <script src="/shared/utils/printObservador.js"></script>
 <script src="/shared/utils/pwa.js"></script>
 <script src="/shared/data/realtime.js"></script>
+<script src="/shared/data/repositories.js"></script>
 </head>
 <body>
 
@@ -684,8 +685,8 @@ function closePerfil() { document.getElementById('modal-perfil').classList.remov
 
 // DASHBOARD
 async function loadSchoolConfig() {
-  const { ok, data } = await api('/raice/config');
-  if (ok) {
+  const data = await window.RAICE.fetchConfig(api);
+  if (data) {
     _schoolConfig = data;
     const container = document.getElementById('school-logo-container');
     if (data.logo_url) {
@@ -698,9 +699,9 @@ async function loadSchoolConfig() {
 }
 
 async function loadSedes() {
-  const { ok, data } = await api('/raice/sedes');
-  if (!ok || !data.sedes?.length) return;
-  const sedes = data.sedes.filter(s => s.active !== false);
+  const allSedes = await window.RAICE.fetchSedes(api);
+  if (!allSedes.length) return;
+  const sedes = allSedes.filter(s => s.active !== false);
   if (sedes.length < 2) return; // no need for selector with 1 sede
   const sel = document.getElementById('sede-selector');
   sel.innerHTML = '<option value="">Todas las sedes</option>' +
@@ -736,21 +737,22 @@ function resetSede() {
 }
 
 async function loadDashboard() {
-  const [dash, abs, alr] = await Promise.all([
-    api('/raice/dashboard'),
-    api('/raice/teacher-absences'),
-    api('/raice/alerts')
+  const R = window.RAICE;
+  const [dash, absences, alerts] = await Promise.all([
+    R.fetchDashboard(api),
+    R.fetchTeacherAbsences(api),
+    R.fetchAlerts(api)
   ]);
-  if (dash.ok) _lastData.dash = dash.data;
-  if (alr.ok)  _lastData.alerts = alr.data.alerts || [];
-  if (abs.ok)  _lastData.absences = abs.data.absences || [];
+  if (dash) _lastData.dash = dash;
+  _lastData.alerts = alerts;
+  _lastData.absences = absences;
   applyFilters();
   loadSedesStats();
 }
 
 async function loadInsights() {
-  const { ok, data } = await api('/raice/rector-insights');
-  if (!ok) return;
+  const data = await window.RAICE.fetchRectorInsights(api);
+  if (!data) return;
   _insights = data;
   renderTrend(data.attendance_trend || []);
   renderRanking(data.grade_ranking || []);
@@ -761,9 +763,9 @@ async function loadInsights() {
 }
 
 async function loadSedesStats() {
-  const { ok, data } = await api('/raice/sedes?stats=true');
-  if (!ok || !data.sedes?.length) return;
-  const sedes = data.sedes.filter(s => s.active !== false);
+  const allSedes = await window.RAICE.fetchSedes(api, { stats: true });
+  if (!allSedes.length) return;
+  const sedes = allSedes.filter(s => s.active !== false);
   if (sedes.length < 2) return;
   const wrap = document.getElementById('sedes-stats-wrap');
   const grid = document.getElementById('sedes-stats-grid');
@@ -1115,8 +1117,7 @@ function renderExcusas(ex) {
 // SEARCH
 let _sTimer=null;
 async function loadStudents() {
-  const {ok,data} = await api('/raice/students');
-  if (ok) _students = data.students||data||[];
+  _students = await window.RAICE.fetchStudents(api);
 }
 
 function onSearch(val) {
@@ -1178,9 +1179,9 @@ async function openFicha(id) {
   document.querySelectorAll('.f-tab').forEach((b,i)=>{ b.classList.toggle('active',i===0); });
   document.getElementById('modal-ficha').classList.add('open');
 
-  const {ok,data} = await api('/raice/student-ficha?id='+id);
-  if(!ok){toast(data.error||'Error al cargar ficha','error');closeFicha();return;}
-  renderFicha(data);
+  const fichaData = await window.RAICE.fetchStudentFicha(api, id);
+  if(!fichaData){toast('Error al cargar ficha','error');closeFicha();return;}
+  renderFicha(fichaData);
 }
 
 function renderFicha(d) {
@@ -1268,8 +1269,8 @@ function renderFicha(d) {
 async function printObservador() {
   if (!_fichaStudentId) { toast('No hay estudiante seleccionado','warning'); return; }
   toast('Generando observador…','info');
-  const { ok, data } = await api('/raice/student-ficha?id=' + _fichaStudentId + '&all_obs=1');
-  if (!ok || !data?.student) { toast('Error al cargar datos','error'); return; }
+  const data = await window.RAICE.fetchStudentFicha(api, _fichaStudentId, true);
+  if (!data?.student) { toast('Error al cargar datos','error'); return; }
   _printObservadorWindow(data, _schoolConfig || {});
 }
 
@@ -1372,10 +1373,9 @@ function switchSchedView(view, btn) {
 }
 
 async function loadScheduleOverview() {
-  const { ok, data } = await api('/raice/schedules/overview');
-  if (!ok) return;
-  _schedData = data.schedules || [];
-  _bellSchedule = data.bell_schedule || [];
+  const data = await window.RAICE.fetchSchedulesOverview(api);
+  _schedData = data.schedules;
+  _bellSchedule = data.bell_schedule;
 
   // Populate grade selector
   const grades = {};
@@ -1404,10 +1404,10 @@ async function loadScheduleOverview() {
   // Auto-refresco "Ahora mismo" cada 2 minutos
   if (window._rectorAhoraTimer) clearInterval(window._rectorAhoraTimer);
   window._rectorAhoraTimer = setInterval(async () => {
-    const r = await api('/raice/schedules/overview');
-    if (r.ok) {
-      _schedData    = r.data.schedules    || [];
-      _bellSchedule = r.data.bell_schedule || [];
+    const r = await window.RAICE.fetchSchedulesOverview(api);
+    if (r.schedules.length) {
+      _schedData    = r.schedules;
+      _bellSchedule = r.bell_schedule;
       renderRectorAhora();
     }
   }, 120000);
@@ -1631,16 +1631,13 @@ async function changeMyPassword() {
   if (newPwd.length < 6)   { toast('Minimo 6 caracteres', 'warning'); return; }
   const btn = document.getElementById('p-pwd-btn');
   btn.disabled = true; btn.textContent = 'Guardando...';
-  const { ok, data } = await api('/raice/change-password', {
-    method: 'POST',
-    body: JSON.stringify({ current_password: current, new_password: newPwd })
-  });
+  const result = await window.RAICE.changePassword(api, current, newPwd);
   btn.disabled = false; btn.textContent = 'Actualizar contrasena';
-  if (ok) {
+  if (result.ok) {
     toast('Contrasena actualizada', 'info');
     ['p-pwd-current','p-pwd-new','p-pwd-confirm'].forEach(id => document.getElementById(id).value = '');
   } else {
-    toast(data?.error || 'Contrasena actual incorrecta', 'error');
+    toast(result.error || 'Contrasena actual incorrecta', 'error');
   }
 }
 
