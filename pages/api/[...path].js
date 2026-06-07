@@ -8226,15 +8226,18 @@ async function handleBackupImport(req, res, user) {
   const safeTeacherCourses = (t.teacher_courses || []).filter(tc => 
     importedUserIds.has(tc.teacher_id) && validCourseIds.has(tc.course_id)
   );
+
+  // VACIAR TABLAS PARA EVITAR CONFLICTOS DE UNIQUE KEYS CON IDs NUEVOS
+  // Supabase (PostgREST) tiene un límite de 1000 filas por operación. Hacemos loop para vaciar por completo.
+  if (t.schedules?.length) {
+    let d; do { const r = await sb.from('raice_schedules').delete().neq('id', '00000000-0000-0000-0000-000000000000').select('id'); d = r.data?.length || 0; } while(d === 1000);
+  }
+  if (t.teacher_courses?.length) {
+    let d; do { const r = await sb.from('raice_teacher_courses').delete().neq('id', '00000000-0000-0000-0000-000000000000').select('id'); d = r.data?.length || 0; } while(d === 1000);
+  }
+
   results.teacher_courses = await upsertBatch('raice_teacher_courses', safeTeacherCourses);
 
-  // schedules: borrar existentes y reimportar (unique es composite, no por id)
-  if (t.schedules?.length) {
-    await sb.from('raice_schedules').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-  }
-  
-  // Como safeTeacherCourses ya filtró los problemáticos, todos se insertaron con éxito.
-  // Usamos sus IDs para validar los schedules de forma segura y sin límite de 1000 rows.
   const validTcIds = new Set(safeTeacherCourses.map(tc => tc.id));
 
   const safeSchedules = (t.schedules || []).filter(s => !s.teacher_course_id || validTcIds.has(s.teacher_course_id));
