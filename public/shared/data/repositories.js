@@ -147,4 +147,85 @@ R.fetchRectorInsights = async function(apiFn) {
   return r.ok ? r.data : null;
 };
 
+// ══════════════════════════════════════════════════════════
+// OPERACIONES DE ESCRITURA (CRUD compartido entre vistas)
+// ══════════════════════════════════════════════════════════
+
+// ── Cases CRUD ──────────────────────────────────────────
+R.createCase = async function(apiFn, payload) {
+  var r = await apiFn('/raice/cases', { method:'POST', body: JSON.stringify(payload) });
+  return { ok: r.ok, data: r.data, error: r.data?.error };
+};
+
+R.updateCaseStatus = async function(apiFn, id, status) {
+  var r = await apiFn('/raice/cases', { method:'PUT', body: JSON.stringify({ id: id, status: status }) });
+  return { ok: r.ok };
+};
+
+R.updateCaseType = async function(apiFn, id, type) {
+  var r = await apiFn('/raice/cases', { method:'PUT', body: JSON.stringify({ id: id, type: type }) });
+  return { ok: r.ok };
+};
+
+// ── Students CRUD ───────────────────────────────────────
+R.createStudent = async function(apiFn, payload) {
+  var r = await apiFn('/raice/students', { method:'POST', body: JSON.stringify(payload) });
+  return { ok: r.ok, data: r.data, error: r.data?.error };
+};
+
+R.updateStudent = async function(apiFn, payload) {
+  var r = await apiFn('/raice/students', { method:'PUT', body: JSON.stringify(payload) });
+  return { ok: r.ok, data: r.data, error: r.data?.error };
+};
+
+R.deleteStudent = async function(apiFn, id) {
+  var r = await apiFn('/raice/students', { method:'DELETE', body: JSON.stringify({ id: id }) });
+  return { ok: r.ok, error: r.data?.error };
+};
+
+// ── Acudientes CRUD ─────────────────────────────────────
+R.createAcudiente = async function(apiFn, payload) {
+  var r = await apiFn('/raice/acudientes', { method:'POST', body: JSON.stringify(payload) });
+  return { ok: r.ok, data: r.data, error: r.data?.error };
+};
+
+R.updateAcudiente = async function(apiFn, payload) {
+  var r = await apiFn('/raice/acudientes', { method:'PUT', body: JSON.stringify(payload) });
+  return { ok: r.ok, error: r.data?.error };
+};
+
+R.deleteAcudiente = async function(apiFn, id) {
+  var r = await apiFn('/raice/acudientes', { method:'DELETE', body: JSON.stringify({ id: id }) });
+  return { ok: r.ok, error: r.data?.error };
+};
+
+// ── Attendance ──────────────────────────────────────────
+R.saveAttendance = async function(apiFn, payload) {
+  var r = await apiFn('/raice/attendance', { method:'POST', body: JSON.stringify(payload) });
+  return { ok: r.ok, data: r.data, error: r.data?.error };
+};
+
+// ── Excusas CRUD ────────────────────────────────────────
+R.createExcusa = async function(apiFn, payload) {
+  var r = await apiFn('/raice/excusas', { method:'POST', body: JSON.stringify(payload) });
+  return { ok: r.ok, data: r.data, error: r.data?.error };
+};
+
+R.deleteExcusa = async function(apiFn, id) {
+  var r = await apiFn('/raice/excusas', { method:'DELETE', body: JSON.stringify({ id: id }) });
+  return { ok: r.ok, error: r.data?.error };
+};
+
+// ── Subgroup Members ────────────────────────────────────
+R.addSubgroupMembers = async function(apiFn, subgroupId, studentIds) {
+  var rows = studentIds.map(function(sid) { return { subgroup_course_id: subgroupId, student_id: sid }; });
+  var r = await apiFn('/raice/subgroup-members', { method:'POST', body: JSON.stringify({ rows: rows }) });
+  return { ok: r.ok, error: r.data?.error };
+};
+
+R.removeSubgroupMember = async function(apiFn, id) {
+  var r = await apiFn('/raice/subgroup-members', { method:'DELETE', body: JSON.stringify({ id: id }) });
+  return { ok: r.ok, error: r.data?.error };
+};
+
 })(window.RAICE = window.RAICE || {});

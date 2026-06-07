@@ -2787,7 +2787,7 @@ async function deleteStudentAdmin(id) {
     showToast('Eliminación cancelada — el texto no coincide', 'warning');
     return;
   }
-  const { ok } = await fetchAPI('/raice/students', { method:'DELETE', body: JSON.stringify({ id }) });
+  const { ok } = await window.RAICE.deleteStudent(fetchAPI, id);
   if (ok) { showToast('Estudiante eliminado permanentemente', 'success'); loadStudents(); }
   else showToast('Error al eliminar', 'error');
 }
@@ -3694,13 +3694,7 @@ async function loadCases() {
   document.getElementById('casos-list').innerHTML =
     '<div style="text-align:center;padding:2rem;color:var(--gray);">⏳ Cargando…</div>';
 
-  const { ok, data } = await fetchAPI('/raice/cases');
-  if (!ok) {
-    document.getElementById('casos-list').innerHTML =
-      '<div style="color:#ef4444;padding:1rem;text-align:center;">Error al cargar casos</div>';
-    return;
-  }
-  allCases = data.cases || [];
+  allCases = await window.RAICE.fetchCases(fetchAPI);
   updateCasosKPIs();
   renderCases();
 }
@@ -6973,9 +6967,7 @@ document.addEventListener('visibilitychange', () => {
     const faltaDesc = document.getElementById('admin-falta-descripcion-val')?.value || null;
     const otros     = document.getElementById('new-case-otros')?.value.trim() || null;
 
-    const { ok } = await fetchAPI('/raice/cases', {
-      method: 'POST',
-      body: JSON.stringify({
+    const { ok } = await window.RAICE.createCase(fetchAPI, {
         student_id: studentId, course_id: courseId || undefined,
         type, description,
         otros_involucrados: otros || undefined,
@@ -6984,7 +6976,6 @@ document.addEventListener('visibilitychange', () => {
         falta_numeral: faltaNum || undefined,
         falta_descripcion: faltaDesc || undefined,
         falta_categoria: document.getElementById('admin-falta-categoria')?.value || undefined,
-      })
     });
 
     btn.disabled = false;

@@ -2879,7 +2879,7 @@
       showToast('Eliminación cancelada — el texto no coincide', 'warning');
       return;
     }
-    const { ok } = await fetchAPI('/raice/students', { method:'DELETE', body: JSON.stringify({ id }) });
+    const { ok } = await window.RAICE.deleteStudent(fetchAPI, id);
     if (ok) { showToast('Estudiante eliminado permanentemente', 'success'); loadStudents(); }
     else showToast('Error al eliminar', 'error');
   }

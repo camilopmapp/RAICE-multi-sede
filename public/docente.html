@@ -2417,7 +2417,7 @@
       falta_descripcion: faltaDesc, falta_categoria: faltaCat,
     };
 
-    const { ok, data } = await fetchAPI('/raice/cases', { method:'POST', body: JSON.stringify(payload) });
+    const { ok, data } = await window.RAICE.createCase(fetchAPI, payload);
 
     if (ok) {
       if (type === 1) {
