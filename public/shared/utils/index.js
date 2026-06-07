@@ -155,7 +155,7 @@ R.checkAuth = function(expectedRole) {
     window.location.href = '/login.html';
     return null;
   }
-  return user;
+  return user || {};
 };
 
 /**

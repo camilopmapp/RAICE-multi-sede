@@ -7819,10 +7819,18 @@ async function handleBackupImport(req, res, user) {
     const ALLOWED = new Set(['raice_students', 'raice_acudientes']);
     if (!ALLOWED.has(tableName)) return res.status(400).json({ error: 'Tabla no permitida' });
     if (deleteFirst) {
-      // Para estudiantes: borrar attendance primero para evitar FK violation
+      // Para estudiantes: borrar TODAS las tablas con FK a students antes de borrar
       if (tableName === 'raice_students') {
-        await sb.from('raice_attendance').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-        await sb.from('raice_observations').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        const depTables = [
+          'raice_subgroup_members', 'raice_tipo1_escalones', 'raice_followups',
+          'raice_citations', 'raice_commitments', 'raice_excusas',
+          'raice_classroom_removals', 'raice_suspensions',
+          'raice_cases', 'raice_observations', 'raice_attendance', 'raice_acudientes',
+          'raice_student_grade_history'
+        ];
+        for (const dt of depTables) {
+          await sb.from(dt).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        }
       }
       const { error: dErr } = await sb.from(tableName)
         .delete().neq('id', '00000000-0000-0000-0000-000000000000');
@@ -7858,13 +7866,20 @@ async function handleBackupImport(req, res, user) {
     const tc = backup?.tables || {};
     const importedUserIds2  = new Set((tc.teachers || []).map(u => u.id));
     const validStats2 = new Set(['open', 'tracking', 'closed']);
-    const casesFixed2 = (tc.cases || []).map(c => ({
-      ...c,
-      falta_id:  null,
-      teacher_id: c.teacher_id && importedUserIds2.has(c.teacher_id) ? c.teacher_id : null,
-      closed_by: c.closed_by && importedUserIds2.has(c.closed_by) ? c.closed_by : null,
-      status:    validStats2.has(c.status) ? c.status : 'tracking',
-    }));
+
+    // Obtener estudiantes que realmente existen en BD (importados en step chunk)
+    const { data: existingStudents } = await sb.from('raice_students').select('id');
+    const validStudentIds = new Set((existingStudents || []).map(s => s.id));
+
+    const casesFixed2 = (tc.cases || [])
+      .filter(c => !c.student_id || validStudentIds.has(c.student_id)) // solo casos de estudiantes existentes
+      .map(c => ({
+        ...c,
+        falta_id:  null,
+        teacher_id: c.teacher_id && importedUserIds2.has(c.teacher_id) ? c.teacher_id : null,
+        closed_by: c.closed_by && importedUserIds2.has(c.closed_by) ? c.closed_by : null,
+        status:    validStats2.has(c.status) ? c.status : 'tracking',
+      }));
 
     // Casos primero (las demás tablas dependen de case_id)
     results.cases = await upsertBatch('raice_cases', casesFixed2);
@@ -7873,12 +7888,17 @@ async function handleBackupImport(req, res, user) {
     const validCaseIds = new Set(casesFixed2.map(c => c.id));
 
     // Limpiar FKs de teacher_id en tablas dependientes
-    const safeSuspensions = (tc.suspensions || []).map(s => ({
-      ...s, teacher_id: s.teacher_id && importedUserIds2.has(s.teacher_id) ? s.teacher_id : null,
-    }));
-    const safeRemovals = (tc.classroom_removals || []).map(r => ({
-      ...r, teacher_id: r.teacher_id && importedUserIds2.has(r.teacher_id) ? r.teacher_id : null,
-    }));
+    const safeSuspensions = (tc.suspensions || [])
+      .filter(s => !s.student_id || validStudentIds.has(s.student_id))
+      .map(s => ({
+        ...s,
+        coordinator_id: s.coordinator_id && importedUserIds2.has(s.coordinator_id) ? s.coordinator_id : null,
+      }));
+    const safeRemovals = (tc.classroom_removals || [])
+      .filter(r => !r.student_id || validStudentIds.has(r.student_id))
+      .map(r => ({
+        ...r, teacher_id: r.teacher_id && importedUserIds2.has(r.teacher_id) ? r.teacher_id : null,
+      }));
     const safeEscalones = (tc.tipo1_escalones || []).filter(e => validCaseIds.has(e.case_id));
 
     const [followupsR, citationsR, commitmentsR, suspensionsR, classroomR] = await Promise.all([
@@ -7892,11 +7912,13 @@ async function handleBackupImport(req, res, user) {
     results.commitments = commitmentsR; results.suspensions = suspensionsR;
     results.classroom_removals = classroomR;
     results.tipo1_escalones = await upsertBatch('raice_tipo1_escalones', safeEscalones);
-    // Excusas: limpiar registered_by FK
-    const safeExcusas = (tc.excusas || []).map(e => ({
-      ...e,
-      registered_by: e.registered_by && importedUserIds2.has(e.registered_by) ? e.registered_by : null,
-    }));
+    // Excusas: limpiar registered_by FK + filtrar student_id válido
+    const safeExcusas = (tc.excusas || [])
+      .filter(e => !e.student_id || validStudentIds.has(e.student_id))
+      .map(e => ({
+        ...e,
+        registered_by: e.registered_by && importedUserIds2.has(e.registered_by) ? e.registered_by : null,
+      }));
     try { results.excusas = await upsertBatch('raice_excusas', safeExcusas); } catch (_) {}
 
     // ── Miembros de subgrupos (depende de estudiantes y cursos ya importados) ──
@@ -8065,7 +8087,10 @@ async function handleBackupImport(req, res, user) {
   const safeTeacherCourses = (t.teacher_courses || []).filter(tc => importedUserIds.has(tc.teacher_id));
   results.teacher_courses = await upsertBatch('raice_teacher_courses', safeTeacherCourses);
 
-  // schedules: filtrar los que tienen teacher_course_id válido
+  // schedules: borrar existentes y reimportar (unique es composite, no por id)
+  if (t.schedules?.length) {
+    await sb.from('raice_schedules').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  }
   const validTcIds = new Set(safeTeacherCourses.map(tc => tc.id));
   const safeSchedules = (t.schedules || []).filter(s => !s.teacher_course_id || validTcIds.has(s.teacher_course_id));
   results.schedules = await upsertBatch('raice_schedules', safeSchedules);
