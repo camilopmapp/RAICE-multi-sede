@@ -3120,6 +3120,23 @@ async function handleCases(req, res, user) {
     const { student_id, course_id, type, description, actions_taken, notes, falta_id, falta_numeral, falta_descripcion, falta_categoria, otros_involucrados } = req.body || {};
     if (!student_id || !type || !description) return res.status(400).json({ error: 'Datos incompletos' });
 
+    // ── Anti-duplicado: si ya existe un caso idéntico (mismo estudiante, tipo,
+    // descripción y docente) creado en los últimos 30s, devolver ese en vez de
+    // crear otro. Evita duplicados por doble-click o reenvío de red.
+    const since = new Date(Date.now() - 30000).toISOString();
+    const { data: recentDup } = await sb.from('raice_cases')
+      .select('*')
+      .eq('student_id', student_id)
+      .eq('type', type)
+      .eq('description', description)
+      .eq('teacher_id', user.id)
+      .gte('created_at', since)
+      .limit(1)
+      .maybeSingle();
+    if (recentDup) {
+      return res.status(200).json({ success: true, case: recentDup, deduped: true });
+    }
+
     // Get student info for denormalization
     const { data: student } = await sb.from('raice_students')
       .select('first_name, last_name, grade, course').eq('id', student_id).single();
