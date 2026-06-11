@@ -22,7 +22,8 @@
     --radius:16px;
   }
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-  html,body{height:100%;font-family:'DM Sans',sans-serif;background:#f1f5f9;color:var(--navy);display:flex;}
+  html,body{height:100%;}
+  body{font-family:'DM Sans',sans-serif;background:#f1f5f9;color:var(--navy);display:flex;}
 
   /* ── SIDEBAR ── */
   .sidebar{width:var(--sidebar);background:var(--sb-bg);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:100;}
@@ -51,9 +52,10 @@
   .main{margin-left:var(--sidebar);flex:1;display:flex;flex-direction:column;min-height:100vh;}
 
   /* ── TOPBAR ── */
-  .topbar{background:white;border-bottom:1.5px solid var(--border);padding:.62rem 1.5rem;display:flex;align-items:center;gap:.9rem;position:sticky;top:0;z-index:50;}
-  .page-title{font-family:'Fraunces',serif;font-size:1.05rem;font-weight:700;color:var(--navy);white-space:nowrap;}
-  .topbar-search{flex:1;max-width:420px;position:relative;}
+  .topbar{background:white;border-bottom:1px solid var(--border);padding:.85rem 2rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;}
+  .page-title{font-family:'Fraunces',serif;font-size:1.55rem;font-weight:900;color:var(--navy);}
+  .topbar-search{position:relative;width:280px;}
+  .topbar-right{display:flex;align-items:center;gap:.75rem;}
   .tb-bell{position:relative;background:none;border:none;cursor:pointer;padding:.3rem .4rem;border-radius:8px;font-size:1.05rem;color:var(--gray);transition:background .15s;}
   .tb-bell:hover{background:var(--light);}
   .tb-bell-badge{position:absolute;top:2px;right:2px;background:#dc2626;color:white;font-size:.54rem;font-weight:700;border-radius:99px;min-width:14px;height:14px;display:flex;align-items:center;justify-content:center;padding:0 3px;display:none;}
@@ -76,11 +78,10 @@
   #menu-btn{display:none;background:none;border:none;cursor:pointer;font-size:1.2rem;padding:.2rem;color:var(--navy);}
 
   /* ── CONTENT ── */
-  .content{padding:1.25rem 1.5rem;flex:1;width:100%;}
-  .section{display:none;width:100%;}
-  .section.active{display:block;animation:fadeIn .18s ease;}
+  .content{padding:2rem;flex:1;}
+  .section{display:none;}
+  .section.active{display:block;animation:fadeIn .25s ease;}
   @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-  .card{width:100%;}
 
   /* ── CARDS ── */
   .card{background:white;border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:1.2rem;}
@@ -335,11 +336,13 @@
     .dash-grid{grid-template-columns:1fr;}
     .two-col{grid-template-columns:1fr;}
     .content{padding:1rem;}
-    .topbar{padding:.65rem 1rem;}
+    .topbar{padding:.75rem 1rem;}
+    .page-title{font-size:1.1rem;}
+    .topbar-search{width:auto;flex:1;}
   }
   @media(max-width:520px){
     .kpi-grid{grid-template-columns:repeat(2,1fr);}
-    .topbar-search{max-width:none;flex:1;}
+    .topbar-search{display:none;}
   }
 </style>
 <script src="/shared/constants/index.js"></script>
@@ -562,16 +565,23 @@
           <!-- TAB 2: Umbral de riesgo -->
           <div class="att-tab-content" id="atab-umbral">
             <div class="threshold-row">
-              <label style="flex-shrink:0;">Puntaje de riesgo mínimo:</label>
-              <span class="threshold-val" id="threshold-display">40</span>
-              <input type="range" id="att-threshold" min="0" max="90" value="40" step="10"
-                     oninput="document.getElementById('threshold-display').textContent=this.value;renderAttThreshold()">
+              <label style="flex-shrink:0;">Asistencia menor a:</label>
+              <span class="threshold-val" id="threshold-display">90%</span>
+              <input type="range" id="att-threshold" min="50" max="100" value="90" step="5"
+                     oninput="document.getElementById('threshold-display').textContent=this.value+'%';renderAttThreshold()">
+              <div style="width:1px;height:20px;background:var(--border);flex-shrink:0;"></div>
+              <label style="flex-shrink:0;">Casos abiertos ≥</label>
+              <select class="filter-select" id="threshold-cases" onchange="renderAttThreshold()" style="width:70px;">
+                <option value="0">0</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3+</option>
+              </select>
               <select class="filter-select" id="threshold-grade" onchange="renderAttThreshold()">
                 <option value="">Todos los grados</option>
               </select>
-              <span style="font-size:.72rem;color:var(--gray);margin-left:.2rem;">Mayor puntaje = más crítico</span>
             </div>
-            <div id="att-threshold-bd"><div class="empty"><div class="ei">⚠️</div>Los datos cargarán automáticamente.</div></div>
+            <div id="att-threshold-bd"><div class="empty"><div class="ei">⚠️</div>Cargando datos…</div></div>
           </div>
 
           <!-- TAB 3: Por rango de fechas -->
@@ -1351,48 +1361,57 @@ function renderAttByGrade() {
 function renderAttThreshold() {
   const el = document.getElementById('att-threshold-bd');
   if (!el || !_insights) return;
-  const threshold   = parseInt(document.getElementById('att-threshold')?.value || '40');
-  const gradeFilter = document.getElementById('threshold-grade')?.value || '';
+  const attThreshold  = parseInt(document.getElementById('att-threshold')?.value || '90');
+  const casesMin      = parseInt(document.getElementById('threshold-cases')?.value || '0');
+  const gradeFilter   = document.getElementById('threshold-grade')?.value || '';
 
-  let list = (_insights.students_at_risk || []).filter(s => (s.risk_score || 0) >= threshold);
-  if (gradeFilter) list = list.filter(s => (s.course||'') === gradeFilter);
-  list.sort((a,b) => (b.risk_score||0) - (a.risk_score||0));
+  // att_pct is null when no attendance records exist — treat null as 0% (worst case)
+  let list = (_insights.students_at_risk || []).filter(s => {
+    const pct = s.att_pct ?? 0;
+    if (pct >= attThreshold) return false;
+    if ((s.open_cases || 0) < casesMin) return false;
+    if (gradeFilter && (s.course||'') !== gradeFilter) return false;
+    return true;
+  });
+  list.sort((a,b) => (a.att_pct ?? 0) - (b.att_pct ?? 0));
 
   if (!list.length) {
-    el.innerHTML = `<div class="empty"><div class="ei">✓</div>Sin estudiantes con puntaje ≥ ${threshold}${gradeFilter?' en '+gradeFilter:''}.</div>`;
+    el.innerHTML = `<div class="empty"><div class="ei">✓</div>Ningún estudiante cumple los filtros actuales.</div>`;
     return;
   }
 
+  const chips = [`asistencia < ${attThreshold}%`, casesMin>0?`≥${casesMin} caso${casesMin>1?'s':''}`:null, gradeFilter||null].filter(Boolean).join(' · ');
   el.innerHTML = `
-  <div style="font-size:.78rem;color:var(--gray);margin-bottom:.75rem;padding:.1rem 0;">
-    <strong style="color:var(--navy);">${list.length}</strong> estudiante${list.length!==1?'s':''} con puntaje de riesgo ≥ ${threshold}${gradeFilter?' · '+gradeFilter:''}
+  <div style="font-size:.78rem;color:var(--gray);margin-bottom:.85rem;">
+    <strong style="color:var(--navy);">${list.length}</strong> estudiante${list.length!==1?'s':''} · ${chips}
   </div>
-  <div style="overflow-x:auto;width:100%;"><table class="grade-table" style="width:100%;min-width:480px;">
+  <div style="overflow-x:auto;"><table class="grade-table" style="width:100%;">
     <thead><tr>
       <th>Estudiante</th>
       <th style="text-align:center;">Grado</th>
       <th style="text-align:center;">% Asist.</th>
-      <th style="text-align:center;">Casos</th>
-      <th style="text-align:center;">Puntaje riesgo</th>
+      <th style="text-align:center;">Casos abiertos</th>
+      <th style="text-align:center;">Riesgo</th>
       <th></th>
     </tr></thead><tbody>
     ${list.map(s => {
-      const name   = s.name || ((s.last_name||'') + ', ' + (s.first_name||''));
-      const course = s.course || '—';
-      const attPct = s.att_pct != null ? s.att_pct : '—';
-      const attColor = s.att_pct != null ? (s.att_pct>=90?'#16a34a':s.att_pct>=75?'#ca8a04':'#dc2626') : 'var(--gray)';
-      const score  = s.risk_score || 0;
-      const scoreColor = score>=70?'#dc2626':score>=40?'#f59e0b':'#64748b';
-      const scoreBg    = score>=70?'#fee2e2':score>=40?'#fef3c7':'#f1f5f9';
+      const name     = s.name || ((s.last_name||'') + ', ' + (s.first_name||''));
+      const course   = s.course || '—';
+      const pct      = s.att_pct;
+      const attLabel = pct != null ? pct+'%' : 'Sin reg.';
+      const attColor = pct != null ? (pct>=90?'#16a34a':pct>=75?'#ca8a04':'#dc2626') : '#64748b';
+      const score    = s.risk_score || 0;
+      const sColor   = score>=100?'#dc2626':score>=50?'#f59e0b':'#64748b';
+      const sBg      = score>=100?'#fee2e2':score>=50?'#fef3c7':'#f1f5f9';
       return `<tr>
-        <td style="font-weight:600;padding:.42rem .8rem;font-size:.83rem;">${esc(name)}</td>
-        <td style="text-align:center;color:var(--gray);font-size:.8rem;padding:.42rem .6rem;">${esc(course)}</td>
-        <td style="text-align:center;font-weight:700;color:${attColor};padding:.42rem .6rem;">${attPct !== '—' ? attPct+'%' : '—'}</td>
-        <td style="text-align:center;padding:.42rem .6rem;">${s.open_cases||0}</td>
-        <td style="text-align:center;padding:.42rem .6rem;">
-          <span style="display:inline-block;font-size:.75rem;font-weight:700;padding:.14rem .5rem;border-radius:6px;background:${scoreBg};color:${scoreColor};">${score}</span>
+        <td style="font-weight:600;padding:.45rem .9rem;font-size:.84rem;">${esc(name)}</td>
+        <td style="text-align:center;color:var(--gray);font-size:.8rem;padding:.45rem .6rem;">${esc(course)}</td>
+        <td style="text-align:center;font-weight:700;color:${attColor};padding:.45rem .6rem;">${attLabel}</td>
+        <td style="text-align:center;padding:.45rem .6rem;">${s.open_cases||0}</td>
+        <td style="text-align:center;padding:.45rem .6rem;">
+          <span style="display:inline-block;font-size:.74rem;font-weight:700;padding:.12rem .48rem;border-radius:6px;background:${sBg};color:${sColor};">${score}</span>
         </td>
-        <td style="padding:.42rem .8rem;">
+        <td style="padding:.45rem .9rem;">
           <button class="btn-sm" onclick="openFichaByName('${esc(name)}')">Ver ficha</button>
         </td>
       </tr>`;
