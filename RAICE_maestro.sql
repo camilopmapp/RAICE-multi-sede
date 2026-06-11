@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS raice_users (
   last_name            TEXT        NOT NULL DEFAULT '',
   email                TEXT,
   role                 TEXT        NOT NULL
-                                   CHECK (role IN ('superadmin','admin','rector','teacher')),
+                                   CHECK (role IN ('superadmin','admin','rector','teacher','counselor')),
   subject              TEXT,
   sede_id              UUID        REFERENCES raice_sedes(id) ON DELETE SET NULL,
   password_hash        TEXT        NOT NULL,
@@ -580,10 +580,10 @@ CREATE TABLE IF NOT EXISTS raice_student_grade_history (
 -- Seguras sobre instalaciones anteriores — idempotentes
 -- =====================================================================
 
--- Roles: asegurar que rector esté incluido
+-- Roles: asegurar que todos los roles estén incluidos
 ALTER TABLE raice_users DROP CONSTRAINT IF EXISTS raice_users_role_check;
 ALTER TABLE raice_users ADD CONSTRAINT raice_users_role_check
-  CHECK (role IN ('superadmin','admin','rector','teacher'));
+  CHECK (role IN ('superadmin','admin','rector','teacher','counselor'));
 
 -- Estudiantes: incluir 'graduated' y 'desertor' para fin de año escolar y deserción
 ALTER TABLE raice_students DROP CONSTRAINT IF EXISTS raice_students_status_check;
