@@ -91,7 +91,9 @@
   .kpi-lbl{font-size:.67rem;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:.04em;margin-top:.2rem;}
 
   /* ── DASHBOARD GRID ── */
-  .dash-grid{display:grid;grid-template-columns:1fr 320px;gap:1.2rem;}
+  .dash-grid{display:grid;grid-template-columns:1fr 300px 280px;gap:1.2rem;}
+  @media(max-width:1280px){.dash-grid{grid-template-columns:1fr 280px;}}
+  @media(max-width:880px){.dash-grid{grid-template-columns:1fr;}}
 
   /* ── ALERTS ── */
   .a-row{display:flex;align-items:flex-start;gap:.5rem;padding:.42rem 0;border-bottom:1px solid var(--border);}
@@ -143,6 +145,58 @@
   .exc-item:last-child{border-bottom:none;}
   .exc-name{font-weight:600;color:var(--navy);}
   .exc-meta{font-size:.72rem;color:var(--gray);margin-top:.1rem;}
+
+  /* ── FILTER BAR ── */
+  .filter-bar{display:flex;gap:.55rem;align-items:center;flex-wrap:wrap;padding:.85rem 1.35rem;border-bottom:1px solid var(--border);background:var(--light);}
+  .filter-input{padding:.38rem .7rem;border:1.5px solid var(--border);border-radius:8px;font-size:.8rem;font-family:'DM Sans',sans-serif;outline:none;color:var(--navy);background:white;min-width:150px;}
+  .filter-input:focus{border-color:var(--violet2);}
+  .filter-select{padding:.38rem .55rem;border:1.5px solid var(--border);border-radius:8px;font-size:.8rem;font-family:'DM Sans',sans-serif;outline:none;color:var(--navy);background:white;}
+  .filter-select:focus{border-color:var(--violet2);}
+  .filter-pills{display:flex;gap:.3rem;}
+  .fpill{padding:.3rem .65rem;border-radius:7px;border:1.5px solid var(--border);background:white;color:var(--gray);font-size:.75rem;font-weight:600;cursor:pointer;transition:all .15s;font-family:'DM Sans',sans-serif;}
+  .fpill:hover{border-color:var(--violet2);color:var(--violet);}
+  .fpill.active{background:var(--violet);color:white;border-color:var(--violet);}
+  .fpill.fp-t1.active{background:#f59e0b;border-color:#f59e0b;color:white;}
+  .fpill.fp-t2.active{background:#f97316;border-color:#f97316;color:white;}
+  .fpill.fp-t3.active{background:#dc2626;border-color:#dc2626;color:white;}
+  .filter-sep{width:1px;height:20px;background:var(--border);flex-shrink:0;}
+  .filter-count{font-size:.76rem;font-weight:700;color:var(--gray);white-space:nowrap;}
+
+  /* ── ATT TABS ── */
+  .att-tabs{display:flex;gap:.35rem;margin-bottom:1.2rem;border-bottom:1.5px solid var(--border);padding-bottom:0;}
+  .att-tab{padding:.58rem 1.05rem;border:none;background:none;color:var(--gray);font-size:.84rem;font-weight:600;cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-2px;transition:all .15s;font-family:'DM Sans',sans-serif;}
+  .att-tab:hover{color:var(--navy);}
+  .att-tab.active{color:var(--violet);border-bottom-color:var(--violet);}
+  .att-tab-content{display:none;}
+  .att-tab-content.active{display:block;animation:fadeIn .18s ease;}
+
+  /* ── RISK TABLE ── */
+  .risk-table{width:100%;border-collapse:collapse;font-size:.82rem;}
+  .risk-table th{text-align:left;padding:.4rem .6rem;border-bottom:1.5px solid var(--border);font-size:.72rem;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.03em;}
+  .risk-table td{padding:.45rem .6rem;border-bottom:1px solid var(--border);}
+  .risk-table tr:last-child td{border-bottom:none;}
+  .risk-table tr:hover td{background:var(--light);}
+  .risk-table tr{cursor:pointer;}
+  .risk-badge{display:inline-block;font-size:.68rem;font-weight:700;padding:.12rem .45rem;border-radius:5px;}
+  .rb-alto{background:#fee2e2;color:#991b1b;}
+  .rb-medio{background:#fef3c7;color:#92400e;}
+  .rb-bajo{background:#fef9c3;color:#a16207;}
+
+  /* ── GRADE TABLE ── */
+  .grade-table{width:100%;border-collapse:collapse;font-size:.82rem;}
+  .grade-table th{text-align:left;padding:.4rem .7rem;border-bottom:1.5px solid var(--border);font-size:.72rem;font-weight:700;color:var(--gray);text-transform:uppercase;}
+  .grade-table td{padding:.45rem .7rem;border-bottom:1px solid var(--border);}
+  .grade-table tr:last-child td{border-bottom:none;}
+  .pct-bar-wrap{display:flex;align-items:center;gap:.5rem;}
+  .pct-bar-track{flex:1;height:7px;background:#f1f5f9;border-radius:99px;overflow:hidden;min-width:60px;}
+  .pct-bar-fill{height:100%;border-radius:99px;}
+  .pct-val{font-weight:700;font-size:.82rem;width:38px;text-align:right;flex-shrink:0;}
+
+  /* ── THRESHOLD SLIDER ── */
+  .threshold-row{display:flex;align-items:center;gap:.85rem;margin-bottom:1rem;flex-wrap:wrap;}
+  .threshold-row label{font-size:.8rem;font-weight:600;color:var(--navy);}
+  input[type=range]{accent-color:var(--violet);cursor:pointer;}
+  .threshold-val{font-family:'Fraunces',serif;font-weight:700;font-size:1.1rem;color:var(--violet);min-width:38px;}
 
   /* ── EMPTY ── */
   .empty{text-align:center;padding:1.6rem 1rem;color:var(--gray);font-size:.84rem;}
@@ -387,13 +441,22 @@
             <h3>⚠️ Alertas activas</h3>
             <span id="alerts-badge" style="font-size:.75rem;font-weight:700;color:var(--gray);"></span>
           </div>
-          <div class="card-body" id="alerts-bd">
+          <div class="card-body" id="alerts-bd" style="max-height:420px;overflow-y:auto;">
             <div class="empty"><div class="spin"></div></div>
           </div>
         </div>
         <div class="card">
           <div class="card-header"><h3>🤒 Excusas recientes</h3></div>
-          <div class="card-body" id="excusas-recent-bd">
+          <div class="card-body" id="excusas-recent-bd" style="max-height:420px;overflow-y:auto;">
+            <div class="empty"><div class="spin"></div></div>
+          </div>
+        </div>
+        <div class="card dash-risk-col">
+          <div class="card-header">
+            <h3>🚨 Top riesgo</h3>
+            <button onclick="showSection('riesgo',document.querySelector('.nav-item:nth-child(4)'),\'Estudiantes en riesgo\')" style="font-size:.72rem;color:var(--violet);background:none;border:none;cursor:pointer;font-weight:600;">Ver todos ›</button>
+          </div>
+          <div class="card-body" id="dash-risk-bd" style="max-height:420px;overflow-y:auto;">
             <div class="empty"><div class="spin"></div></div>
           </div>
         </div>
@@ -405,17 +468,33 @@
       <div class="card">
         <div class="card-header">
           <h3>📋 Casos disciplinares</h3>
-          <div style="display:flex;gap:.5rem;align-items:center;">
-            <select id="filter-cases" onchange="filterCases()"
-                    style="font-size:.76rem;padding:.22rem .5rem;border:1.5px solid var(--border);border-radius:7px;outline:none;background:var(--light);color:var(--navy);font-family:'DM Sans',sans-serif;">
-              <option value="open">Abiertos</option>
-              <option value="all">Todos</option>
-              <option value="closed">Cerrados</option>
-            </select>
-            <span style="font-size:.76rem;font-weight:700;color:var(--gray);" id="cases-badge"></span>
-          </div>
+          <span style="font-size:.78rem;font-weight:700;color:var(--gray);" id="cases-badge"></span>
         </div>
-        <div class="card-body" id="cases-bd">
+        <!-- Filter bar -->
+        <div class="filter-bar">
+          <input class="filter-input" id="cf-student" placeholder="🔍 Buscar estudiante…" oninput="filterCases()" style="min-width:170px;">
+          <div class="filter-sep"></div>
+          <div class="filter-pills">
+            <button class="fpill active"      id="fp-all" onclick="setCaseTypePill('all')">Todos</button>
+            <button class="fpill fp-t1" id="fp-t1"  onclick="setCaseTypePill('1')">T1</button>
+            <button class="fpill fp-t2" id="fp-t2"  onclick="setCaseTypePill('2')">T2</button>
+            <button class="fpill fp-t3" id="fp-t3"  onclick="setCaseTypePill('3')">T3</button>
+          </div>
+          <div class="filter-sep"></div>
+          <select class="filter-select" id="cf-grade" onchange="updateCourseFilter();filterCases()">
+            <option value="">Todos los grados</option>
+          </select>
+          <select class="filter-select" id="cf-course" onchange="filterCases()">
+            <option value="">Todos los cursos</option>
+          </select>
+          <select class="filter-select" id="cf-status" onchange="filterCases()">
+            <option value="open">Abiertos</option>
+            <option value="all">Todos</option>
+            <option value="closed">Cerrados</option>
+          </select>
+          <button class="btn-sm" onclick="clearCaseFilters()" style="flex-shrink:0;">✕ Limpiar</button>
+        </div>
+        <div class="card-body" id="cases-bd" style="padding:0;">
           <div class="empty"><div class="spin"></div></div>
         </div>
         <div id="cases-pagination" style="padding:.55rem 1.35rem;border-top:1px solid var(--border);display:none;justify-content:space-between;align-items:center;font-size:.77rem;color:var(--gray);">
@@ -449,21 +528,54 @@
     <!-- ── ASISTENCIA ── -->
     <section class="section" id="section-asistencia">
       <div class="card">
-        <div class="card-header"><h3>📅 Consultar asistencia por rango de fechas</h3></div>
+        <div class="card-header"><h3>📊 Asistencia institucional</h3></div>
         <div class="card-body">
-          <div class="att-controls">
-            <div>
-              <label>Desde</label>
-              <input type="date" id="att-from">
-            </div>
-            <div>
-              <label>Hasta</label>
-              <input type="date" id="att-to">
-            </div>
-            <button onclick="loadAttRange()" class="btn-primary">Consultar</button>
+          <div class="att-tabs">
+            <button class="att-tab active" onclick="switchAttTab('por-grado',this)">📊 Por grado</button>
+            <button class="att-tab" onclick="switchAttTab('umbral',this)">⚠️ Umbral de riesgo</button>
+            <button class="att-tab" onclick="switchAttTab('por-fecha',this)">📅 Por rango de fechas</button>
           </div>
-          <div id="att-range-bd">
-            <div class="empty"><div class="ei">📅</div>Selecciona un rango de fechas.</div>
+
+          <!-- TAB 1: Por grado -->
+          <div class="att-tab-content active" id="atab-por-grado">
+            <div style="display:flex;gap:.6rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap;">
+              <select class="filter-select" id="ag-sort" onchange="renderAttByGrade()">
+                <option value="pct-asc">% Asistencia ↑</option>
+                <option value="pct-desc">% Asistencia ↓</option>
+                <option value="name">Grado A→Z</option>
+              </select>
+              <span style="font-size:.78rem;color:var(--gray);">Datos del periodo activo</span>
+            </div>
+            <div id="att-grade-bd"><div class="empty"><div class="spin"></div></div></div>
+          </div>
+
+          <!-- TAB 2: Umbral de riesgo -->
+          <div class="att-tab-content" id="atab-umbral">
+            <div class="threshold-row">
+              <label>Mostrar estudiantes con asistencia menor a:</label>
+              <span class="threshold-val" id="threshold-display">80%</span>
+              <input type="range" id="att-threshold" min="40" max="100" value="80" step="5"
+                     oninput="document.getElementById('threshold-display').textContent=this.value+'%';renderAttThreshold()">
+              <select class="filter-select" id="threshold-grade" onchange="renderAttThreshold()">
+                <option value="">Todos los grados</option>
+              </select>
+            </div>
+            <div id="att-threshold-bd"><div class="empty"><div class="ei">⚠️</div>Ajusta el umbral para ver estudiantes en riesgo.</div></div>
+          </div>
+
+          <!-- TAB 3: Por rango de fechas -->
+          <div class="att-tab-content" id="atab-por-fecha">
+            <div class="att-controls">
+              <div><label>Desde</label><input type="date" id="att-from"></div>
+              <div><label>Hasta</label><input type="date" id="att-to"></div>
+              <select class="filter-select" id="att-grade-filter" style="align-self:flex-end;">
+                <option value="">Todos los grados</option>
+              </select>
+              <button onclick="loadAttRange()" class="btn-primary" style="align-self:flex-end;">Consultar</button>
+            </div>
+            <div id="att-range-bd">
+              <div class="empty"><div class="ei">📅</div>Selecciona un rango de fechas.</div>
+            </div>
           </div>
         </div>
       </div>
@@ -954,20 +1066,73 @@ function renderAlerts(alerts) {
 
 // ── CASES ──
 let _allCases = [], _cases = [];
+let _caseTypePill = 'all';
+
 async function loadCases() {
   _casesPage = 0;
-  document.getElementById('cases-bd').innerHTML = '<div class="empty"><div class="spin"></div></div>';
+  document.getElementById('cases-bd').innerHTML = '<div class="empty" style="padding:1.5rem;"><div class="spin"></div></div>';
   if (!_allCases.length) {
     const data = await window.RAICE.fetchCases(api);
     _allCases = data || [];
+    _buildCaseGradeSelect();
   }
+  filterCases();
+}
+
+function _buildCaseGradeSelect() {
+  const grades = [...new Set(_allCases.map(c=>c.grade).filter(Boolean))].sort((a,b)=>a-b);
+  const sel = document.getElementById('cf-grade');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Todos los grados</option>'
+    + grades.map(g=>`<option value="${g}">${g}°</option>`).join('');
+}
+
+function updateCourseFilter() {
+  const grade = document.getElementById('cf-grade').value;
+  const courses = grade
+    ? [...new Set(_allCases.filter(c=>String(c.grade)===String(grade)).map(c=>c.course).filter(Boolean))].sort()
+    : [];
+  const sel = document.getElementById('cf-course');
+  sel.innerHTML = '<option value="">Todos los cursos</option>'
+    + courses.map(c=>`<option value="${c}">${grade}°${c}</option>`).join('');
+}
+
+function setCaseTypePill(type) {
+  _caseTypePill = type;
+  ['all','t1','t2','t3'].forEach(id => {
+    const el = document.getElementById('fp-'+id);
+    if (el) el.classList.toggle('active', id === (type==='1'?'t1':type==='2'?'t2':type==='3'?'t3':'all'));
+  });
+  filterCases();
+}
+
+function clearCaseFilters() {
+  document.getElementById('cf-student').value = '';
+  document.getElementById('cf-grade').value   = '';
+  document.getElementById('cf-course').value  = '';
+  document.getElementById('cf-status').value  = 'open';
+  _caseTypePill = 'all';
+  setCaseTypePill('all');
+  updateCourseFilter();
   filterCases();
 }
 
 function filterCases() {
   _casesPage = 0;
-  const filter = document.getElementById('filter-cases').value;
-  _cases = filter==='open'?_allCases.filter(c=>c.status==='open'):filter==='closed'?_allCases.filter(c=>c.status==='closed'):_allCases;
+  const q       = (document.getElementById('cf-student')?.value||'').toLowerCase().trim();
+  const status  = document.getElementById('cf-status')?.value || 'open';
+  const grade   = document.getElementById('cf-grade')?.value  || '';
+  const course  = document.getElementById('cf-course')?.value || '';
+
+  _cases = _allCases.filter(c => {
+    if (status === 'open'   && c.status !== 'open')   return false;
+    if (status === 'closed' && c.status !== 'closed') return false;
+    if (_caseTypePill !== 'all' && String(c.type) !== _caseTypePill) return false;
+    if (grade  && String(c.grade)  !== String(grade))  return false;
+    if (course && String(c.course) !== String(course)) return false;
+    if (q && !(c.student_name||'').toLowerCase().includes(q)) return false;
+    return true;
+  });
   renderCasesPage();
 }
 
@@ -977,29 +1142,33 @@ function renderCasesPage() {
   const page  = _cases.slice(start, start + CASES_PER_PAGE);
   document.getElementById('cases-badge').textContent = total + ' caso' + (total!==1?'s':'');
   if (!page.length) {
-    document.getElementById('cases-bd').innerHTML='<div class="empty"><div class="ei">📋</div>Sin casos en este filtro.</div>';
+    document.getElementById('cases-bd').innerHTML='<div class="empty" style="padding:1.5rem;"><div class="ei">📋</div>Sin casos con estos filtros.</div>';
     document.getElementById('cases-pagination').style.display='none';
     return;
   }
-  document.getElementById('cases-bd').innerHTML = page.map(c=>{
-    const pillCls = CASE_TYPE_PILL_CLASS[c.type]||'pill-t1';
+  const TYPE_LABEL={1:'Tipo 1',2:'Tipo 2',3:'Tipo 3'};
+  const TYPE_COLOR={1:'#f59e0b',2:'#f97316',3:'#dc2626'};
+  document.getElementById('cases-bd').innerHTML = `<div style="padding:.2rem 0;">` + page.map(c=>{
+    const tc = TYPE_COLOR[c.type]||'#94a3b8';
     const statusPill = c.status==='open'?'<span class="pill-open">Abierto</span>':'<span class="pill-closed">Cerrado</span>';
-    return `<div class="c-row">
-      <span class="${pillCls}">${ESCALON_LABELS[c.type]||c.type}</span>
+    const gradeCourse = c.grade ? `${c.grade}°${c.course||''}` : '';
+    return `<div class="c-row" style="padding:.5rem 1.35rem;gap:.6rem;">
+      <span style="display:inline-flex;align-items:center;gap:.25rem;font-size:.7rem;font-weight:700;padding:.14rem .5rem;border-radius:6px;background:${tc}22;color:${tc};flex-shrink:0;">${TYPE_LABEL[c.type]||'T?'}</span>
       ${statusPill}
-      <span style="font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+      <span style="font-weight:600;font-size:.82rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
             title="${esc(c.student_name||'')} — ${esc(c.description||'')}">
-        ${esc(c.student_name||'—')} — ${esc((c.description||'').substring(0,70))}${(c.description||'').length>70?'…':''}
+        ${esc(c.student_name||'—')}
+        ${gradeCourse?`<span style="font-weight:400;color:var(--gray);font-size:.75rem;"> · ${esc(gradeCourse)}</span>`:''}
       </span>
       <span style="font-size:.72rem;color:var(--gray);white-space:nowrap;flex-shrink:0;">${formatDateCO(c.created_at)}</span>
       <button class="btn-sm" onclick="openFichaByName('${esc(c.student_name||'')}')">Ver ficha</button>
     </div>`;
-  }).join('');
+  }).join('') + `</div>`;
   const totalPages=Math.ceil(total/CASES_PER_PAGE);
   const pag=document.getElementById('cases-pagination');
   if(totalPages>1){
     pag.style.display='flex';
-    document.getElementById('cases-page-info').textContent=`Página ${_casesPage+1} de ${totalPages} (${total} total)`;
+    document.getElementById('cases-page-info').textContent=`Página ${_casesPage+1} de ${totalPages} · ${total} casos`;
     document.querySelectorAll('#cases-pagination .btn-sm')[0].disabled=_casesPage===0;
     document.querySelectorAll('#cases-pagination .btn-sm')[1].disabled=_casesPage>=totalPages-1;
   } else { pag.style.display='none'; }
@@ -1009,13 +1178,15 @@ function changeCasePage(dir){
   const totalPages=Math.ceil(_cases.length/CASES_PER_PAGE);
   _casesPage=Math.max(0,Math.min(totalPages-1,_casesPage+dir));
   renderCasesPage();
-  document.getElementById('cases-bd').scrollIntoView({behavior:'smooth',block:'start'});
+  document.getElementById('section-casos').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 function openFichaByName(name) {
+  const lname = name.toLowerCase();
   const s = _students.find(st=>
-    (st.first_name+' '+st.last_name).toLowerCase()===name.toLowerCase()||
-    (st.last_name+' '+st.first_name).toLowerCase()===name.toLowerCase()
+    (st.first_name+' '+st.last_name).toLowerCase()===lname ||
+    (st.last_name+' '+st.first_name).toLowerCase()===lname ||
+    (st.last_name+', '+st.first_name).toLowerCase()===lname
   );
   if(s){openFicha(s.id,name,s.grade?s.grade+'°'+(s.course||''):'');}
   else{toast('Busca al estudiante por nombre para ver su ficha','warning');}
@@ -1029,31 +1200,61 @@ async function loadInsights() {
   renderRisk(data.students_at_risk || []);
   renderGrades(data.grade_ranking   || []);
   renderExcusasRecientes(data.excusas_summary || {});
+  _populateAttGradeSelects(data.grade_ranking || [], data.students_at_risk || []);
+  renderAttByGrade();
+}
+
+function _populateAttGradeSelects(ranking, riskList) {
+  const gradesFromRanking = ranking.map(g => g.name || (g.grade ? g.grade+'°' : null)).filter(Boolean);
+  const gradesFromRisk    = [...new Set(riskList.map(s => s.course).filter(Boolean))];
+  const all = [...new Set([...gradesFromRanking, ...gradesFromRisk])].sort();
+  ['threshold-grade','att-grade-filter'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Todos los grados</option>'
+      + all.map(g=>`<option value="${g}">${g}</option>`).join('');
+  });
 }
 
 function renderRisk(list) {
-  const el = document.getElementById('risk-bd');
-  if (!list.length) { el.innerHTML='<div class="empty"><div class="ei">✓</div>Sin estudiantes en riesgo.</div>'; return; }
   const sorted = list.slice().sort((a,b)=>(b.risk_score||0)-(a.risk_score||0));
-  el.innerHTML = sorted.slice(0,20).map(s => {
-    const risk = classifyRisk ? classifyRisk(s.risk_score) : {label:'—', color:'#94a3b8'};
-    // API returns s.name (full name) and s.course (e.g. "11°1")
-    const name   = s.name || ((s.last_name||'') + ', ' + (s.first_name||''));
-    const course = s.course || (s.grade ? s.grade+'°'+(s.course_num||'') : '');
-    return `<div class="c-row" style="cursor:pointer;" onclick="openFichaByName('${esc(name)}')">
-      <span style="width:8px;height:8px;border-radius:50%;background:${risk.color||'#94a3b8'};flex-shrink:0;display:inline-block;"></span>
-      <span style="font-weight:600;flex:1;">${esc(name)}</span>
-      <span style="font-size:.72rem;color:var(--gray);">${esc(course)}</span>
-      <span style="font-size:.7rem;font-weight:700;padding:.1rem .4rem;border-radius:5px;background:#fee2e2;color:#991b1b;">${risk.label||'—'}</span>
-    </div>`;
-  }).join('');
+
+  // Full list in riesgo section
+  const el = document.getElementById('risk-bd');
+  if (el) {
+    if (!sorted.length) { el.innerHTML='<div class="empty"><div class="ei">✓</div>Sin estudiantes en riesgo.</div>'; }
+    else {
+      el.innerHTML = sorted.slice(0,30).map(s => _riskRow(s, true)).join('');
+    }
+  }
+
+  // Mini top-5 in dashboard
+  const dash = document.getElementById('dash-risk-bd');
+  if (dash) {
+    if (!sorted.length) { dash.innerHTML='<div class="empty" style="font-size:.8rem;padding:.5rem;">Sin alertas activas.</div>'; }
+    else {
+      dash.innerHTML = sorted.slice(0,5).map(s => _riskRow(s, false)).join('');
+    }
+  }
+}
+
+function _riskRow(s, showBtn) {
+  const risk   = classifyRisk ? classifyRisk(s.risk_score) : {label:'—', color:'#94a3b8'};
+  const name   = s.name || ((s.last_name||'') + ', ' + (s.first_name||''));
+  const course = s.course || (s.grade ? s.grade+'°'+(s.course_num||'') : '');
+  return `<div class="c-row" style="cursor:pointer;padding:.4rem .9rem;" onclick="openFichaByName('${esc(name)}')">
+    <span style="width:8px;height:8px;border-radius:50%;background:${risk.color||'#94a3b8'};flex-shrink:0;display:inline-block;"></span>
+    <span style="font-weight:600;flex:1;font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(name)}</span>
+    <span style="font-size:.7rem;color:var(--gray);flex-shrink:0;">${esc(course)}</span>
+    <span style="font-size:.68rem;font-weight:700;padding:.1rem .35rem;border-radius:5px;background:#fee2e2;color:#991b1b;flex-shrink:0;">${risk.label||'—'}</span>
+  </div>`;
 }
 
 function renderGrades(ranking) {
   const el = document.getElementById('grade-bd');
+  if (!el) return;
   if (!ranking.length) { el.innerHTML='<div class="empty"><div class="ei">📊</div>Sin datos.</div>'; return; }
-  el.innerHTML = ranking.map(g => {
-    // API returns g.pct (not g.attendance_pct) and g.name (e.g. "11°1")
+  el.innerHTML = ranking.slice(0,8).map(g => {
     const pct   = g.pct !== undefined ? g.pct : (g.attendance_pct || 0);
     const label = g.name || (g.grade ? g.grade+'°' : '—');
     const color = pct>=90?'#16a34a':pct>=75?'#ca8a04':'#dc2626';
@@ -1063,6 +1264,90 @@ function renderGrades(ranking) {
       <span class="g-pct" style="color:${color};">${pct}%</span>
     </div>`;
   }).join('');
+}
+
+// ── ATTENDANCE TABS ──
+function switchAttTab(tabId, btn) {
+  document.querySelectorAll('.att-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.att-tab-content').forEach(t => t.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const content = document.getElementById('atab-' + tabId);
+  if (content) content.classList.add('active');
+}
+
+function renderAttByGrade() {
+  const el = document.getElementById('att-grade-bd');
+  if (!el || !_insights) return;
+  const ranking = (_insights.grade_ranking || []).slice();
+  const sort = document.getElementById('ag-sort')?.value || 'pct-asc';
+  if (sort === 'pct-asc')  ranking.sort((a,b)=>(a.pct??100)-(b.pct??100));
+  if (sort === 'pct-desc') ranking.sort((a,b)=>(b.pct??0)-(a.pct??0));
+  if (sort === 'name')     ranking.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+
+  if (!ranking.length) { el.innerHTML='<div class="empty"><div class="ei">📊</div>Sin datos de asistencia.</div>'; return; }
+
+  el.innerHTML = `<div style="overflow-x:auto;"><table class="grade-table" style="width:100%;">
+    <thead><tr>
+      <th>Grado / Curso</th>
+      <th style="text-align:center;">% Asist.</th>
+      <th>Barra</th>
+      <th style="text-align:center;">Total reg.</th>
+    </tr></thead><tbody>
+    ${ranking.map(g => {
+      const pct   = g.pct !== undefined ? g.pct : (g.attendance_pct || 0);
+      const label = g.name || (g.grade ? g.grade+'°' : '—');
+      const color = pct>=90?'#16a34a':pct>=75?'#ca8a04':'#dc2626';
+      return `<tr>
+        <td style="font-weight:600;padding:.4rem .8rem;">${esc(label)}</td>
+        <td style="text-align:center;font-weight:700;color:${color};padding:.4rem .6rem;">${pct}%</td>
+        <td style="padding:.4rem .8rem;min-width:120px;">
+          <div class="pct-bar-wrap"><div style="width:${pct}%;height:100%;background:${color};border-radius:4px;transition:width .3s;"></div></div>
+        </td>
+        <td style="text-align:center;color:var(--gray);font-size:.8rem;padding:.4rem .6rem;">${g.total||'—'}</td>
+      </tr>`;
+    }).join('')}
+    </tbody></table></div>`;
+}
+
+function renderAttThreshold() {
+  const el = document.getElementById('att-threshold-bd');
+  if (!el || !_insights) return;
+  const threshold = parseInt(document.getElementById('att-threshold')?.value || '80');
+  const gradeFilter = document.getElementById('threshold-grade')?.value || '';
+  let list = (_insights.students_at_risk || []).filter(s => (s.att_pct || 0) < threshold);
+  if (gradeFilter) list = list.filter(s => (s.course||'') === gradeFilter);
+  list.sort((a,b)=>(a.att_pct||0)-(b.att_pct||0));
+
+  if (!list.length) {
+    el.innerHTML=`<div class="empty"><div class="ei">✓</div>Ningún estudiante por debajo del ${threshold}%${gradeFilter?' en '+gradeFilter:''}.</div>`;
+    return;
+  }
+
+  el.innerHTML = `<div class="threshold-row" style="font-size:.8rem;color:var(--gray);margin-bottom:.5rem;">${list.length} estudiante${list.length!==1?'s':''} con asistencia < ${threshold}%</div>
+  <div style="overflow-x:auto;"><table class="grade-table" style="width:100%;">
+    <thead><tr>
+      <th>Estudiante</th>
+      <th style="text-align:center;">Grado</th>
+      <th style="text-align:center;">% Asist.</th>
+      <th style="text-align:center;">Casos abiertos</th>
+      <th></th>
+    </tr></thead><tbody>
+    ${list.map(s => {
+      const name   = s.name || ((s.last_name||'') + ', ' + (s.first_name||''));
+      const course = s.course || '';
+      const pct    = s.att_pct || 0;
+      const color  = pct>=90?'#16a34a':pct>=75?'#ca8a04':'#dc2626';
+      return `<tr>
+        <td style="font-weight:600;padding:.4rem .8rem;">${esc(name)}</td>
+        <td style="text-align:center;color:var(--gray);font-size:.82rem;padding:.4rem .6rem;">${esc(course)}</td>
+        <td style="text-align:center;font-weight:700;color:${color};padding:.4rem .6rem;">${pct}%</td>
+        <td style="text-align:center;padding:.4rem .6rem;">${s.open_cases||0}</td>
+        <td style="padding:.4rem .8rem;">
+          <button class="btn-sm" onclick="openFichaByName('${esc(name)}')">Ver ficha</button>
+        </td>
+      </tr>`;
+    }).join('')}
+    </tbody></table></div>`;
 }
 
 function renderExcusasRecientes(summary) {
@@ -1118,40 +1403,45 @@ function renderGradeSchedule() {
 
 // ── ASISTENCIA RANGO ──
 async function loadAttRange() {
-  const from=document.getElementById('att-from').value;
-  const to  =document.getElementById('att-to').value;
-  if(!from||!to){toast('Selecciona ambas fechas','warning');return;}
-  const el=document.getElementById('att-range-bd');
-  el.innerHTML='<div class="empty"><div class="spin"></div></div>';
-  const data=await window.RAICE.fetchAttendance(api,{from,to});
-  if(!data||!data.length){el.innerHTML='<div class="empty"><div class="ei">📋</div>Sin registros en ese período.</div>';return;}
-  const byCourse={};
-  data.forEach(r=>{
-    const key=(r.grade||'?')+'°'+(r.course||'');
-    if(!byCourse[key])byCourse[key]={P:0,A:0,T:0,PE:0,total:0};
-    byCourse[key][r.status]=(byCourse[key][r.status]||0)+1;
+  const from = document.getElementById('att-from').value;
+  const to   = document.getElementById('att-to').value;
+  if (!from || !to) { toast('Selecciona ambas fechas','warning'); return; }
+  const gradeFilter = document.getElementById('att-grade-filter')?.value || '';
+  const el = document.getElementById('att-range-bd');
+  el.innerHTML = '<div class="empty"><div class="spin"></div></div>';
+  const data = await window.RAICE.fetchAttendance(api, {from, to});
+  if (!data || !data.length) { el.innerHTML='<div class="empty"><div class="ei">📋</div>Sin registros en ese período.</div>'; return; }
+
+  const byCourse = {};
+  data.forEach(r => {
+    const key = (r.grade||'?')+'°'+(r.course||'');
+    if (gradeFilter && key !== gradeFilter) return;
+    if (!byCourse[key]) byCourse[key] = {P:0,A:0,T:0,PE:0,total:0};
+    byCourse[key][r.status] = (byCourse[key][r.status]||0) + 1;
     byCourse[key].total++;
   });
-  const rows=Object.entries(byCourse).sort((a,b)=>a[0].localeCompare(b[0]));
-  el.innerHTML=`<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:.82rem;">
-    <thead><tr style="background:var(--navy);color:white;">
-      <th style="padding:.42rem .75rem;text-align:left;">Grado</th>
-      <th style="padding:.42rem .75rem;text-align:center;">Presentes</th>
-      <th style="padding:.42rem .75rem;text-align:center;">Ausentes</th>
-      <th style="padding:.42rem .75rem;text-align:center;">Tardanzas</th>
-      <th style="padding:.42rem .75rem;text-align:center;">Excusas</th>
-      <th style="padding:.42rem .75rem;text-align:center;">% Asist.</th>
+  const rows = Object.entries(byCourse).sort((a,b) => a[0].localeCompare(b[0]));
+  if (!rows.length) { el.innerHTML='<div class="empty"><div class="ei">📋</div>Sin registros para ese grado en el período.</div>'; return; }
+
+  el.innerHTML = `<div style="overflow-x:auto;"><table class="grade-table" style="width:100%;">
+    <thead><tr>
+      <th>Grado/Curso</th>
+      <th style="text-align:center;">Presentes</th>
+      <th style="text-align:center;">Ausentes</th>
+      <th style="text-align:center;">Tardanzas</th>
+      <th style="text-align:center;">Excusas</th>
+      <th style="text-align:center;">% Asist.</th>
     </tr></thead><tbody>
-    ${rows.map(([k,v])=>{
-      const pct=v.P+v.A+v.T>0?Math.round((v.P+v.T)/(v.P+v.A+v.T)*100):null;
-      const color=pct===null?'#64748b':pct>=90?'#16a34a':pct>=75?'#ca8a04':'#dc2626';
-      return `<tr style="border-bottom:1px solid var(--border);">
-        <td style="padding:.35rem .75rem;font-weight:600;">${esc(k)}</td>
-        <td style="padding:.35rem .75rem;text-align:center;color:#16a34a;font-weight:600;">${v.P||0}</td>
-        <td style="padding:.35rem .75rem;text-align:center;color:#dc2626;font-weight:600;">${v.A||0}</td>
-        <td style="padding:.35rem .75rem;text-align:center;color:#f59e0b;font-weight:600;">${v.T||0}</td>
-        <td style="padding:.35rem .75rem;text-align:center;color:#6366f1;font-weight:600;">${v.PE||0}</td>
-        <td style="padding:.35rem .75rem;text-align:center;font-weight:700;color:${color};">${pct!==null?pct+'%':'—'}</td>
+    ${rows.map(([k,v]) => {
+      const pct   = v.P+v.A+v.T > 0 ? Math.round((v.P+v.T)/(v.P+v.A+v.T)*100) : null;
+      const color = pct===null?'#64748b':pct>=90?'#16a34a':pct>=75?'#ca8a04':'#dc2626';
+      return `<tr>
+        <td style="font-weight:600;padding:.4rem .8rem;">${esc(k)}</td>
+        <td style="text-align:center;color:#16a34a;font-weight:600;padding:.4rem .6rem;">${v.P||0}</td>
+        <td style="text-align:center;color:#dc2626;font-weight:600;padding:.4rem .6rem;">${v.A||0}</td>
+        <td style="text-align:center;color:#f59e0b;font-weight:600;padding:.4rem .6rem;">${v.T||0}</td>
+        <td style="text-align:center;color:#6366f1;font-weight:600;padding:.4rem .6rem;">${v.PE||0}</td>
+        <td style="text-align:center;font-weight:700;color:${color};padding:.4rem .6rem;">${pct!==null?pct+'%':'—'}</td>
       </tr>`;
     }).join('')}
     </tbody></table></div>`;
