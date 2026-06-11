@@ -236,6 +236,7 @@
   .pill-teal { background:#ccfbf1; color:#0f766e; }
   .pill-gold { background:#fef3c7; color:#92400e; }
   .pill-orange { background:#fed7aa; color:#9a3412; }
+  .pill-purple { background:#ede9fe; color:#5b21b6; }
 
   /* === FORM === */
   .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
@@ -288,7 +289,7 @@
   }
   .modal-overlay.open { display:flex; }
   .modal {
-    background:var(--white); border-radius:20px;
+    background:var(--white); border-radius:20px; overflow:hidden;
     width:100%; max-width:520px;
     box-shadow:0 20px 60px rgba(15,31,61,.25);
     animation:modalIn .25s ease;
@@ -3424,8 +3425,8 @@
       tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--gray);">Sin usuarios</td></tr>';
       return;
     }
-    const roleLabels = { admin:'🗂️ Coordinador', teacher:'👨‍🏫 Docente', superadmin:'🛡️ Superadmin', rector:'🏫 Rector' };
-    const rolePills  = { admin:'pill-blue', teacher:'pill-teal', superadmin:'pill-gold', rector:'pill-yellow' };
+    const roleLabels = { admin:'🗂️ Coordinador', teacher:'👨‍🏫 Docente', superadmin:'🛡️ Superadmin', rector:'🏫 Rector', counselor:'🧠 Orientador' };
+    const rolePills  = { admin:'pill-blue', teacher:'pill-teal', superadmin:'pill-gold', rector:'pill-yellow', counselor:'pill-purple' };
     tbody.innerHTML = list.map(u => `
       <tr>
         <td>

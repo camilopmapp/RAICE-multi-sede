@@ -101,7 +101,7 @@
 
   .modal-ov{display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.5);backdrop-filter:blur(2px);align-items:center;justify-content:center;padding:1rem;}
   .modal-ov.open{display:flex;}
-  .modal{background:white;border-radius:20px;width:100%;max-width:720px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,.25);}
+  .modal{background:white;border-radius:20px;overflow:hidden;width:100%;max-width:720px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,.25);}
   .modal-hd{padding:1rem 1.35rem;border-bottom:1.5px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;flex-shrink:0;}
   .modal-hd h3{font-family:'Fraunces',serif;font-size:1.05rem;font-weight:700;color:var(--navy);}
   .modal-sub{font-size:.78rem;color:var(--gray);margin-top:.15rem;}
@@ -591,7 +591,10 @@ document.addEventListener('click', e => {
 });
 
 // ── FICHA ESTUDIANTE ──
+var _fichaStudentId = null;
+
 async function openFicha(id, name, grade) {
+  _fichaStudentId = id;
   clearSearch();
   const ov = document.getElementById('modal-ficha');
   document.getElementById('ficha-title').textContent = name;
@@ -605,176 +608,306 @@ async function openFicha(id, name, grade) {
 
 function closeFicha() { document.getElementById('modal-ficha').classList.remove('open'); }
 
+async function reloadFichaWithPeriod(studentId, periodId) {
+  document.getElementById('ficha-bd').innerHTML = '<div class="empty"><div class="spin"></div></div>';
+  const data = await window.RAICE.fetchStudentFicha(api, studentId, false, periodId);
+  if (!data) { document.getElementById('ficha-bd').innerHTML = '<div class="empty">No se pudo cargar la ficha.</div>'; return; }
+  document.getElementById('ficha-bd').innerHTML = renderFichaHTML(data);
+}
+
 function renderFichaHTML(d) {
   const s = d.student || {};
   const ini = getInitials(s.first_name, s.last_name);
   const grade = s.grade ? s.grade + '°' + (s.course || '') : '—';
-  const attArr = d.attendance_summary || [];
-  const totalDays = attArr.length;
-  const P = attArr.filter(x => x.status === 'P').length;
-  const A = attArr.filter(x => x.status === 'A').length;
-  const T = attArr.filter(x => x.status === 'T').length;
-  const PE = attArr.filter(x => x.status === 'PE').length;
-  const attPct = (P + T + PE > 0) ? Math.round((P + T) / (P + A + T) * 100) : null;
 
-  const calHTML = (() => {
-    const byMonth = {};
-    attArr.forEach(r => {
-      const dt = new Date(r.date + 'T12:00:00');
-      const key = dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2,'0');
-      if (!byMonth[key]) byMonth[key] = [];
-      byMonth[key].push(r);
-    });
-    const DAYS = ['L','M','X','J','V'];
-    let html = '<div class="mini-cal">' + DAYS.map(d => `<div class="cal-hdr">${d}</div>`).join('') + '</div>';
-    Object.keys(byMonth).sort().forEach(mKey => {
-      const rows = byMonth[mKey];
-      const [y, m] = mKey.split('-').map(Number);
-      const label = new Date(y, m - 1, 1).toLocaleDateString('es-CO', {month:'long', year:'numeric'});
-      let cal = `<div class="mini-cal"><div class="cal-month-lbl">${label}</div>` + DAYS.map(d => `<div class="cal-hdr">${d}</div>`).join('');
-      const firstDow = new Date(y, m - 1, 1).getDay();
-      const offset = firstDow === 0 ? 4 : firstDow - 1;
-      for (let i = 0; i < offset; i++) cal += '<div class="cal-day cal-empty"></div>';
-      const daysInMonth = new Date(y, m, 0).getDate();
-      const byDay = {};
-      rows.forEach(r => { const dd = parseInt(r.date.split('-')[2]); byDay[dd] = r.status; });
-      for (let dd = 1; dd <= daysInMonth; dd++) {
-        const dow = new Date(y, m - 1, dd).getDay();
-        if (dow === 0 || dow === 6) continue;
-        const st = byDay[dd];
-        const cls = st ? `cal-${st}` : 'cal-nodata';
-        cal += `<div class="cal-day ${cls}" title="${dd}/${m}: ${st || '—'}">${dd}</div>`;
-      }
-      html += cal + '</div>';
-    });
-    return html;
-  })();
+  // ── ASISTENCIA ──
+  const att = d.att_records || [];
+  const cntP  = att.filter(a=>a.status==='P').length;
+  const cntA  = att.filter(a=>a.status==='A').length;
+  const cntT  = att.filter(a=>a.status==='T').length;
+  const cntPE = att.filter(a=>a.status==='PE').length;
+  const cntS  = att.filter(a=>a.status==='S').length;
+  const totalH    = att.length;
+  const countable = totalH - cntS - cntPE;
+  const pct = countable > 0 ? Math.round(((cntP + cntT) / countable) * 100) : (totalH - cntS > 0 ? 100 : 0);
+  const pctColor = pct >= 80 ? '#16a34a' : '#dc2626';
 
-  let html = `<div class="ficha-body">
+  // Calendario 5 semanas
+  const sp = {A:4,T:3,PE:2,P:1,S:1};
+  const dm = {};
+  for (const r of att) { const c = dm[r.date]; if (!c||(sp[r.status]||0)>(sp[c.status]||0)) dm[r.date]=r; }
+  const MO = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const DH = ['Lu','Ma','Mi','Ju','Vi'];
+  const today = new Date();
+  const dow = (today.getDay()+6)%7;
+  const mon = new Date(today); mon.setDate(today.getDate()-dow);
+  const start = new Date(mon); start.setDate(mon.getDate()-28);
+  let calHtml = '<div class="mini-cal">'+DH.map(x=>`<div class="cal-hdr">${x}</div>`).join('');
+  let pm = -1;
+  for (let w=0;w<5;w++) {
+    const mo=new Date(start); mo.setDate(start.getDate()+w*7);
+    const m=mo.getMonth();
+    if (m!==pm) { calHtml+=`<div class="cal-month-lbl">${MO[m]} ${mo.getFullYear()}</div>`; pm=m; }
+    for (let dd=0;dd<5;dd++) {
+      const dt=new Date(mo); dt.setDate(mo.getDate()+dd);
+      const k=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+      const iF=dt>today; const r=dm[k]; const st=r&&r.status;
+      calHtml+=`<div class="cal-day ${iF?'cal-empty':!st?'cal-nodata':st==='S'?'cal-P':'cal-'+st}" title="${k}">${dt.getDate()}</div>`;
+    }
+  }
+  calHtml += '</div>';
+
+  // Detalle inasistencias
+  const ORD = CLASS_HOUR_ORDINALS || [];
+  const det = att.filter(a=>a.status==='A'||a.status==='T')
+    .sort((a,b)=>b.date.localeCompare(a.date)||(a.class_hour||0)-(b.class_hour||0)).slice(0,30);
+  const attDetailHtml = det.length
+    ? `<div class="att-list">${det.map(r=>`
+        <div class="att-row"><div class="att-badge att-${r.status}">${r.status}</div>
+          <div><div style="font-size:.84rem;font-weight:500;">${formatDateCO(r.date)}${r.class_hour?` · ${ORD[r.class_hour]||r.class_hour+'ª'} hora`:''}${r.subject?` · ${esc(r.subject)}`:''}</div>
+          <div style="font-size:.75rem;color:var(--gray);">${r.status==='A'?'Ausente':'Tardanza'}${r.teacher_name?` · 👤 ${esc(r.teacher_name)}`:''}</div></div>
+        </div>`).join('')}</div>`
+    : '<div class="empty-state">✅ Sin inasistencias ni tardanzas registradas</div>';
+
+  // Por asignatura
+  const subjects = d.att_by_subject || [];
+  const subjHtml = subjects.length ? `
+    <div class="card" style="margin-top:.75rem;">
+      <div class="card-header">Asistencia por asignatura</div>
+      <div class="card-body"><table class="subj-table"><thead><tr>
+        <th>Asignatura</th><th style="text-align:center;">✅</th><th style="text-align:center;">❌</th>
+        <th style="text-align:center;">⏰</th><th style="text-align:center;">🤒</th><th style="text-align:center;">%</th>
+      </tr></thead><tbody>${subjects.map(sub=>{
+        const pc=sub.pct===null?'var(--gray)':sub.pct>=80?'#16a34a':sub.pct>=60?'#d97706':'#dc2626';
+        return `<tr><td style="font-weight:600;">${esc(sub.subject)}</td>
+          <td style="text-align:center;">${sub.present}</td>
+          <td style="text-align:center;color:${sub.absent>0?'#dc2626':'inherit'}">${sub.absent}</td>
+          <td style="text-align:center;">${sub.late}</td><td style="text-align:center;">${sub.permit}</td>
+          <td style="text-align:center;"><span class="subj-pct" style="color:${pc}">${sub.pct!==null?sub.pct+'%':'—'}</span></td></tr>`;
+      }).join('')}</tbody></table></div></div>` : '';
+
+  // Excusas
+  const excusas = d.excusas || [];
+  const excusasHtml = excusas.length ? `
+    <div class="card" style="margin-top:.75rem;">
+      <div class="card-header">Excusas registradas</div>
+      <div class="card-body"><div class="att-list">${excusas.map(e=>{
+        const ht=e.horas&&e.horas.length?`Horas: ${e.horas.join(', ')}`:'Día completo';
+        return `<div class="att-row"><div class="att-badge att-PE">🤒</div>
+          <div><div style="font-size:.84rem;font-weight:500;">${formatDateCO(e.date)} · <span style="color:var(--gray);font-weight:400;">${ht}</span></div>
+          <div style="font-size:.8rem;color:var(--navy);margin-top:.15rem;">${esc(e.motivo||'')}</div></div></div>`;
+      }).join('')}</div></div>` : '';
+
+  // ── OBSERVACIONES ──
+  const obs = d.observations || [];
+  const obsHtml = obs.length
+    ? obs.map(o=>`<div class="obs-item">
+        <div class="obs-dot obs-${o.type==='positive'?'pos':o.type==='negative'?'neg':'neu'}"></div>
+        <div><div class="obs-text">${esc(o.text||o.description||'')}</div>
+        <div class="obs-date">${o.type==='positive'?'Positiva':o.type==='negative'?'Negativa':'Neutral'} · ${formatDateCO((o.created_at||'').slice(0,10))}${o.teacher_name?` · 👤 ${esc(o.teacher_name)}`:''}</div></div>
+      </div>`).join('')
+    : '<div class="empty-state">Sin observaciones registradas.</div>';
+
+  // ── CASOS ──
+  const cases = d.cases || [];
+  const tl = {1:'Tipo 1 · Situación de Aula',2:'Tipo 2 · Situación Escolar',3:'Tipo 3 · Situación Grave'};
+  const casesHtml = cases.length
+    ? cases.map(c=>`<div class="case-item case-t${c.type}">
+        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:.35rem;margin-bottom:.4rem;">
+          <span class="case-badge badge-t${c.type}" style="margin-bottom:0;">${tl[c.type]||'Tipo '+c.type}</span>
+          ${c.status==='closed'?'<span class="case-badge badge-closed" style="margin-bottom:0;">Cerrado</span>':'<span class="case-badge" style="background:#fef9c3;color:#854d0e;margin-bottom:0;">Abierto</span>'}
+        </div>
+        <div class="case-desc">${esc(c.description||'')}</div>
+        ${c.actions_taken?`<div style="font-size:.78rem;color:var(--navy);margin-top:.4rem;">🔧 <em>${esc(c.actions_taken)}</em></div>`:''}
+        ${c.falta_numeral?`<div style="font-size:.78rem;color:var(--gray);margin-top:.3rem;">📌 ${esc(c.falta_numeral)}${c.falta_descripcion?' — '+esc(c.falta_descripcion):''}</div>`:''}
+        <div class="case-date">📅 ${formatDateCO((c.created_at||'').slice(0,10))}${c.teacher_name?` · 👤 ${esc(c.teacher_name)}`:''}</div>
+      </div>`).join('')
+    : '<div class="empty-state">✅ Sin casos RAICE registrados.</div>';
+
+  // ── COMPROMISOS ──
+  const commitments = d.commitments || [];
+  const _n=new Date();
+  const todayStr=`${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}`;
+  const commitsHtml = commitments.length
+    ? commitments.map(c=>{
+        const ov=!c.fulfilled&&c.due_date&&c.due_date<todayStr;
+        const badge=c.fulfilled
+          ?'<span style="font-size:.72rem;font-weight:700;padding:.15rem .55rem;border-radius:5px;background:#f0fdf4;color:#15803d;">✅ Cumplido</span>'
+          :ov?'<span style="font-size:.72rem;font-weight:700;padding:.15rem .55rem;border-radius:5px;background:#fee2e2;color:#991b1b;">⚠️ Vencido</span>'
+          :'<span style="font-size:.72rem;font-weight:700;padding:.15rem .55rem;border-radius:5px;background:#fef9c3;color:#854d0e;">⏳ Pendiente</span>';
+        const cls=c.fulfilled?'commit-done':ov?'commit-overdue':'commit-pending';
+        return `<div class="commit-item ${cls}"><div style="margin-bottom:.35rem;">${badge}</div>
+          <div style="font-size:.85rem;color:var(--navy);line-height:1.45;">${esc(c.description||'')}</div>
+          ${c.due_date?`<div style="font-size:.75rem;color:var(--gray);margin-top:.3rem;">📅 Fecha límite: ${formatDateCO(c.due_date)}</div>`:''}
+          ${c.signed_by?`<div style="font-size:.75rem;color:var(--gray);margin-top:.15rem;">✍️ Firmado por: ${esc(c.signed_by)}</div>`:''}
+        </div>`;
+      }).join('')
+    : '<div class="empty-state">✅ Sin compromisos registrados.</div>';
+
+  // ── DISCIPLINA ──
+  const suspensions = d.suspensions || [];
+  const removals    = d.removals    || [];
+  const suspHtml = suspensions.length
+    ? suspensions.map(sus=>`<div class="sanc-item"><div><span class="sanc-badge sanc-susp">Suspensión</span></div>
+        <div class="sanc-text">${esc(sus.reason||'')}</div>
+        <div class="sanc-date">Del ${formatDateCO(sus.start_date)} al ${formatDateCO(sus.end_date)}</div></div>`).join('')
+    : '<div class="empty-state">✅ Sin suspensiones registradas.</div>';
+  const remHtml = removals.length
+    ? removals.map(r=>`<div class="sanc-item"><div><span class="sanc-badge sanc-rem">Retiro de clase</span></div>
+        <div class="sanc-text">${esc(r.reason||'')}</div>
+        <div class="sanc-date">${formatDateCO(r.date)}${r.class_hour?` · Hora ${r.class_hour}`:''}</div></div>`).join('')
+    : '<div class="empty-state">Sin retiros de clase registrados.</div>';
+
+  // ── HORARIO ──
+  const sched = d.schedule || [];
+  const DAYS_MAP = {1:'Lunes',2:'Martes',3:'Miércoles',4:'Jueves',5:'Viernes'};
+  let schedHtml = '';
+  if (sched.length) {
+    const byDay = {};
+    sched.forEach(sl=>{ if(!byDay[sl.day_of_week]) byDay[sl.day_of_week]=[]; byDay[sl.day_of_week].push(sl); });
+    const hours = [...new Set(sched.map(sl=>sl.class_hour))].sort((a,b)=>a-b);
+    schedHtml = '<div style="overflow-x:auto;"><table class="sched-table"><thead><tr><th>Hora</th>';
+    [1,2,3,4,5].forEach(x=>{ schedHtml+=`<th>${DAYS_MAP[x]||x}</th>`; });
+    schedHtml += '</tr></thead><tbody>';
+    hours.forEach(h=>{
+      schedHtml+=`<tr><td style="font-weight:700;text-align:center;background:var(--light);">${CLASS_HOUR_ORDINALS[h]||h+'ª'}</td>`;
+      [1,2,3,4,5].forEach(dw=>{
+        const slot=(byDay[dw]||[]).find(sl=>sl.class_hour===h);
+        schedHtml+=slot?`<td><div class="sched-cell"><div class="sched-subj">${esc(slot.subject||'—')}</div><div class="sched-teacher">${esc(slot.teacher_name||'')}</div></div></td>`:'<td></td>';
+      });
+      schedHtml+='</tr>';
+    });
+    schedHtml+='</tbody></table></div>';
+  } else {
+    schedHtml='<div class="empty-state">Sin horario registrado.</div>';
+  }
+
+  // ── ACUDIENTES ──
+  const guardians = d.acudientes || [];
+  const acudHtml = guardians.length
+    ? guardians.map(g=>`<div class="acud-item"><div class="acud-ico">👤</div>
+        <div><div style="font-size:.88rem;font-weight:600;color:var(--navy);">${esc(g.name||'—')}</div>
+        <div style="font-size:.78rem;color:var(--gray);margin-top:.1rem;">${esc(g.relationship||'Acudiente')}</div>
+        ${g.phone?`<div style="font-size:.82rem;color:var(--navy);margin-top:.25rem;">📞 ${esc(g.phone)}</div>`:''}
+        ${g.email?`<div style="font-size:.82rem;color:var(--navy);margin-top:.1rem;">✉️ ${esc(g.email)}</div>`:''}
+      </div></div>`).join('')
+    : '<div class="empty-state">Sin datos de acudiente registrados.</div>';
+
+  // ── DIRECTOR ──
+  const dirHtml = (d.director&&d.director.name)?`
+    <div class="director-card">
+      <div class="director-ico">👨‍🏫</div>
+      <div><div style="font-size:.88rem;font-weight:700;color:var(--navy);">${esc(d.director.name)}</div>
+      <div style="font-size:.75rem;color:var(--gray);">Director(a) de grado</div></div>
+    </div>`:'' ;
+
+  // ── SELECTOR DE PERIODO ──
+  const periodSel = (d.periods&&d.periods.length)?`
+    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.85rem;">
+      <span style="font-size:.82rem;color:var(--gray);font-weight:600;">📅 Periodo:</span>
+      <select onchange="reloadFichaWithPeriod(_fichaStudentId,this.value)"
+              style="padding:.45rem .65rem;border:1.5px solid #e5e7eb;border-radius:8px;font-size:.85rem;background:#fff;">
+        ${d.periods.map(p=>`<option value="${p.id}" ${d.selected_period_id===p.id?'selected':''}>${esc(p.name)}${p.active?' (activo)':''}</option>`).join('')}
+        <option value="all" ${d.selected_period_id==='all'?'selected':''}>Todo el año</option>
+      </select>
+    </div>`:'' ;
+
+  return `<div class="ficha-body">
     <div class="student-card">
       <div class="student-avatar">${ini}</div>
-      <div>
-        <div class="student-name">${esc(s.last_name || '')}, ${esc(s.first_name || '')}
+      <div style="flex:1;">
+        <div class="student-name">${esc(s.last_name||'')}, ${esc(s.first_name||'')}
           <span class="student-grade">${grade}</span>
         </div>
         <div class="student-meta">
-          ${s.doc_type ? esc(s.doc_type) + ' ' : ''}${esc(s.doc_number || '—')}
-          ${s.birth_date ? ' &middot; ' + formatDateCO(s.birth_date) : ''}
-          ${s.phone ? ' &middot; ' + esc(s.phone) : ''}
+          ${s.doc_type?esc(s.doc_type)+' ':''}${esc(s.doc_number||'—')}
+          ${s.birth_date?' &middot; '+formatDateCO(s.birth_date):''}
+          ${s.phone?' &middot; '+esc(s.phone):''}
         </div>
       </div>
     </div>
     <div style="padding:1rem 1.1rem;">
+      ${dirHtml}
+      ${periodSel}
       <div class="tabs">
-        <button class="tab active" onclick="switchFichaTab('tab-att',this)">Asistencia</button>
-        <button class="tab" onclick="switchFichaTab('tab-obs',this)">Observador</button>
-        <button class="tab" onclick="switchFichaTab('tab-cases',this)">Casos RAICE</button>
-        <button class="tab" onclick="switchFichaTab('tab-sched',this)">Horario</button>
-        <button class="tab" onclick="switchFichaTab('tab-acud',this)">Acudiente</button>
+        <button class="tab active" onclick="switchFichaTab('tab-att',this)">📋 Asistencia</button>
+        <button class="tab" onclick="switchFichaTab('tab-obs',this)">👁️ Observador</button>
+        <button class="tab" onclick="switchFichaTab('tab-cases',this)">🚨 Casos</button>
+        <button class="tab" onclick="switchFichaTab('tab-commits',this)">📝 Compromisos</button>
+        <button class="tab" onclick="switchFichaTab('tab-disc',this)">⚖️ Disciplina</button>
+        <button class="tab" onclick="switchFichaTab('tab-sched',this)">🗓️ Horario</button>
+        <button class="tab" onclick="switchFichaTab('tab-acud',this)">👨‍👩‍👦 Acudiente</button>
       </div>
 
       <!-- ASISTENCIA -->
       <div class="tab-content active" id="tab-att">
         <div class="stats-row">
-          <div class="stat-box"><div class="stat-val">${attPct !== null ? attPct + '%' : '—'}</div><div class="stat-lbl">Asistencia</div></div>
-          <div class="stat-box"><div class="stat-val" style="color:#dc2626;">${A}</div><div class="stat-lbl">Ausencias</div></div>
-          <div class="stat-box"><div class="stat-val" style="color:#f59e0b;">${T}</div><div class="stat-lbl">Tardanzas</div></div>
+          <div class="stat-box"><div class="stat-val" style="color:${pctColor}">${pct}%</div><div class="stat-lbl">Asistencia</div>
+            <div style="font-size:.67rem;color:var(--gray);margin-top:.25rem;">${totalH} hora${totalH!==1?'s':''}</div></div>
+          <div class="stat-box"><div class="stat-val" style="color:${cntA>0?'#dc2626':'var(--navy)'}">${cntA}</div><div class="stat-lbl">Ausencias</div></div>
+          <div class="stat-box"><div class="stat-val" style="color:${cntT>0?'#d97706':'var(--navy)'}">${cntT}</div><div class="stat-lbl">Tardanzas</div></div>
         </div>
-        ${calHTML}
+        <div class="card"><div class="card-header">Calendario reciente</div>
+          <div class="card-body">${calHtml}
+            <div style="display:flex;gap:.75rem;flex-wrap:wrap;font-size:.73rem;color:var(--gray);margin-top:.25rem;">
+              <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#dcfce7;margin-right:3px;"></span>Presente</span>
+              <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#fee2e2;margin-right:3px;"></span>Ausente</span>
+              <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#fef3c7;margin-right:3px;"></span>Tardanza</span>
+              <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#f3f4f6;border:1px solid #e5e7eb;margin-right:3px;"></span>Sin datos</span>
+            </div>
+          </div>
+        </div>
+        ${subjHtml}
+        <div class="card" style="margin-top:.75rem;"><div class="card-header">Detalle de inasistencias</div>
+          <div class="card-body">${attDetailHtml}</div>
+        </div>
+        ${excusasHtml}
       </div>
 
       <!-- OBSERVADOR -->
-      <div class="tab-content" id="tab-obs">`;
-
-  const obs = d.observations || [];
-  if (obs.length) {
-    html += obs.map(o => {
-      const dotCls = o.type === 'positive' ? 'obs-pos' : o.type === 'negative' ? 'obs-neg' : 'obs-neu';
-      return `<div class="obs-item">
-        <div class="obs-dot ${dotCls}"></div>
-        <div>
-          <div class="obs-text">${esc(o.description || '')}</div>
-          <div class="obs-date">${formatDateCO(o.date || o.created_at)}${o.teacher_name ? ' &middot; ' + esc(o.teacher_name) : ''}${o.subject ? ' &middot; ' + esc(o.subject) : ''}</div>
+      <div class="tab-content" id="tab-obs">
+        <div class="card"><div class="card-header">Observador del estudiante</div>
+          <div class="card-body">${obsHtml}</div>
         </div>
-      </div>`;
-    }).join('');
-  } else {
-    html += '<div class="empty-state">Sin observaciones registradas.</div>';
-  }
-
-  html += `</div>
+      </div>
 
       <!-- CASOS -->
-      <div class="tab-content" id="tab-cases">`;
+      <div class="tab-content" id="tab-cases">
+        <div class="card"><div class="card-header">Anotaciones y casos de convivencia</div>
+          <div class="card-body">${casesHtml}</div>
+        </div>
+      </div>
 
-  const cases = d.cases || [];
-  if (cases.length) {
-    html += cases.map(c => {
-      const pillCls = CASE_TYPE_PILL_CLASS[c.type] || 'pill-t1';
-      const statusPill = c.status === 'open' ? '<span class="pill-open">Abierto</span>' : '<span class="pill-closed">Cerrado</span>';
-      return `<div class="case-item case-${c.type}">
-        <div><span class="case-badge badge-${c.type}">${ESCALON_LABELS[c.type] || c.type}</span> ${statusPill}</div>
-        <div class="case-desc">${esc(c.description || '')}</div>
-        <div class="case-date">${formatDateCO(c.created_at)}${c.teacher_name ? ' &middot; ' + esc(c.teacher_name) : ''}</div>
-        ${c.actions_taken ? `<div style="margin-top:.35rem;font-size:.78rem;color:var(--gray);">Acciones: ${esc(c.actions_taken)}</div>` : ''}
-      </div>`;
-    }).join('');
-  } else {
-    html += '<div class="empty-state">Sin casos RAICE registrados.</div>';
-  }
+      <!-- COMPROMISOS -->
+      <div class="tab-content" id="tab-commits">
+        <div class="card"><div class="card-header">Compromisos adquiridos</div>
+          <div class="card-body">${commitsHtml}</div>
+        </div>
+      </div>
 
-  html += `</div>
+      <!-- DISCIPLINA -->
+      <div class="tab-content" id="tab-disc">
+        <div class="card"><div class="card-header">Suspensiones</div>
+          <div class="card-body">${suspHtml}</div>
+        </div>
+        <div class="card" style="margin-top:.75rem;"><div class="card-header">Retiros de clase</div>
+          <div class="card-body">${remHtml}</div>
+        </div>
+      </div>
 
       <!-- HORARIO -->
-      <div class="tab-content" id="tab-sched">`;
-
-  const sched = d.schedule || [];
-  if (sched.length) {
-    const DAYS = {1:'Lunes',2:'Martes',3:'Miércoles',4:'Jueves',5:'Viernes'};
-    const byDay = {};
-    sched.forEach(sl => { if (!byDay[sl.day_of_week]) byDay[sl.day_of_week] = []; byDay[sl.day_of_week].push(sl); });
-    html += '<div style="overflow-x:auto;"><table class="sched-table"><thead><tr><th>Hora</th>';
-    [1,2,3,4,5].forEach(d => { html += `<th>${DAYS[d]||d}</th>`; });
-    html += '</tr></thead><tbody>';
-    const hours = [...new Set(sched.map(s => s.class_hour))].sort((a,b)=>a-b);
-    hours.forEach(h => {
-      html += `<tr><td style="font-weight:700;text-align:center;background:var(--light);">${CLASS_HOUR_ORDINALS[h]||h+'ª'}</td>`;
-      [1,2,3,4,5].forEach(dow => {
-        const slot = (byDay[dow]||[]).find(s => s.class_hour === h);
-        html += slot
-          ? `<td><div class="sched-cell"><div class="sched-subj">${esc(slot.subject||'—')}</div><div class="sched-teacher">${esc(slot.teacher_name||'')}</div></div></td>`
-          : '<td></td>';
-      });
-      html += '</tr>';
-    });
-    html += '</tbody></table></div>';
-  } else {
-    html += '<div class="empty-state">Sin horario registrado.</div>';
-  }
-
-  html += `</div>
+      <div class="tab-content" id="tab-sched">
+        ${schedHtml}
+      </div>
 
       <!-- ACUDIENTE -->
-      <div class="tab-content" id="tab-acud">`;
-
-  const guardians = d.guardians || [];
-  if (guardians.length) {
-    html += guardians.map(g => `<div class="acud-item">
-      <div class="acud-ico">&#128100;</div>
-      <div>
-        <div style="font-weight:600;font-size:.86rem;">${esc(g.name||'—')}</div>
-        <div style="font-size:.75rem;color:var(--gray);">${esc(g.relationship||'')}${g.phone ? ' &middot; ' + esc(g.phone) : ''}${g.email ? ' &middot; ' + esc(g.email) : ''}</div>
+      <div class="tab-content" id="tab-acud">
+        <div class="card"><div class="card-header">Datos del acudiente</div>
+          <div class="card-body">${acudHtml}</div>
+        </div>
       </div>
-    </div>`).join('');
-  } else {
-    html += '<div class="empty-state">Sin acudientes registrados.</div>';
-  }
-
-  html += `</div>
     </div>
   </div>`;
-
-  return html;
 }
 
 function switchFichaTab(tabId, btn) {
