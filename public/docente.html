@@ -2340,7 +2340,8 @@
     if (!myCourses.length) await loadMyCourses();
     const sel = document.getElementById('me-course-sel');
     if (!sel) return;
-    const courses = myCourses.filter(c => c.type !== 'subgroup');
+    const courses = myCourses.filter(c => c.type !== 'subgroup')
+      .slice().sort((a, b) => (a.grade - b.grade) || ((a.number || 0) - (b.number || 0)));
     sel.innerHTML = '<option value="">— Selecciona un curso —</option>' +
       courses.map(c => {
         const label = c.grade + '°' + (c.number || '') + (c.subject ? ' — ' + escapeHtml(c.subject) : '');
@@ -2399,7 +2400,7 @@
         </div>
         <div style="display:flex;gap:.4rem;flex-shrink:0;">
           <button onclick="openObsModal('${s.id}','${safeName}','${safeSubject}','${courseId}')"
-            style="padding:.3rem .65rem;font-size:.78rem;background:var(--teal);color:#fff;border:none;border-radius:7px;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:600;">📝 Obs</button>
+            style="padding:.3rem .65rem;font-size:.78rem;background:var(--teal);color:#fff;border:none;border-radius:7px;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:600;">📝 Observador</button>
           <button onclick="printObservador('${s.id}')"
             style="padding:.3rem .65rem;font-size:.78rem;background:var(--light);color:var(--navy);border:1.5px solid var(--border);border-radius:7px;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:600;">🖨️</button>
         </div>

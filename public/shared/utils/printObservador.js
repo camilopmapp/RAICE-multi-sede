@@ -19,7 +19,7 @@ R.printObservadorWindow = function(d, cfg) {
     : '<div style="font-size:2.2rem;">🏫</div>';
   var raiceLogo = '<img src="' + window.location.origin + '/favicon.png" style="height:40px;object-fit:contain;" alt="RAICE" onerror="this.style.display=\'none\'">';
   var now = new Date().toLocaleDateString('es-CO', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
-  var curso = s.grade ? s.grade + '°' + (s.number || '') : (s.course || '—');
+  var curso = s.grade ? s.grade + '-' + (s.number || s.course || '—') : (s.course || '—');
 
   var posCount = obs.filter(function(o){ return o.type === 'positive'; }).length;
   var negCount = obs.filter(function(o){ return o.type === 'negative'; }).length;
@@ -84,7 +84,7 @@ R.printObservadorWindow = function(d, cfg) {
     +   raiceLogo
     + '</div>'
     + '<div class="student-info">'
-    +   '<div><div class="si-label">Nombre completo</div><div class="si-value">' + s.first_name + ' ' + s.last_name + '</div></div>'
+    +   '<div><div class="si-label">Nombre completo</div><div class="si-value">' + s.first_name + ' ' + s.last_name + '</div><div style="font-size:8.5pt;color:#64748b;margin-top:2px;">' + (s.doc_type || '') + ' ' + (s.doc_number || '—') + '</div></div>'
     +   '<div><div class="si-label">Curso</div><div class="si-value">' + curso + '</div></div>'
     +   '<div><div class="si-label">Estado</div><div class="si-value">' + (s.status === 'inactive' ? 'Retirado' : 'Activo') + '</div></div>'
     + '</div>'
