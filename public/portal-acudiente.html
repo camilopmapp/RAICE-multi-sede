@@ -258,6 +258,7 @@
 
   <!-- Tab: Asistencia -->
   <div class="tab-content active" id="tab-asistencia">
+    <div id="att-period-wrap" style="margin-bottom:.85rem;"></div>
     <div class="stats-row" id="att-stats"></div>
     <div class="card">
       <div class="card-header">Calendario reciente</div>
@@ -332,9 +333,15 @@
 
 </div><!-- /dashboard -->
 
+<script src="/shared/constants/index.js"></script>
+<script src="/shared/utils/pwa.js"></script>
+<script src="/shared/data/realtime.js"></script>
 <script>
+var { CLASS_HOUR_ORDINALS } = window.RAICE;
+
 const API = '/api';
 let _data = null;
+let _doc = '';
 
 function showTab(name, btn) {
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
@@ -369,6 +376,7 @@ async function consultar() {
       return;
     }
     _data = data;
+    _doc = doc;
     renderDashboard(data);
     document.getElementById('login-wrap').style.display = 'none';
     document.getElementById('dashboard').style.display = 'block';
@@ -380,6 +388,15 @@ async function consultar() {
     btn.disabled = false;
     btn.textContent = 'Consultar →';
   }
+}
+
+async function cambiarPeriodo(periodId) {
+  if (!_doc) return;
+  try {
+    const res = await fetch(`${API}/raice/portal-acudiente?doc=${encodeURIComponent(_doc)}${periodId?'&period_id='+encodeURIComponent(periodId):''}`);
+    const data = await res.json();
+    if (res.ok) { _data = data; renderDashboard(data); }
+  } catch(e) { /* mantener vista actual */ }
 }
 
 function cerrarSesion() {
@@ -425,6 +442,19 @@ function renderDashboard(data) {
     dirWrap.style.display = 'none';
   }
 
+  // Selector de periodo
+  const pw = document.getElementById('att-period-wrap');
+  if (pw) {
+    pw.innerHTML = (data.periods && data.periods.length) ? `
+      <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
+        <span style="font-size:.82rem;color:var(--gray);font-weight:600;">📅 Periodo:</span>
+        <select onchange="cambiarPeriodo(this.value)" style="padding:.45rem .65rem;border:1.5px solid #e5e7eb;border-radius:8px;font-size:.85rem;background:#fff;">
+          ${data.periods.map(p=>`<option value="${p.id}" ${data.selected_period_id===p.id?'selected':''}>${p.name}${p.active?' (activo)':''}</option>`).join('')}
+          <option value="all" ${data.selected_period_id==='all'?'selected':''}>Todo el año</option>
+        </select>
+      </div>` : '';
+  }
+
   renderAsistencia(data.attendance);
   renderAttBySubject(data.att_by_subject || []);
   renderExcusas(data.excusas || []);
@@ -436,8 +466,22 @@ function renderDashboard(data) {
 }
 
 function renderAsistencia(att) {
-  // ── Deduplicar por DÍA: peor estado gana (A > T > PE > P/S) ─────────
-  // S se trata como Presente (equivalente a P)
+  // ── Estadísticas POR HORA DE CLASE (igual que el rol coordinador) ──
+  // Las tardanzas (T) cuentan como ASISTENCIA, no como falta. Permisos (PE)
+  // y especiales (S) se excluyen del denominador. Solo las ausencias (A) bajan el %.
+  const cntP  = att.filter(a => a.status === 'P').length;
+  const cntA  = att.filter(a => a.status === 'A').length;
+  const cntT  = att.filter(a => a.status === 'T').length;
+  const cntPE = att.filter(a => a.status === 'PE').length;
+  const cntS  = att.filter(a => a.status === 'S').length;
+  const totalH    = att.length;
+  const countable = totalH - cntS - cntPE;
+  const pct = countable > 0 ? Math.round(((cntP + cntT) / countable) * 100) : (totalH - cntS > 0 ? 100 : 0);
+  const A = cntA;   // ausencias (en horas de clase)
+  const T = cntT;   // tardanzas (en horas de clase)
+
+  // ── Deduplicar por DÍA solo para el calendario visual ──────────────
+  // (el color del día usa el peor estado de la jornada). S = Presente.
   const statusPriority = { A:4, T:3, PE:2, P:1, S:1 };
   const dayMap = {};
   for (const r of att) {
@@ -447,18 +491,8 @@ function renderAsistencia(att) {
     }
   }
 
-  const days  = Object.values(dayMap);
-  const total = days.length;
-  // P: días donde el peor estado sigue siendo positivo (P, S, PE)
-  const P   = days.filter(d => d.status === 'P' || d.status === 'PE' || d.status === 'S').length;
-  const A   = days.filter(d => d.status === 'A').length;
-  const T   = days.filter(d => d.status === 'T').length;
-  const pct = total > 0 ? Math.round(P / total * 100) : 0;
-
-  // Rango de fechas cubierto
-  const sortedDates = days.map(d => d.date).sort();
-  const periodLbl = total > 0
-    ? `${total} día${total !== 1 ? 's' : ''} registrado${total !== 1 ? 's' : ''}`
+  const periodLbl = totalH > 0
+    ? `${totalH} hora${totalH !== 1 ? 's' : ''} de clase`
     : 'Sin registros';
 
   document.getElementById('att-stats').innerHTML = `
@@ -501,7 +535,8 @@ function renderAsistencia(att) {
     for (let d = 0; d < 5; d++) {
       const date = new Date(monday);
       date.setDate(monday.getDate() + d);
-      const key  = date.toISOString().slice(0,10);
+      // Fecha LOCAL (no UTC) para no correr el día en horario de Colombia
+      const key  = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
       const isFuture = date > today;
       const rec  = dayMap[key];
       const st   = rec?.status;
@@ -515,25 +550,26 @@ function renderAsistencia(att) {
   }
   document.getElementById('att-cal').innerHTML = calHtml;
 
-  // ── Detalle de días con inasistencia / tardanza ───────────────────
-  const absenceDays = days
-    .filter(d => d.status === 'A' || d.status === 'T')
-    .sort((a,b) => b.date.localeCompare(a.date))
-    .slice(0, 20);
+  // ── Detalle POR HORA: muestra la clase específica (no el día completo) ──
+  const ORD = CLASS_HOUR_ORDINALS;
+  const detail = att
+    .filter(a => a.status === 'A' || a.status === 'T')
+    .sort((a,b) => b.date.localeCompare(a.date) || (a.class_hour||0) - (b.class_hour||0))
+    .slice(0, 30);
 
-  if (!absenceDays.length) {
+  if (!detail.length) {
     document.getElementById('att-detail').innerHTML =
       `<div class="empty-state">✅ Sin inasistencias ni tardanzas registradas</div>`;
     return;
   }
 
-  const stLabel = { A:'Ausente', T:'Tardanza', PE:'Excusa justificada' };
+  const stLabel = { A:'Ausente', T:'Tardanza' };
   document.getElementById('att-detail').innerHTML = `<div class="att-list">` +
-    absenceDays.map(r => `<div class="att-row">
+    detail.map(r => `<div class="att-row">
       <div class="att-badge att-${r.status}">${r.status}</div>
       <div>
-        <div style="font-size:.84rem;font-weight:500;">${fmtDate(r.date)}</div>
-        <div style="font-size:.75rem;color:var(--gray);">${stLabel[r.status]||r.status}</div>
+        <div style="font-size:.84rem;font-weight:500;">${fmtDate(r.date)}${r.class_hour ? ` · ${ORD[r.class_hour] || r.class_hour+'ª'} hora` : ''}${r.subject ? ` · ${r.subject}` : ''}</div>
+        <div style="font-size:.75rem;color:var(--gray);">${stLabel[r.status]||r.status}${r.teacher_name ? ` · 👤 ${r.teacher_name}` : ''}</div>
       </div>
     </div>`).join('') + `</div>`;
 }
@@ -571,7 +607,7 @@ function renderObservaciones(obs) {
       <div class="obs-dot obs-${o.type === 'positive' ? 'pos' : o.type === 'negative' ? 'neg' : 'neu'}"></div>
       <div>
         <div class="obs-text">${o.text}</div>
-        <div class="obs-date">${typeLabel[o.type]||o.type} · ${fmtDate(o.created_at?.slice(0,10))}</div>
+        <div class="obs-date">${typeLabel[o.type]||o.type} · ${fmtDate(o.created_at?.slice(0,10))}${o.teacher_name ? ` · 👤 ${o.teacher_name}` : ''}</div>
       </div>
     </div>`).join('') + `</div>`;
 }
@@ -644,7 +680,8 @@ function renderCompromisos(commitments) {
     el.innerHTML = `<div class="empty-state">✅ Sin compromisos registrados</div>`;
     return;
   }
-  const today = new Date().toISOString().slice(0,10);
+  const _now  = new Date();  // fecha LOCAL (no UTC) para "Vencido" correcto
+  const today = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}`;
   el.innerHTML = commitments.map(c => {
     const overdue = !c.fulfilled && c.due_date && c.due_date < today;
     const cls = c.fulfilled ? 'commit-done' : overdue ? 'commit-overdue' : 'commit-pending';
@@ -681,35 +718,24 @@ function renderAcudientes(acudientes) {
 }
 
 // Supabase Realtime Auto-Refresh for Acudiente Dashboard
-async function initRealtime() {
-  try {
-    const { ok, data } = await fetchAPI('/raice/realtime-config');
-    if (!ok || !data.supabase_url || !data.supabase_anon_key) return;
-
-    const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
-    script.onload = () => {
-      const { createClient } = window.supabase;
-      const sb = createClient(data.supabase_url, data.supabase_anon_key);
-
-      console.log('🔗 Suscribiendo a eventos en tiempo real (Acudiente)...');
-      
-      const handleChange = () => {
-        if (_token) consultar();
-      };
-
-      // Casos, alertas y asistencia
-      sb.channel('realtime:acudiente')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'raice_cases' }, handleChange)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'raice_alerts' }, handleChange)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'raice_attendance' }, handleChange)
-        .subscribe();
-    };
-    document.body.appendChild(script);
-  } catch (err) {}
+function initRealtime() {
+  var handleChange = function() { if (_token) consultar(); };
+  // Fetch simple sin token (portal público)
+  var simpleFetch = async function(path) {
+    try {
+      var r = await fetch('/api' + path, { headers: { 'Content-Type': 'application/json' } });
+      return { ok: r.ok, data: await r.json().catch(function() { return {}; }) };
+    } catch(e) { return { ok: false, data: {} }; }
+  };
+  window.RAICE.initRealtime(simpleFetch, [
+    { channel: 'realtime:acud-cases', table: 'raice_cases', callback: handleChange },
+    { channel: 'realtime:acud-alerts', table: 'raice_alerts', callback: handleChange },
+    { channel: 'realtime:acud-att', table: 'raice_attendance', callback: handleChange }
+  ], 'Acudiente');
 }
 
 window.addEventListener('load', () => { setTimeout(initRealtime, 2000); });
+
 
 </script>
 <script>
@@ -731,16 +757,7 @@ if ('serviceWorker' in navigator) {
     if (e.data?.type === 'SW_UPDATED') showUpdateBanner();
   });
 }
-function showUpdateBanner() {
-  let b = document.getElementById('pwa-update-banner');
-  if (!b) {
-    b = document.createElement('div');
-    b.id = 'pwa-update-banner';
-    b.style.cssText = 'position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);z-index:99999;background:#0f1f3d;color:#fff;border-radius:14px;padding:.75rem 1.25rem;font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:.75rem;box-shadow:0 4px 20px rgba(0,0,0,.3);';
-    b.innerHTML = '✨ Nueva versión disponible <button onclick="location.reload()" style="background:#14b8b0;border:none;color:#fff;padding:.3rem .8rem;border-radius:8px;cursor:pointer;font-weight:700;">Actualizar</button>';
-    document.body.appendChild(b);
-  }
-}
+var showUpdateBanner = window.RAICE.showUpdateBanner;
 </script>
 </body>
 </html>

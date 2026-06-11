@@ -335,7 +335,7 @@
   }
   .modal-overlay.open { display:flex; }
   .modal {
-    background:var(--white); border-radius:20px; width:100%; max-width:480px;
+    background:var(--white); border-radius:20px; overflow:hidden; width:100%; max-width:480px;
     box-shadow:0 20px 60px rgba(15,31,61,.25); animation:modalIn .25s ease;
     max-height:90vh; display:flex;flex-direction:column;}
   @keyframes modalIn { from{opacity:0;transform:scale(.95)} to{opacity:1;transform:scale(1)} }
@@ -395,8 +395,8 @@
     .form-grid-2 { grid-template-columns:1fr; }
     .quick-mark { flex-wrap:wrap; gap:.4rem; }
     .qm-btn { padding:.75rem; font-size:.9rem; flex:1; min-width:80px; }
-    .modal-overlay { align-items:flex-end; padding:0; }
-    .modal { border-radius:20px 20px 0 0; max-width:100%; max-height:92vh; max-height:92dvh; }
+    .modal-overlay { align-items:center; padding:.75rem; }
+    .modal { border-radius:20px; max-width:100%; max-height:92vh; max-height:92dvh; }
     .status-btn-group { flex-wrap:nowrap; }
     .hamburger { display:flex !important; }
 
@@ -436,6 +436,15 @@
     .section-header { flex-wrap:wrap; gap:.4rem; }
   }
 </style>
+<script src="/shared/constants/index.js"></script>
+<script src="/shared/utils/index.js"></script>
+<script src="/shared/data/apiClient.js"></script>
+<script src="/shared/domain/index.js"></script>
+<script src="/shared/utils/printObservador.js"></script>
+<script src="/shared/utils/printLista.js"></script>
+<script src="/shared/utils/pwa.js"></script>
+<script src="/shared/data/realtime.js"></script>
+<script src="/shared/data/repositories.js"></script>
 </head>
 <body>
 
@@ -470,6 +479,9 @@
     </button>
     <button class="nav-item" onclick="showSection('historial',this)">
       <span class="nav-ico">📖</span> Historial de casos
+    </button>
+    <button class="nav-item" onclick="showSection('mis-estudiantes',this)">
+      <span class="nav-ico">👥</span> Mis estudiantes
     </button>
 
     <div class="nav-group-title director-only" id="nav-group-mi-grado" style="display:none;">Director de grado</div>
@@ -572,7 +584,10 @@
         <div class="att-header">
           <div>
             <div class="att-title" id="att-course-title">7°1 — Matemáticas</div>
-            <div class="att-date-info" id="att-date-info">Lunes, 27 de enero de 2025</div>
+            <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-top:.15rem;">
+              <div class="att-date-info" id="att-date-info" style="margin:0;">Lunes, 27 de enero de 2025</div>
+              <span id="att-period-week-badge" style="display:none;padding:.28rem .65rem;border-radius:8px;font-size:.82rem;font-weight:700;background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;">Semana 3/12</span>
+            </div>
           </div>
           <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
             <input type="date" id="att-date-picker" style="padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:.85rem;color:var(--navy);background:var(--white);outline:none;" onchange="onDateChange()">
@@ -1081,6 +1096,38 @@
       </div>
     </section>
 
+    <!-- ===== MIS ESTUDIANTES ===== -->
+    <section class="section" id="sec-mis-estudiantes">
+      <div class="card">
+        <div class="card-header" style="flex-wrap:wrap;gap:.6rem;">
+          <h3>👥 Mis estudiantes</h3>
+          <div style="display:flex;gap:.5rem;flex:1;min-width:0;flex-wrap:wrap;">
+            <select id="me-course-sel" onchange="loadMisEstudiantesByCourse(this.value)"
+              style="flex:1;min-width:160px;padding:.45rem .75rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.83rem;background:var(--white);color:var(--navy);">
+              <option value="">— Selecciona un curso —</option>
+            </select>
+            <div style="position:relative;flex:1;min-width:160px;">
+              <span style="position:absolute;left:.65rem;top:50%;transform:translateY(-50%);font-size:.85rem;pointer-events:none;">🔍</span>
+              <input id="me-search" type="text" oninput="renderMisEstudiantes()"
+                placeholder="Buscar por nombre…"
+                style="width:100%;padding:.45rem .75rem .45rem 2rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.83rem;box-sizing:border-box;background:var(--white);">
+            </div>
+            <button id="btn-print-lista-me" class="btn btn-ghost btn-sm" onclick="openPrintListaModal('mis-estudiantes')"
+              title="Imprimir lista del curso" disabled
+              style="white-space:nowrap;opacity:.4;cursor:not-allowed;">🖨️ Imprimir lista</button>
+          </div>
+        </div>
+        <div class="card-body" style="padding:0;">
+          <div id="me-list" style="min-height:120px;">
+            <div style="text-align:center;padding:2.5rem;color:var(--gray);">
+              <div style="font-size:2rem;margin-bottom:.5rem;">👥</div>
+              Selecciona un curso para ver los estudiantes.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
   </div><!-- /content -->
 </main>
 
@@ -1097,13 +1144,23 @@
         <div style="font-weight:700;color:var(--navy);flex:1;" id="obs-student-name">Estudiante</div>
         <button class="btn btn-ghost btn-sm" onclick="printObservador(document.getElementById('obs-student-id').value)" title="Imprimir observador" style="font-size:.8rem;">🖨️ Observador</button>
       </div>
+      <input type="hidden" id="obs-type" value="neutral">
+      <input type="hidden" id="obs-course-id" value="">
       <div class="form-group">
         <label>Tipo de observación</label>
-        <select id="obs-type">
-          <option value="positive">✅ Positiva (reconocimiento)</option>
-          <option value="neutral">📋 Neutra (informativa)</option>
-          <option value="negative">⚠️ Negativa (indisciplina leve)</option>
-        </select>
+        <div style="display:flex;gap:.5rem;margin-top:.25rem;">
+          <button type="button" class="obs-type-btn" data-val="positive" onclick="setObsType('positive',this)"
+            style="flex:1;padding:.5rem .25rem;border-radius:8px;border:2px solid #bbf7d0;background:#f0fdf4;color:#16a34a;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:.82rem;transition:all .15s;">✅ Positiva</button>
+          <button type="button" class="obs-type-btn obs-type-active" data-val="neutral" onclick="setObsType('neutral',this)"
+            style="flex:1;padding:.5rem .25rem;border-radius:8px;border:2px solid #94a3b8;background:#f1f5f9;color:#475569;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:.82rem;transition:all .15s;">📋 Neutra</button>
+          <button type="button" class="obs-type-btn" data-val="negative" onclick="setObsType('negative',this)"
+            style="flex:1;padding:.5rem .25rem;border-radius:8px;border:2px solid #fecaca;background:#fff5f5;color:#dc2626;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:.82rem;transition:all .15s;">⚠️ Negativa</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Asignatura</label>
+        <input type="text" id="obs-subject" placeholder="Ej: Matemáticas, Inglés…"
+          style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.85rem;box-sizing:border-box;background:var(--white);">
       </div>
       <div class="form-group">
         <label>Observación</label>
@@ -1166,7 +1223,13 @@
 
 <!-- ===== SCRIPT ===== -->
 <script>
-  const API_URL = '/api';
+  var { CLASS_HOUR_ORDINALS, DAYS_OF_WEEK, OBSERVATION_TYPE_LABELS, OBSERVATION_TYPE_COLORS, CASE_STATUS_LABELS } = window.RAICE;
+  var { escapeHtml, isoWeekday } = window.RAICE;
+  var { createApiClient } = window.RAICE;
+  var { todayColombia } = window.RAICE;
+  var { showToast, logout, avatarColor, applyLogoToSidebar } = window.RAICE;
+  var avatarColors = avatarColor; // alias usado en docente
+
   let currentUser = null;
 
   // ---- SORT PREFERENCE ----
@@ -1208,16 +1271,20 @@
       : `${s.last_name}, ${s.first_name}`;
   }
 
-  // Returns today's date in Colombia timezone (UTC-5)
-  function todayColombia() {
-    return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date());
-  }
+  // todayColombia → importado desde shared/domain
 
   let myCourses    = [];
   let activeCourse    = null;
+  let _allPeriods     = [];
+  let _allCalendarEvents = [];
   let _todayHolidayInfo = null; // resultado de /raice/calendar/today
   let studentsAtt     = [];   // [{id,name,status:'P'|'A'|'PE'|'T'}]
   let _attDirty       = false; // true when teacher has unsaved changes — prevents auto-refresh from overwriting
+  // Bandera de "modo corrección": guarda la clave (curso_fecha_hora) de la hora
+  // que el docente acaba de desbloquear con "Corregir lista". Mientras esté activa,
+  // el auto-refresco y el Realtime NO recargan esa hora (si no, el servidor sigue
+  // reportando saved=true y la lista se volvería a bloquear sola).
+  let _correctionMode = null;
   let activeHour      = 1;    // Current class hour selected
   let _actividadEspecial = false; // true = todos marcados como S (sin lista)
   let _actividadNote    = '';    // texto descriptivo de la actividad especial
@@ -1225,6 +1292,12 @@
   // Cache: key = "courseId_date_hour" → {students, saved}
   const _hourCache    = {};
   function _cacheKey(courseId, date, hour) { return courseId + '_' + date + '_' + hour; }
+  // ¿La hora activa está en modo corrección (recién desbloqueada)?
+  function _activeHourInCorrection() {
+    if (!_correctionMode || !activeCourse) return false;
+    const date = document.getElementById('att-date-picker')?.value;
+    return _correctionMode === _cacheKey(activeCourse.id, date, activeHour);
+  }
   function _invalidateCourseCache(courseId) {
     Object.keys(_hourCache).forEach(k => { if (k.startsWith(courseId)) delete _hourCache[k]; });
   }
@@ -1234,12 +1307,8 @@
 
   // ---- AUTH ----
   function initSession() {
-    const token = sessionStorage.getItem('raice_token');
-    const role  = sessionStorage.getItem('raice_role');
-    const user  = JSON.parse(sessionStorage.getItem('raice_user') || 'null');
-    if (!token || !['teacher'].includes(role)) {
-      window.location.href = '/login.html'; return;
-    }
+    const user = window.RAICE.checkAuth(['teacher']);
+    if (!user) return;
     currentUser = user;
     updateSortButtons(); // apply saved sort preference for this user
     if (user) {
@@ -1275,14 +1344,11 @@
     document.getElementById('sidebar-overlay').classList.remove('open');
   }
 
-  function logout() {
-    if (!confirm('¿Cerrar sesión?')) return;
-    sessionStorage.clear();
-    localStorage.removeItem('raice_token');
-    localStorage.removeItem('raice_role');
-    localStorage.removeItem('raice_user');
-    window.location.href = '/login.html';
-  }
+  // logout → importado desde shared/utils
+
+  const fetchAPI = createApiClient({
+    onUnauthorized: function() { logout(); }
+  });
 
   // ---- NAV ----
   let currentDocenteSection = 'mis-cursos';
@@ -1298,7 +1364,7 @@
       'reportar':'Reportar caso', 'historial':'Historial de casos',
       'perfil':'Mi perfil', 'mi-horario':'Mi horario',
       'mi-grado':'Casos de mi grado', 'historial-att':'Historial de asistencia',
-      'excusas-grado':'Excusas de mi grado'
+      'excusas-grado':'Excusas de mi grado', 'mis-estudiantes':'Mis estudiantes'
     };
     document.getElementById('page-title').textContent = titles[name] || name;
     if (name === 'mis-cursos')    loadMyCourses();
@@ -1309,6 +1375,7 @@
     if (name === 'mi-grado')      loadGradeCases();
     if (name === 'excusas-grado') initExcusas();
     if (name === 'historial-att') initAttHistory();
+    if (name === 'mis-estudiantes') initMisEstudiantes();
   }
 
   // ---- MODAL ----
@@ -1318,50 +1385,107 @@
     if (e.target.classList.contains('modal-overlay')) e.target.classList.remove('open');
   });
 
-  // ---- TOAST ----
-  function showToast(msg, type = 'success') {
-    const c = document.getElementById('toast-container');
-    const t = document.createElement('div');
-    t.className = 'toast ' + type;
-    const ico = { success:'✅', error:'❌', warning:'⚠️' }[type] || 'ℹ️';
-    t.innerHTML = `<span>${ico}</span><span>${msg}</span>`;
-    c.appendChild(t);
-    setTimeout(() => t.remove(), 3500);
+  // showToast → importado desde shared/utils
+
+  async function loadPeriods() {
+    try {
+      _allPeriods = await window.RAICE.fetchPeriods(fetchAPI);
+    } catch (_) {}
+  }
+
+  async function loadCalendarEvents() {
+    try {
+      const year = new Date().getFullYear();
+      const { ok, data } = await fetchAPI(`/raice/calendar?year=${year}`);
+      if (ok && data.events) {
+        _allCalendarEvents = data.events;
+      }
+    } catch (_) {}
+  }
+
+  function updatePeriodWeekBadge() {
+    const badge = document.getElementById('att-period-week-badge');
+    if (!badge) return;
+    badge.style.display = 'none';
+
+    const datePicker = document.getElementById('att-date-picker');
+    if (!datePicker || !datePicker.value) return;
+
+    const selectedDateStr = datePicker.value;
+    const selectedDate = new Date(selectedDateStr + 'T12:00:00');
+
+    const period = _allPeriods.find(p => {
+      return selectedDateStr >= p.start_date && selectedDateStr <= p.end_date;
+    });
+
+    if (period) {
+      const nonLectivos = new Set(
+        _allCalendarEvents
+          .filter(e => e.type === 'holiday' || e.type === 'vacation')
+          .map(e => e.date)
+      );
+
+      const start = new Date(period.start_date + 'T12:00:00');
+      const end = new Date(period.end_date + 'T12:00:00');
+
+      const getWeekNumber = (d) => {
+        const date = new Date(d.getTime());
+        date.setHours(0, 0, 0, 0);
+        date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
+        const week1 = new Date(date.getFullYear(), 0, 4);
+        return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+      };
+
+      const weeksMap = {};
+      let curr = new Date(start);
+      while (curr <= end) {
+        const dayNum = curr.getDay(); // 1=Mon ... 5=Fri
+        if (dayNum >= 1 && dayNum <= 5) {
+          const dateStr = curr.toISOString().slice(0, 10);
+          if (!nonLectivos.has(dateStr)) {
+            const year = curr.getFullYear();
+            const week = getWeekNumber(curr);
+            const key = `${year}_${week}`;
+            weeksMap[key] = (weeksMap[key] || 0) + 1;
+          }
+        }
+        curr.setDate(curr.getDate() + 1);
+      }
+
+      const lectiveWeeks = Object.keys(weeksMap).sort((a,b) => {
+        const [yA, wA] = a.split('_').map(Number);
+        const [yB, wB] = b.split('_').map(Number);
+        return yA !== yB ? yA - yB : wA - wB;
+      });
+
+      const currentYear = selectedDate.getFullYear();
+      const currentWeek = getWeekNumber(selectedDate);
+      const currentKey = `${currentYear}_${currentWeek}`;
+
+      const currentWeekIndex = lectiveWeeks.indexOf(currentKey);
+      const totalWeeks = lectiveWeeks.length;
+
+      if (currentWeekIndex !== -1) {
+        badge.textContent = `${period.name} · Semana ${currentWeekIndex + 1}/${totalWeeks}`;
+        badge.style.display = 'inline-block';
+      } else {
+        badge.textContent = `${period.name} · Vacaciones 🏖️`;
+        badge.style.display = 'inline-block';
+      }
+    }
   }
 
   // ---- HELPERS ----
-  function avatarColors(name) {
-    const c = ['#3b82f6','#10b981','#8b5cf6','#f59e0b','#ef4444','#0b7a75','#ec4899'];
-    return c[(name||'A').charCodeAt(0) % c.length];
-  }
+  // avatarColors → alias de avatarColor importado desde shared/utils
 
-  async function fetchAPI(path, opts = {}) {
-    const token = sessionStorage.getItem('raice_token');
-    try {
-      const res = await fetch(API_URL + path, {
-        ...opts,
-        headers: {
-          'Content-Type':'application/json',
-          'Authorization': `Bearer ${token}`,
-          ...(opts.headers||{})
-        }
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.status === 401) { logout(); return { ok: false, status: 401, data: {} }; }
-      return { ok: res.ok, status: res.status, data };
-    } catch (err) {
-      console.error('fetchAPI error:', path, err);
-      return { ok: false, status: 0, data: { error: 'Error de conexión' } };
-    }
-  }
+  // fetchAPI → creado desde shared/data/apiClient.js con createApiClient
 
   // ---- PASAR LISTA INTELIGENTE ----
   // Bell schedule cache para comparar horas
   let _bellCache = null;
   async function getBellSchedule() {
     if (_bellCache) return _bellCache;
-    const { ok, data } = await fetchAPI('/raice/bell-schedule');
-    _bellCache = ok ? (data.bell_schedule || []) : [];
+    _bellCache = await window.RAICE.fetchBellSchedule(fetchAPI);
     return _bellCache;
   }
 
@@ -1452,7 +1576,8 @@
 
   async function checkTodayHoliday() {
     try {
-      const { ok, data } = await fetchAPI('/raice/calendar/today');
+      const data = await window.RAICE.fetchCalendarToday(fetchAPI);
+      const ok = !!data;
       if (!ok || !data.events?.length) return;
       _todayHolidayInfo = data;
 
@@ -1516,7 +1641,8 @@
       return;
     }
 
-    const { ok, data } = await fetchAPI('/raice/my-courses');
+    const data = await window.RAICE.fetchMyCourses(fetchAPI);
+    const ok = !!data;
     myCourses = data.courses || [];
 
     // Adjust classesPerDay to the max hour in the teacher's actual schedule
@@ -1533,10 +1659,8 @@
       return;
     }
 
-    const jsDay  = new Date().getDay();
-    const dayNum = jsDay === 0 ? 7 : jsDay;
-    const DAYS   = ['','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
-    const dayLabel = DAYS[dayNum] || '';
+    const dayNum = isoWeekday(new Date().getDay());
+    const dayLabel = DAYS_OF_WEEK[dayNum] || '';
     const nowMins  = new Date().getHours() * 60 + new Date().getMinutes();
     const ordinals = ['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª'];
 
@@ -1672,6 +1796,7 @@
   async function openCourseAttendance(course) {
     activeCourse = course;
     _attDirty = false; // fresh course, no unsaved changes
+    _correctionMode = null; // curso nuevo → fuera modo corrección
     _evasionHours.clear();
     clearEvasionPanel();
     document.getElementById('att-no-course').style.display = 'none';
@@ -1685,7 +1810,8 @@
     showSection('asistencia', document.querySelectorAll('.nav-item')[1]);
 
     // Load classes per day from config, then expand if teacher's schedule has higher hours
-    const { ok, data } = await fetchAPI('/raice/config');
+    const data = await window.RAICE.fetchConfig(fetchAPI);
+    const ok = !!data;
     if (ok && data.classes_per_day) classesPerDay = data.classes_per_day;
     let maxSlotHour = 0;
     myCourses.forEach(c => (c.week_slots || []).forEach(s => { if (s.class_hour > maxSlotHour) maxSlotHour = s.class_hour; }));
@@ -1724,6 +1850,7 @@
 
     buildHourSelector(course);
     loadCourseStudents();
+    updatePeriodWeekBadge();
   }
 
   function buildHourSelector(course) {
@@ -1864,6 +1991,7 @@
 
   function selectHour(h) {
     activeHour = h;
+    _correctionMode = null; // cambió de hora → fuera modo corrección
     clearEvasionPanel();
     _actividadEspecial = false;
     _actividadNote = '';
@@ -2050,7 +2178,7 @@
                 onmouseleave="hideExcusaTooltip()"
               ` : ''}
             >${statusLabel}</span>
-            <button class="obs-btn" onclick="openObsModal('${s.id}','${s.first_name} ${s.last_name}')" title="Observación">📝</button>
+            <button class="obs-btn" onclick="openObsModal('${s.id}','${s.first_name} ${s.last_name}','${(activeCourse?.subject||'').replace(/'/g,"\\'")}','${activeCourse?.id||''}')" title="Observación">📝</button>
           </div>`;
       }
 
@@ -2073,7 +2201,7 @@
               ` : ''}
             ><span>🤒</span></button>
           </div>`}
-          <button class="obs-btn" onclick="openObsModal('${s.id}','${s.first_name} ${s.last_name}')" title="Observación">📝</button>
+          <button class="obs-btn" onclick="openObsModal('${s.id}','${s.first_name} ${s.last_name}','${(activeCourse?.subject||'').replace(/'/g,"\\'")}','${activeCourse?.id||''}')" title="Observación">📝</button>
           ${isSuspended ? '' : `<button class="btn-removal" onclick="openRemovalModal('${s.id}','${s.first_name} ${s.last_name}')" title="Retirar de clase">⛔</button>`}
         </div>`;
     }).join('');
@@ -2151,18 +2279,45 @@
     document.getElementById('att-date-info').textContent =
       new Date(date + 'T12:00:00').toLocaleDateString('es-CO', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
     _attDirty = false;
+    _correctionMode = null; // cambió de fecha → fuera modo corrección
     if (activeCourse) _invalidateCourseCache(activeCourse.id);
     if (isHistoryMode()) activeHour = 1;
     buildHourSelector();
     loadCourseStudents(true);
+    updatePeriodWeekBadge();
   }
 
   // ---- OBSERVATION ----
-  function openObsModal(studentId, name) {
+  function setObsType(val, btn) {
+    document.getElementById('obs-type').value = val;
+    document.querySelectorAll('.obs-type-btn').forEach(b => {
+      b.classList.remove('obs-type-active');
+      b.style.fontWeight = '600';
+      b.style.opacity = '.65';
+      b.style.transform = 'scale(.97)';
+    });
+    btn.classList.add('obs-type-active');
+    btn.style.fontWeight = '700';
+    btn.style.opacity = '1';
+    btn.style.transform = 'scale(1)';
+  }
+
+  function openObsModal(studentId, name, subject, courseId) {
     document.getElementById('obs-student-id').value = studentId;
     document.getElementById('obs-student-name').textContent = name;
     document.getElementById('obs-text').value = '';
+    document.getElementById('obs-subject').value = subject || '';
+    document.getElementById('obs-course-id').value = courseId || '';
+    // Reset type to neutral
     document.getElementById('obs-type').value = 'neutral';
+    document.querySelectorAll('.obs-type-btn').forEach(b => {
+      b.classList.remove('obs-type-active');
+      b.style.fontWeight = '600';
+      b.style.opacity = '.65';
+      b.style.transform = 'scale(.97)';
+    });
+    const neutralBtn = document.querySelector('.obs-type-btn[data-val="neutral"]');
+    if (neutralBtn) { neutralBtn.classList.add('obs-type-active'); neutralBtn.style.fontWeight = '700'; neutralBtn.style.opacity = '1'; neutralBtn.style.transform = 'scale(1)'; }
     openModal('modal-obs');
   }
 
@@ -2170,11 +2325,10 @@
     const studentId = document.getElementById('obs-student-id').value;
     const type      = document.getElementById('obs-type').value;
     const text      = document.getElementById('obs-text').value.trim();
+    const subject   = document.getElementById('obs-subject').value.trim();
+    const courseId  = document.getElementById('obs-course-id').value || activeCourse?.id;
     if (!text) { showToast('Escribe la observación', 'warning'); return; }
-    const { ok } = await fetchAPI('/raice/observations', {
-      method:'POST',
-      body: JSON.stringify({ student_id: studentId, type, text, course_id: activeCourse?.id })
-    });
+    const { ok } = await window.RAICE.createObservation(fetchAPI, { student_id: studentId, type, text, subject, course_id: courseId });
     if (ok) {
       showToast('Observación guardada', 'success');
       closeModal('modal-obs');
@@ -2183,18 +2337,191 @@
     }
   }
 
+  // ---- MIS ESTUDIANTES ----
+  let _misEstudiantesStudents = null;
+
+  async function initMisEstudiantes() {
+    if (!myCourses.length) await loadMyCourses();
+    const sel = document.getElementById('me-course-sel');
+    if (!sel) return;
+    const courses = myCourses.filter(c => c.type !== 'subgroup')
+      .slice().sort((a, b) => (a.grade - b.grade) || ((a.number || 0) - (b.number || 0)));
+    sel.innerHTML = '<option value="">— Selecciona un curso —</option>' +
+      courses.map(c => {
+        const label = c.grade + '°' + (c.number || '') + (c.subject ? ' — ' + escapeHtml(c.subject) : '');
+        return `<option value="${c.id}">${label}</option>`;
+      }).join('');
+    _misEstudiantesStudents = null;
+    document.getElementById('me-search').value = '';
+    document.getElementById('me-list').innerHTML =
+      '<div style="text-align:center;padding:2.5rem;color:var(--gray);"><div style="font-size:2rem;margin-bottom:.5rem;">👥</div>Selecciona un curso para ver los estudiantes.</div>';
+  }
+
+  async function loadMisEstudiantesByCourse(courseId) {
+    _misEstudiantesStudents = null;
+    if (!courseId) {
+      document.getElementById('me-list').innerHTML =
+        '<div style="text-align:center;padding:2.5rem;color:var(--gray);"><div style="font-size:2rem;margin-bottom:.5rem;">👥</div>Selecciona un curso para ver los estudiantes.</div>';
+      return;
+    }
+    document.getElementById('me-list').innerHTML =
+      '<div style="text-align:center;padding:2.5rem;color:var(--gray);">Cargando…</div>';
+    const { ok, data } = await fetchAPI(`/raice/students?course_id=${courseId}`);
+    if (!ok) {
+      document.getElementById('me-list').innerHTML =
+        '<div style="text-align:center;padding:2rem;color:#dc2626;">Error al cargar estudiantes.</div>';
+      return;
+    }
+    _misEstudiantesStudents = data.students || data || [];
+    renderMisEstudiantes();
+  }
+
+  function renderMisEstudiantes() {
+    const search = (document.getElementById('me-search')?.value || '').trim().toLowerCase();
+    const students = (_misEstudiantesStudents || []).filter(s =>
+      !search || (s.first_name + ' ' + s.last_name).toLowerCase().includes(search)
+    );
+    const courseId = document.getElementById('me-course-sel')?.value || '';
+    const course   = myCourses.find(c => c.id === courseId);
+    const subject  = course?.subject || '';
+    const list = document.getElementById('me-list');
+    const printBtn = document.getElementById('btn-print-lista-me');
+    if (!students.length) {
+      list.innerHTML = '<div style="text-align:center;padding:2.5rem;color:var(--gray);">No se encontraron estudiantes.</div>';
+      if (printBtn) { printBtn.disabled = true; printBtn.style.opacity = '.4'; printBtn.style.cursor = 'not-allowed'; }
+      return;
+    }
+    if (printBtn) { printBtn.disabled = false; printBtn.style.opacity = '1'; printBtn.style.cursor = 'pointer'; }
+    list.innerHTML = students.map((s, i) => {
+      const fullName = escapeHtml(s.first_name) + ' ' + escapeHtml(s.last_name);
+      const initials = (s.first_name[0] || '') + (s.last_name[0] || '');
+      const bg = ['#0f1f3d','#0b7a75','#14b8b0','#1d4ed8','#7c3aed','#be185d'][i % 6];
+      const safeSubject = escapeHtml(subject);
+      const safeName = escapeHtml(s.first_name + ' ' + s.last_name).replace(/'/g, '&#39;');
+      return `<div style="display:flex;align-items:center;gap:.75rem;padding:.65rem 1rem;border-bottom:1px solid var(--border);transition:background .12s;"
+                   onmouseenter="this.style.background='var(--light)'" onmouseleave="this.style.background=''">
+        <div style="width:36px;height:36px;border-radius:50%;background:${bg};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.82rem;flex-shrink:0;">${escapeHtml(initials)}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:600;font-size:.88rem;color:var(--navy);">${fullName}</div>
+          <div style="font-size:.75rem;color:var(--gray);">${s.doc_number || '—'}</div>
+        </div>
+        <div style="display:flex;gap:.4rem;flex-shrink:0;">
+          <button onclick="openObsModal('${s.id}','${safeName}','${safeSubject}','${courseId}')"
+            style="padding:.3rem .65rem;font-size:.78rem;background:var(--teal);color:#fff;border:none;border-radius:7px;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:600;">📝 Observador</button>
+          <button onclick="printObservador('${s.id}')"
+            style="padding:.3rem .65rem;font-size:.78rem;background:var(--light);color:var(--navy);border:1.5px solid var(--border);border-radius:7px;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:600;">🖨️</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
   // ---- PRINT OBSERVADOR ----
   async function printObservador(studentId) {
     if (!studentId) { showToast('Selecciona un estudiante', 'warning'); return; }
     showToast('Generando observador…', 'info');
-    const [fichaRes, configRes] = await Promise.all([
-      fetchAPI('/raice/student-ficha?id=' + studentId + '&all_obs=1'),
-      fetchAPI('/raice/config')
+    const R = window.RAICE;
+    const [d, cfg] = await Promise.all([
+      R.fetchStudentFicha(fetchAPI, studentId, true),
+      R.fetchConfig(fetchAPI)
     ]);
-    if (!fichaRes.ok || !fichaRes.data?.student) { showToast('Error al cargar datos del estudiante', 'error'); return; }
-    const d = fichaRes.data;
-    const cfg = configRes.ok ? configRes.data : {};
-    _printObservadorWindow(d, cfg);
+    if (!d?.student) { showToast('Error al cargar datos del estudiante', 'error'); return; }
+    _printObservadorWindow(d, cfg || {});
+  }
+
+  // ---- PRINT LISTA ----
+  let _printListaSource = 'mis-estudiantes';
+
+  function openPrintListaModal(source) {
+    _printListaSource = source || 'mis-estudiantes';
+    const docLabel = document.getElementById('prl-doc-label');
+    const docChk   = document.getElementById('prl-show-doc');
+    if (source === 'pasar-lista') {
+      docChk.checked = false;
+      docLabel.style.opacity = '.4';
+      docLabel.style.pointerEvents = 'none';
+      docLabel.title = 'No disponible desde Pasar lista';
+    } else {
+      docLabel.style.opacity = '';
+      docLabel.style.pointerEvents = '';
+      docLabel.title = '';
+    }
+    const startDate = document.getElementById('prl-col-start-date');
+    if (startDate && !startDate.value) startDate.value = todayColombia();
+    onPrintListaColTypeChange();
+    validatePrintListaFit();
+    openModal('modal-print-lista');
+  }
+
+  function onPrintListaColTypeChange() {
+    const type     = document.querySelector('input[name="prl-col-type"]:checked')?.value || 'number';
+    const dateRow  = document.getElementById('prl-date-row');
+    const customEl = document.getElementById('prl-custom-labels');
+    dateRow.style.display  = type === 'date'   ? 'block' : 'none';
+    customEl.style.display = type === 'custom' ? 'grid'  : 'none';
+    if (type === 'custom') onPrintListaColCountChange();
+    validatePrintListaFit();
+  }
+
+  function onPrintListaColCountChange() {
+    const count    = Math.min(20, Math.max(1, parseInt(document.getElementById('prl-col-count').value) || 5));
+    const type     = document.querySelector('input[name="prl-col-type"]:checked')?.value || 'number';
+    if (type === 'custom') {
+      const container = document.getElementById('prl-custom-labels');
+      const existing  = Array.from(container.querySelectorAll('input')).map(i => i.value);
+      container.innerHTML = '';
+      for (let i = 0; i < count; i++) {
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.placeholder = 'Col ' + (i + 1);
+        inp.value = existing[i] || '';
+        inp.style.cssText = 'padding:.35rem .5rem;border:1.5px solid var(--border);border-radius:7px;font-family:"DM Sans",sans-serif;font-size:.78rem;width:100%;';
+        container.appendChild(inp);
+      }
+    }
+    validatePrintListaFit();
+  }
+
+  function validatePrintListaFit() {
+    const count  = parseInt(document.getElementById('prl-col-count')?.value) || 5;
+    const orient = document.querySelector('input[name="prl-orient"]:checked')?.value || 'landscape';
+    const warn   = document.getElementById('prl-warning');
+    if (!warn) return;
+    warn.style.display = count > (orient === 'landscape' ? 15 : 8) ? 'block' : 'none';
+  }
+
+  async function executePrintLista() {
+    const sortBy       = document.querySelector('input[name="prl-sort"]:checked')?.value || 'lastname';
+    const colCount     = parseInt(document.getElementById('prl-col-count').value) || 5;
+    const colType      = document.querySelector('input[name="prl-col-type"]:checked')?.value || 'number';
+    const colStartDate = document.getElementById('prl-col-start-date')?.value || '';
+    const colLabels    = colType === 'custom'
+      ? Array.from(document.querySelectorAll('#prl-custom-labels input')).map(i => i.value)
+      : [];
+    const showDoc  = !!document.getElementById('prl-show-doc')?.checked;
+    const showSig  = !!document.getElementById('prl-show-sig')?.checked;
+    const showObs  = !!document.getElementById('prl-show-obs')?.checked;
+    const orient   = document.querySelector('input[name="prl-orient"]:checked')?.value || 'landscape';
+    const paper    = document.querySelector('input[name="prl-paper"]:checked')?.value || 'letter';
+
+    let students, course;
+    if (_printListaSource === 'pasar-lista') {
+      if (!studentsAtt.length) { showToast('No hay lista cargada', 'warning'); return; }
+      students = studentsAtt;
+      course   = activeCourse || {};
+    } else {
+      students = _misEstudiantesStudents || [];
+      if (!students.length) { showToast('Selecciona un curso con estudiantes', 'warning'); return; }
+      const courseId = document.getElementById('me-course-sel')?.value;
+      course = myCourses.find(c => c.id === courseId) || {};
+    }
+
+    const teacherName = document.getElementById('teacher-name')?.textContent || '';
+    const cfg = (await window.RAICE.fetchConfig(fetchAPI)) || {};
+    closeModal('modal-print-lista');
+    window.RAICE.printLista(students, course, teacherName, cfg, {
+      sortBy, colCount, colType, colStartDate, colLabels,
+      showDoc, showSig, showObs, orientation: orient, paper
+    });
   }
 
   // ---- CASES ----
@@ -2352,7 +2679,7 @@
       falta_descripcion: faltaDesc, falta_categoria: faltaCat,
     };
 
-    const { ok, data } = await fetchAPI('/raice/cases', { method:'POST', body: JSON.stringify(payload) });
+    const { ok, data } = await window.RAICE.createCase(fetchAPI, payload);
 
     if (ok) {
       if (type === 1) {
@@ -2404,7 +2731,8 @@
 
   // ---- HISTORY ----
   async function loadHistory() {
-    const { ok, data } = await fetchAPI('/raice/my-cases');
+    const data = { cases: await window.RAICE.fetchMyCases(fetchAPI) };
+    const ok = true;
     myHistory = data.cases || [];
     renderHistory(myHistory);
   }
@@ -2440,18 +2768,17 @@
         ? `<span style="background:#fef3c7;color:#92400e;font-size:.72rem;font-weight:700;padding:.15rem .5rem;border-radius:6px;">Falta ${c.falta_numeral}</span>`
         : '';
       const sName = (c.student_name||'').replace(/'/g,"\'");
-      const tipo1Btns = c.type === 1
-        ? (c.status === 'escalado' || c.status === 'closed')
-          ? `<div style="display:flex;gap:.4rem;margin-top:.6rem;flex-wrap:wrap;">
-               <button class="btn btn-ghost btn-sm" onclick="openTipo1Historial('${c.id}','${sName}')">🗂️ Ver proceso completo</button>
-             </div>`
-          : `<div style="display:flex;gap:.4rem;margin-top:.6rem;flex-wrap:wrap;">
+      const isType1Open = c.type === 1 && c.status !== 'escalado' && c.status !== 'closed';
+      const tipo1Btns = isType1Open
+        ? `<div style="display:flex;gap:.4rem;margin-top:.6rem;flex-wrap:wrap;">
                <button class="btn btn-ghost btn-sm" onclick="openTipo1Historial('${c.id}','${sName}')">🗂️ Ver proceso</button>
                <button class="btn btn-teal btn-sm" onclick="openTipo1EscalonModal('${c.id}','${sName}')">➕ Registrar escalón</button>
                <button class="btn btn-sm" onclick="openCierreCasoModal('${c.id}','${sName}')"
                  style="background:#f0fdf4;border:1.5px solid #86efac;color:#15803d;">✅ Cerrar caso</button>
              </div>`
-        : '';
+        : `<div style="display:flex;gap:.4rem;margin-top:.6rem;flex-wrap:wrap;">
+               <button class="btn btn-ghost btn-sm" onclick="openTipo1Historial('${c.id}','${sName}')">🗂️ Ver proceso completo</button>
+             </div>`;
       return `
       <div class="history-item ${typeClass[c.type]||''}">
         <div class="history-ico">${typeIcos[c.type]||'⚠️'}</div>
@@ -2704,16 +3031,14 @@
     if (!current || !newPwd)       { showToast('Completa todos los campos', 'warning'); return; }
     if (newPwd !== confirm)        { showToast('Las contraseñas no coinciden', 'error'); return; }
     if (newPwd.length < 6)         { showToast('La contraseña debe tener al menos 6 caracteres', 'warning'); return; }
-    const { ok } = await fetchAPI('/raice/change-password', {
-      method:'POST', body: JSON.stringify({ current_password:current, new_password:newPwd })
-    });
-    if (ok) {
+    const result = await window.RAICE.changePassword(fetchAPI, current, newPwd);
+    if (result.ok) {
       showToast('Contraseña actualizada', 'success');
       document.getElementById('pwd-current').value = '';
       document.getElementById('pwd-new').value = '';
       document.getElementById('pwd-confirm').value = '';
     } else {
-      showToast('Contraseña actual incorrecta', 'error');
+      showToast(result.error || 'Contraseña actual incorrecta', 'error');
     }
   }
 
@@ -2774,9 +3099,8 @@
     const bellMap     = {};
     bellSched.forEach(b => bellMap[b.class_hour] = b);
 
-    const DAYS = ['','Lunes','Martes','Miércoles','Jueves','Viernes'];
-    const jsDay  = new Date().getDay();
-    const today  = jsDay === 0 ? 7 : jsDay;
+    const DAYS = DAYS_OF_WEEK;
+    const today  = isoWeekday(new Date().getDay());
 
     if (!schedules.length) {
       body.innerHTML = '<div style="text-align:center;padding:3rem;color:#64748b;"><div style="font-size:2rem;margin-bottom:.75rem;">📭</div>Sin horario configurado aún.<br>Pídele al coordinador que configure tu horario.</div>';
@@ -2870,7 +3194,7 @@
   // =====================================================
   // MI HORARIO SEMANAL
   // =====================================================
-  const DAYS_LABEL = ['','Lunes','Martes','Miércoles','Jueves','Viernes'];
+  const DAYS_LABEL = DAYS_OF_WEEK;
   const SCHED_DAY_COLORS = ['','#dbeafe','#dcfce7','#fef9c3','#f5f3ff','#fff7ed'];
   const SCHED_DAY_BORDER = ['','#93c5fd','#86efac','#fde68a','#c4b5fd','#fed7aa'];
 
@@ -2880,8 +3204,8 @@
     const todayLabel = document.getElementById('horario-today-label');
     body.innerHTML   = '<div style="text-align:center;padding:2rem;color:var(--gray);">Cargando…</div>';
 
-    const { ok, data } = await fetchAPI('/raice/my-schedule');
-    if (!ok || !data.schedules?.length) {
+    const data = await window.RAICE.fetchMySchedule(fetchAPI);
+    if (!data || !data.schedules?.length) {
       body.innerHTML = `<div style="text-align:center;padding:2.5rem;color:var(--gray);">
         <div style="font-size:2.5rem;margin-bottom:.75rem;">🕐</div>
         No tienes horario configurado aún.<br>
@@ -2948,6 +3272,19 @@
 
     // ── HOY ──
     if (!todayBody) return;
+    // Si hoy es un día no lectivo (festivo/vacaciones que bloquea asistencia),
+    // no tiene sentido mostrar "Ahora / Próxima" como si hubiera clase.
+    if (_todayHolidayInfo?.blocks_attendance) {
+      const ev   = _todayHolidayInfo.event || {};
+      const nm   = ev.name || 'día no lectivo';
+      const ic   = _HOLIDAY_ICONS[ev.type || 'holiday'] || '🎌';
+      todayBody.innerHTML = `<div style="text-align:center;padding:1.75rem 1rem;color:var(--gray);">
+        <div style="font-size:2.2rem;margin-bottom:.5rem;">${ic}</div>
+        <div style="font-weight:700;color:var(--navy);margin-bottom:.25rem;">Hoy es ${nm}</div>
+        <div style="font-size:.85rem;">No hay clases programadas. La rejilla de arriba es tu horario habitual.</div>
+      </div>`;
+      return;
+    }
     const todaySlots = schedules.filter(s => s.day_of_week === today).sort((a,b) => a.class_hour - b.class_hour);
     if (!todaySlots.length) {
       todayBody.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--gray);">No tienes clases hoy 🎉</div>';
@@ -3112,6 +3449,7 @@
       // Save to offline queue and mark as saved locally (read-only until sync)
       enqueueOffline(payload);
       _attDirty = false;
+      _correctionMode = null; // corrección guardada → fin del modo corrección
       const key0 = _cacheKey(activeCourse.id, date, activeHour);
       _hourCache[key0] = { students: studentsAtt.map(s => ({...s})), saved: true };
       if (activeCourse.saved_hours && !activeCourse.saved_hours.includes(activeHour)) {
@@ -3128,11 +3466,13 @@
       return;
     }
 
-    const { ok, status, data } = await fetchAPI('/raice/attendance', { method: 'POST', body: JSON.stringify(payload) });
+    const { ok, data, error } = await window.RAICE.saveAttendance(fetchAPI, payload);
+    const status = ok ? 200 : 0;
     btn.disabled = false;
     btn.innerHTML = `💾 Guardar lista — <span id="btn-hour-label">${hourLabel} hora</span>`;
     if (ok) {
       _attDirty = false;
+      _correctionMode = null; // corrección guardada → fin del modo corrección
       const date2 = document.getElementById('att-date-picker').value;
       const key2  = _cacheKey(activeCourse.id, date2, activeHour);
       _hourCache[key2] = { students: studentsAtt.map(s => ({...s})), saved: true };
@@ -3370,25 +3710,10 @@
   }
 
   // ---- INIT ----
-  function applyLogoToSidebar(logoUrl, schoolName) {
-    const logoImg = document.getElementById('sb-logo-img');
-    const markFb  = document.getElementById('sb-mark-fallback');
-    if (logoUrl) {
-      logoImg.src = logoUrl;
-      logoImg.style.display = 'block';
-      if (markFb) markFb.style.display = 'flex'; // mantener R visible junto al escudo
-    } else {
-      logoImg.style.display = 'none';
-      if (markFb) markFb.style.display = 'flex';
-    }
-    if (schoolName) {
-      const el = document.querySelector('.sb-name');
-      if (el) el.title = schoolName;
-    }
-  }
+  // applyLogoToSidebar → importado desde shared/utils
 
   async function loadSchoolConfig() {
-    const { data } = await fetchAPI('/raice/config');
+    const data = await window.RAICE.fetchConfig(fetchAPI);
     if (!data) return;
     applyLogoToSidebar(data.logo_url, data.school_name);
     if (data.classes_per_day) classesPerDay = data.classes_per_day;
@@ -3431,7 +3756,7 @@
       // 1. The teacher is in the attendance section
       // 2. There is an active course
       // 3. The teacher has NO unsaved changes (never overwrite dirty state)
-      if (currentDocenteSection === 'asistencia' && activeCourse && !_attDirty) {
+      if (currentDocenteSection === 'asistencia' && activeCourse && !_attDirty && !_activeHourInCorrection()) {
         // Force network fetch to get latest state from server, then update cache
         const date = document.getElementById('att-date-picker')?.value;
         if (date) {
@@ -3445,6 +3770,8 @@
 
   initSession();
   loadSchoolConfig();
+  loadPeriods();
+  loadCalendarEvents();
   handleMustChangePassword();
   // Verificar festivo ANTES de renderizar cursos (sincronización crítica)
   checkTodayHoliday().then(() => loadMyCourses());
@@ -3506,8 +3833,7 @@
         : [];
     }
     if (!_excusasActivePeriod) {
-      const { ok, data } = await fetchAPI('/raice/periods');
-      const periods = ok ? (data.periods || []) : [];
+      const periods = await window.RAICE.fetchPeriods(fetchAPI);
       _excusasActivePeriod = periods.find(p => p.active) || null;
     }
 
@@ -3870,15 +4196,12 @@
     const btn  = document.querySelector('#modal-removal .btn-danger');
     btn.disabled = true; btn.textContent = '⏳ Enviando…';
 
-    const { ok } = await fetchAPI('/raice/classroom-removals', {
-      method: 'POST',
-      body: JSON.stringify({
+    const { ok } = await window.RAICE.submitClassroomRemoval(fetchAPI, {
         student_id: _removalStudentId,
         course_id:  activeCourse.id,
         date,
         class_hour: activeHour,
         reason
-      })
     });
 
     btn.disabled = false; btn.textContent = '⛔ Enviar al coordinador';
@@ -3896,15 +4219,16 @@
   // =====================================================
   // Show correction window info when opening unlock modal
   async function openUnlockModal() {
-    document.getElementById('unlock-reason').value = '';
+    const chk = document.getElementById('unlock-confirm');
+    if (chk) chk.checked = false;
     const infoEl  = document.getElementById('unlock-window-info');
     const textEl  = document.getElementById('unlock-window-text');
     infoEl.style.display = 'none';
     openModal('modal-unlock');
     // Load correction window info in background after modal is already open
     try {
-      const { ok, data } = await fetchAPI('/raice/config');
-      if (ok && data.correction_window) {
+      const data = await window.RAICE.fetchConfig(fetchAPI);
+      if (data && data.correction_window) {
         const labels = {
           class_duration: `Puedes corregir durante ${data.correction_window_minutes || 55} minutos desde que guardaste la lista.`,
           same_day_hour:  `Puedes corregir hasta las ${data.correction_window_hour || '17:00'} del día de la lista.`,
@@ -3918,8 +4242,8 @@
   }
 
   async function submitUnlock() {
-    const reason = document.getElementById('unlock-reason').value.trim();
-    if (!reason) { showToast('Debes escribir el motivo de la corrección', 'warning'); return; }
+    const isChecked = document.getElementById('unlock-confirm')?.checked;
+    if (!isChecked) { showToast('Debes confirmar que estás seguro marcando la casilla', 'warning'); return; }
     if (!activeCourse) return;
 
     const date = document.getElementById('att-date-picker').value;
@@ -3932,7 +4256,7 @@
         course_id:  activeCourse.id,
         date,
         class_hour: activeHour,
-        reason
+        reason:     'Confirmado por el docente'
       })
     });
 
@@ -3945,6 +4269,7 @@
       }
       const key = _cacheKey(activeCourse.id, date, activeHour);
       if (_hourCache[key]) _hourCache[key].saved = false;
+      _correctionMode = key; // proteger esta hora del auto-relock hasta que se guarde o se cambie de hora
       renderStudentList();
       showToast('✏️ Lista desbloqueada — puedes corregir', 'success');
     } else {
@@ -3998,8 +4323,15 @@
   let _hattPeriods   = [];    // all periods loaded from API
 
   async function initAttHistory() {
-    // Populate course selector from myCourses (loaded already)
-    if (!myCourses.length) await loadMyCourses();
+    // Populate course selector from myCourses.
+    // IMPORTANTE: el historial muestra registros del PASADO, así que NO debe
+    // depender de loadMyCourses() — esa función se cancela en días festivos
+    // (blocks_attendance) y dejaría la lista vacía. Cargamos los cursos
+    // directamente, sin importar si hoy es festivo.
+    if (!myCourses.length) {
+      const data = await window.RAICE.fetchMyCourses(fetchAPI);
+      myCourses = (data && data.courses) || [];
+    }
 
     const sel = document.getElementById('hatt-course');
     sel.innerHTML = '<option value="">— Selecciona un curso —</option>' +
@@ -4026,8 +4358,7 @@
   }
 
   async function setDefaultHattRange() {
-    const { ok, data } = await fetchAPI('/raice/periods');
-    _hattPeriods = (ok && data.periods) ? data.periods : [];
+    _hattPeriods = await window.RAICE.fetchPeriods(fetchAPI);
     const active = _hattPeriods.find(p => p.active);
     const today  = todayColombia();
 
@@ -4507,110 +4838,9 @@
     if (old) old.remove();
   }
 
-  function escapeHtml(str) {
-    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
+  // escapeHtml, _printObservadorWindow → importados desde shared/utils
+  function _printObservadorWindow(d, cfg) { window.RAICE.printObservadorWindow(d, cfg); }
 
-  function _printObservadorWindow(d, cfg) {
-    const s = d.student, at = d.attendance || {}, obs = d.observations || [], cases = d.cases || [];
-    const schoolName = cfg.school_name || 'Institución Educativa';
-    const schoolLoc  = cfg.location || '';
-    const schoolLogo = cfg.logo_url
-      ? `<img src="${cfg.logo_url}" style="height:55px;object-fit:contain;" alt="logo">`
-      : `<div style="font-size:2.2rem;">🏫</div>`;
-    const raiceLogo = `<img src="${window.location.origin}/favicon.png" style="height:40px;object-fit:contain;" alt="RAICE" onerror="this.style.display='none'">`;
-    const now = new Date().toLocaleDateString('es-CO', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
-    const curso = s.grade ? `${s.grade}°${s.number || ''}` : (s.course || '—');
-
-    const typeLabel = { positive: 'Positiva', neutral: 'Neutra', negative: 'Negativa' };
-    const typeColor = { positive: '#16a34a', neutral: '#64748b', negative: '#dc2626' };
-    const statusLabel = { open: 'Abierto', tracking: 'En seguimiento', closed: 'Cerrado' };
-
-    const obsRows = obs.map(o => {
-      const fecha = new Date(o.created_at).toLocaleDateString('es-CO', { day:'numeric', month:'short', year:'numeric' });
-      const tl = typeLabel[o.type] || o.type;
-      const tc = typeColor[o.type] || '#333';
-      return `<tr>
-        <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${fecha}</td>
-        <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;font-weight:600;color:${tc};">${tl}</td>
-        <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${o.text || ''}</td>
-        <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${o.teacher_name || '—'}</td>
-      </tr>`;
-    }).join('');
-
-    const casesRows = cases.map(c => {
-      const fecha = new Date(c.created_at).toLocaleDateString('es-CO', { day:'numeric', month:'short', year:'numeric' });
-      const st = statusLabel[c.status] || c.status;
-      return `<tr>
-        <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${fecha}</td>
-        <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;text-align:center;">Tipo ${c.type}</td>
-        <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${(c.description || '').substring(0, 120)}</td>
-        <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;text-align:center;">${st}</td>
-        <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${c.teacher_name || '—'}</td>
-      </tr>`;
-    }).join('');
-
-    const w = window.open('', '_blank');
-    w.document.write(`<!DOCTYPE html><html><head><title>Observador — ${s.first_name} ${s.last_name}</title>
-    <style>
-      @page{size:A4;margin:15mm}
-      body{font-family:Arial,sans-serif;font-size:10pt;color:#1e293b;line-height:1.5;}
-      table{width:100%;border-collapse:collapse;}
-      th{background:#f1f5f9;border:1px solid #ccc;padding:5px 8px;font-size:8.5pt;text-transform:uppercase;letter-spacing:.03em;text-align:left;}
-      tr:nth-child(even){background:#fafbfc;}
-      .header{display:flex;align-items:center;justify-content:space-between;border-bottom:2.5px solid #1e293b;padding-bottom:.8rem;margin-bottom:1.2rem;}
-      .header-center{text-align:center;flex:1;}
-      .header-center h1{margin:0;font-size:13pt;font-weight:800;}
-      .header-center .loc{font-size:8.5pt;color:#555;margin-top:2px;}
-      .section-title{font-size:11pt;font-weight:800;color:#1e293b;margin:1.2rem 0 .5rem;padding-bottom:.3rem;border-bottom:1.5px solid #e2e8f0;}
-      .student-info{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem .8rem;margin-bottom:1rem;background:#f8fafc;padding:.7rem 1rem;border-radius:6px;border:1px solid #e2e8f0;}
-      .si-label{font-size:8pt;color:#64748b;text-transform:uppercase;letter-spacing:.04em;}
-      .si-value{font-size:10pt;font-weight:700;color:#1e293b;}
-      .att-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:.5rem;margin-bottom:1rem;}
-      .att-box{text-align:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:.5rem .3rem;}
-      .att-val{font-size:14pt;font-weight:800;}
-      .att-lbl{font-size:7.5pt;color:#64748b;text-transform:uppercase;}
-      .footer{text-align:center;margin-top:2rem;font-size:8pt;color:#999;border-top:1px solid #e2e8f0;padding-top:.5rem;}
-    </style></head><body>
-    <div class="header">
-      ${schoolLogo}
-      <div class="header-center">
-        <h1>${schoolName}</h1>
-        ${schoolLoc ? `<div class="loc">${schoolLoc}</div>` : ''}
-        <div style="font-size:10pt;font-weight:600;margin-top:6px;color:#0b7a75;">OBSERVADOR DEL ESTUDIANTE</div>
-      </div>
-      ${raiceLogo}
-    </div>
-
-    <div class="student-info">
-      <div><div class="si-label">Nombre completo</div><div class="si-value">${s.first_name} ${s.last_name}</div></div>
-      <div><div class="si-label">Curso</div><div class="si-value">${curso}</div></div>
-      <div><div class="si-label">Estado</div><div class="si-value">${s.status === 'inactive' ? 'Retirado' : 'Activo'}</div></div>
-    </div>
-
-    <div class="section-title">Resumen de asistencia</div>
-    <div class="att-grid">
-      <div class="att-box"><div class="att-val" style="color:${at.pct !== null && at.pct < 80 ? '#dc2626' : '#16a34a'};">${at.pct ?? '—'}%</div><div class="att-lbl">Asistencia</div></div>
-      <div class="att-box"><div class="att-val" style="color:#16a34a;">${at.present || 0}</div><div class="att-lbl">Presencias</div></div>
-      <div class="att-box"><div class="att-val" style="color:#dc2626;">${at.absent || 0}</div><div class="att-lbl">Ausencias</div></div>
-      <div class="att-box"><div class="att-val" style="color:#f59e0b;">${at.late || 0}</div><div class="att-lbl">Tardanzas</div></div>
-      <div class="att-box"><div class="att-val" style="color:#7c3aed;">${at.permit || 0}</div><div class="att-lbl">Permisos</div></div>
-    </div>
-    <div style="font-size:7.5pt;color:#94a3b8;text-align:center;margin-top:-.5rem;margin-bottom:.8rem;">* Estadísticas en horas de clase</div>
-
-    <div class="section-title">Observaciones (${obs.length})</div>
-    ${obs.length ? `<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Observación</th><th>Docente</th></tr></thead><tbody>${obsRows}</tbody></table>`
-      : '<div style="text-align:center;padding:1rem;color:#94a3b8;font-size:9pt;">Sin observaciones registradas</div>'}
-
-    <div class="section-title">Casos RAICE (${cases.length})</div>
-    ${cases.length ? `<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Descripción</th><th>Estado</th><th>Reportado por</th></tr></thead><tbody>${casesRows}</tbody></table>`
-      : '<div style="text-align:center;padding:1rem;color:#94a3b8;font-size:9pt;">Sin casos RAICE registrados</div>'}
-
-    <div class="footer">Generado el ${now} — Sistema RAICE</div>
-    </body></html>`);
-    w.document.close();
-    setTimeout(() => w.print(), 500);
-  }
 
 </script>
 
@@ -4658,8 +4888,10 @@
         La corrección queda registrada con tu nombre, la hora y el motivo para auditoría del coordinador.
       </p>
       <div class="form-group">
-        <label>Motivo de la corrección <span style="color:#f43f5e">*</span></label>
-        <textarea id="unlock-reason" rows="3" placeholder="¿Por qué necesitas corregir esta lista?…" style="width:100%;resize:vertical;"></textarea>
+        <label style="display:flex;align-items:flex-start;gap:.65rem;cursor:pointer;font-weight:600;font-size:.85rem;color:var(--navy);line-height:1.4;">
+          <input type="checkbox" id="unlock-confirm" style="width:1.15rem;height:1.15rem;margin-top:.1rem;cursor:pointer;flex-shrink:0;">
+          <span>Confirmo que estoy seguro de realizar la modificación de la asistencia.</span>
+        </label>
       </div>
     </div>
     <div class="modal-footer">
@@ -4744,16 +4976,7 @@ if ('serviceWorker' in navigator) {
     if (e.data?.type === 'SW_UPDATED') showUpdateBanner();
   });
 }
-function showUpdateBanner() {
-  let b = document.getElementById('pwa-update-banner');
-  if (!b) {
-    b = document.createElement('div');
-    b.id = 'pwa-update-banner';
-    b.style.cssText = 'position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);z-index:99999;background:#0f1f3d;color:#fff;border-radius:14px;padding:.75rem 1.25rem;font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:.75rem;box-shadow:0 4px 20px rgba(0,0,0,.3);';
-    b.innerHTML = '✨ Nueva versión disponible <button onclick="location.reload()" style="background:#14b8b0;border:none;color:#fff;padding:.3rem .8rem;border-radius:8px;cursor:pointer;font-weight:700;">Actualizar</button>';
-    document.body.appendChild(b);
-  }
-}
+var showUpdateBanner = window.RAICE.showUpdateBanner;
 </script>
 
 
@@ -4786,58 +5009,136 @@ function showUpdateBanner() {
   </div>
 </div>
 
+<!-- ===== MODAL: Imprimir lista de estudiantes ===== -->
+<div class="modal-overlay" id="modal-print-lista">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-header">
+      <h3>🖨️ Configurar lista para imprimir</h3>
+      <button class="modal-close" onclick="closeModal('modal-print-lista')">✕</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:1rem;">
+
+      <!-- Ordenar por -->
+      <div class="form-group">
+        <label style="font-weight:700;font-size:.82rem;color:var(--navy);text-transform:uppercase;letter-spacing:.04em;">Ordenar lista por</label>
+        <div style="display:flex;gap:.5rem;margin-top:.35rem;">
+          <label style="flex:1;display:flex;align-items:center;gap:.5rem;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:9px;cursor:pointer;font-size:.85rem;">
+            <input type="radio" name="prl-sort" value="lastname" checked onchange="validatePrintListaFit()"> Apellidos
+          </label>
+          <label style="flex:1;display:flex;align-items:center;gap:.5rem;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:9px;cursor:pointer;font-size:.85rem;">
+            <input type="radio" name="prl-sort" value="firstname" onchange="validatePrintListaFit()"> Nombres
+          </label>
+        </div>
+      </div>
+
+      <!-- Columnas de registro -->
+      <div class="form-group">
+        <label style="font-weight:700;font-size:.82rem;color:var(--navy);text-transform:uppercase;letter-spacing:.04em;">Columnas de registro</label>
+        <div style="display:flex;align-items:center;gap:.75rem;margin-top:.35rem;">
+          <input type="number" id="prl-col-count" min="1" max="20" value="5"
+            oninput="onPrintListaColCountChange()"
+            style="width:70px;padding:.45rem .6rem;border:1.5px solid var(--border);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:.9rem;text-align:center;">
+          <span style="font-size:.8rem;color:var(--gray);">columnas (máx. 20)</span>
+        </div>
+      </div>
+
+      <!-- Tipo de cabecera -->
+      <div class="form-group">
+        <label style="font-weight:700;font-size:.82rem;color:var(--navy);text-transform:uppercase;letter-spacing:.04em;">Cabecera de columnas</label>
+        <div style="display:flex;gap:.4rem;margin-top:.35rem;flex-wrap:wrap;">
+          <label style="display:flex;align-items:center;gap:.4rem;padding:.45rem .7rem;border:1.5px solid var(--border);border-radius:9px;cursor:pointer;font-size:.83rem;">
+            <input type="radio" name="prl-col-type" value="number" checked onchange="onPrintListaColTypeChange()"> Números (1,2,3…)
+          </label>
+          <label style="display:flex;align-items:center;gap:.4rem;padding:.45rem .7rem;border:1.5px solid var(--border);border-radius:9px;cursor:pointer;font-size:.83rem;">
+            <input type="radio" name="prl-col-type" value="date" onchange="onPrintListaColTypeChange()"> Fechas
+          </label>
+          <label style="display:flex;align-items:center;gap:.4rem;padding:.45rem .7rem;border:1.5px solid var(--border);border-radius:9px;cursor:pointer;font-size:.83rem;">
+            <input type="radio" name="prl-col-type" value="custom" onchange="onPrintListaColTypeChange()"> Personalizado
+          </label>
+        </div>
+        <div id="prl-date-row" style="display:none;margin-top:.5rem;">
+          <label style="font-size:.78rem;color:var(--gray);display:block;margin-bottom:.25rem;">Fecha de inicio (genera días hábiles consecutivos)</label>
+          <input type="date" id="prl-col-start-date"
+            style="padding:.45rem .6rem;border:1.5px solid var(--border);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:.83rem;">
+        </div>
+        <div id="prl-custom-labels" style="display:none;margin-top:.5rem;grid-template-columns:repeat(4,1fr);gap:.3rem;"></div>
+      </div>
+
+      <!-- Columnas adicionales -->
+      <div class="form-group">
+        <label style="font-weight:700;font-size:.82rem;color:var(--navy);text-transform:uppercase;letter-spacing:.04em;">Columnas adicionales</label>
+        <div style="display:flex;flex-direction:column;gap:.4rem;margin-top:.35rem;">
+          <label id="prl-doc-label" style="display:flex;align-items:center;gap:.6rem;font-size:.85rem;cursor:pointer;">
+            <input type="checkbox" id="prl-show-doc" onchange="validatePrintListaFit()"> Número de documento
+          </label>
+          <label style="display:flex;align-items:center;gap:.6rem;font-size:.85rem;cursor:pointer;">
+            <input type="checkbox" id="prl-show-sig" checked onchange="validatePrintListaFit()"> Columna de firma / VB
+          </label>
+          <label style="display:flex;align-items:center;gap:.6rem;font-size:.85rem;cursor:pointer;">
+            <input type="checkbox" id="prl-show-obs" onchange="validatePrintListaFit()"> Columna de observaciones
+          </label>
+        </div>
+      </div>
+
+      <!-- Formato -->
+      <div class="form-group">
+        <label style="font-weight:700;font-size:.82rem;color:var(--navy);text-transform:uppercase;letter-spacing:.04em;">Formato de impresión</label>
+        <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:.35rem;">
+          <div>
+            <div style="font-size:.75rem;color:var(--gray);margin-bottom:.3rem;">Orientación</div>
+            <div style="display:flex;gap:.4rem;">
+              <label style="display:flex;align-items:center;gap:.4rem;padding:.4rem .65rem;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;font-size:.82rem;">
+                <input type="radio" name="prl-orient" value="landscape" checked onchange="validatePrintListaFit()"> Horizontal
+              </label>
+              <label style="display:flex;align-items:center;gap:.4rem;padding:.4rem .65rem;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;font-size:.82rem;">
+                <input type="radio" name="prl-orient" value="portrait" onchange="validatePrintListaFit()"> Vertical
+              </label>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:.75rem;color:var(--gray);margin-bottom:.3rem;">Papel</div>
+            <div style="display:flex;gap:.4rem;">
+              <label style="display:flex;align-items:center;gap:.4rem;padding:.4rem .65rem;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;font-size:.82rem;">
+                <input type="radio" name="prl-paper" value="letter" checked> Carta
+              </label>
+              <label style="display:flex;align-items:center;gap:.4rem;padding:.4rem .65rem;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;font-size:.82rem;">
+                <input type="radio" name="prl-paper" value="a4"> A4
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Advertencia de ajuste -->
+      <div id="prl-warning" style="display:none;background:#fef9c3;border:1.5px solid #fbbf24;border-radius:10px;padding:.6rem .9rem;font-size:.82rem;color:#92400e;font-weight:600;">
+        ⚠️ Con estas opciones la lista puede no caber en una hoja. Se recomienda orientación horizontal y reducir el número de columnas.
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-print-lista')">Cancelar</button>
+      <button class="btn btn-teal" onclick="executePrintLista()">🖨️ Generar lista</button>
+    </div>
+  </div>
+</div>
+
 </body>
 <script>
   // Supabase Realtime Auto-Refresh for Excusas
-  async function initRealtime() {
-    try {
-      const { ok, data } = await fetchAPI('/raice/realtime-config');
-      if (!ok || !data.supabase_url || !data.supabase_anon_key) return;
-
-      // Dynamically load Supabase SDK if credentials exist
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
-      script.onload = () => {
-        const { createClient } = window.supabase;
-        const sb = createClient(data.supabase_url, data.supabase_anon_key);
-
-        console.log('🔗 Suscribiendo a eventos en tiempo real (Global Docente)...');
-        // Excusas
-        sb.channel('realtime:excusas')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'raice_excusas' }, payload => {
-            if (currentDocenteSection === 'excusas-grado') loadExcusasList();
-          })
-          .subscribe();
-
-        // Casos de Convivencia
-        sb.channel('realtime:casos')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'raice_cases' }, payload => {
-            if (currentDocenteSection === 'casos-grado') {
-              loadGradeCases();
-              loadStudentsForCase();
-            }
-          })
-          .subscribe();
-
-        // Asistencia
-        sb.channel('realtime:asistencia')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'raice_attendance' }, payload => {
-            if (currentDocenteSection === 'asistencia') {
-              // 🛡️ Capa Protectora: Solo auto-recargar si el docente NO está editando (dirty flag)
-              if (!_attDirty) {
-                loadCourseStudents(true);
-              } else {
-                console.log('⚠️ Cambio de asistencia externo detectado, recarga prevenida para no perder progreso.');
-                // Here we could show a small toast notification, but skipping reload is enough protection
-              }
-            }
-          })
-          .subscribe();
-      };
-      document.body.appendChild(script);
-    } catch (err) {
-      console.warn('Realtime fetch error:', err);
-    }
+  function initRealtime() {
+    window.RAICE.initRealtime(fetchAPI, [
+      { channel: 'realtime:excusas', table: 'raice_excusas', callback: function() {
+        if (currentDocenteSection === 'excusas-grado') loadExcusasList();
+      }},
+      { channel: 'realtime:casos', table: 'raice_cases', callback: function() {
+        if (currentDocenteSection === 'casos-grado') { loadGradeCases(); loadStudentsForCase(); }
+      }},
+      { channel: 'realtime:asistencia', table: 'raice_attendance', callback: function() {
+        if (currentDocenteSection === 'asistencia' && !_attDirty && !_activeHourInCorrection()) {
+          loadCourseStudents(true);
+        }
+      }}
+    ], 'Docente');
   }
 
   // Initialize Realtime when dashboard is ready

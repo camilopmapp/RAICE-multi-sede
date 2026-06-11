@@ -95,15 +95,60 @@ Minimo esperado por iteracion:
 
 Orden tecnico recomendado:
 
-1. shared/constants
-2. shared/utils
-3. data/datasources + repositories
-4. domain/use-cases
-5. presentation/controllers + views
+1. shared/constants                  -- COMPLETADO
+2. shared/utils                      -- COMPLETADO
+3. data/datasources + repositories   -- COMPLETADO (62% de llamadas migradas)
+4. domain/use-cases                  -- COMPLETADO (funciones puras extraidas)
+5. presentation/controllers + views  -- PENDIENTE (requiere refactorizacion de vistas)
 
 Regla de avance:
 
 No pasar a la siguiente etapa sin paridad funcional validada en la etapa actual.
+
+### 10.1 Estado actual de la capa shared
+
+```
+public/shared/
+  constants/index.js       11 constantes (dias, pills, labels, colores)
+  utils/
+    index.js               19 funciones (escapeHtml, logout, showToast, checkAuth,
+                            avatarColor, formatDate, deriveProfileData, applyLogoToSidebar,
+                            daysAgo, toast, startClock, attendanceColor, getInitials,
+                            formatDateCO, getGreeting, isoWeekday, ...)
+    printObservador.js      Impresion del observador del estudiante
+    pwa.js                  Banners PWA (update, offline)
+  data/
+    apiClient.js            Cliente API unificado (auth + sede filter)
+    realtime.js             Setup Supabase Realtime parametrizado
+    repositories.js         61 funciones de acceso a datos (lectura + CRUD)
+  domain/
+    index.js                7 reglas de negocio (gradeLbl, getCurrentBell,
+                            todayColombia, calcAttendancePct, classifyRisk, ...)
+```
+
+Todos los modulos se cargan como scripts regulares via window.RAICE (IIFE pattern).
+NO usar type="module" porque rompe el timing con scripts secundarios (PWA, Realtime).
+
+### 10.2 Lo que sigue PENDIENTE (estado real)
+
+La app sigue siendo **mayormente monolitica**. Solo la capa shared (~876 lineas) esta extraida.
+
+- Backend `pages/api/[...path].js` ≈ **9000 lineas en UN archivo** (router por string `route`).
+  Es 100% monolito y el punto mas fragil. **Candidato natural siguiente:** trocearlo por dominio
+  (asistencia, casos, excusas, estudiantes...) de forma incremental.
+- Frontend: 1 HTML gigante por rol con JS inline (admin ~10.4k, superadmin ~6.4k, docente ~4.8k,
+  rector ~1.7k, portal ~0.7k lineas). Etapa 5 (presentation) aun pendiente.
+
+Mantener el principio: incremental, con paridad funcional validada antes de avanzar.
+
+### 10.3 Despliegue y fuente de verdad
+
+- **Fuente de verdad: GitHub** (`https://github.com/camilopmapp/raice.git`, rama `main`).
+  Vercel auto-despliega con cada push.
+- Trabajar DIRECTO en el clon Git local (`RAICE FINAL/`), validar con `node --check`,
+  y `git push origin main`. **No** subir por la web de GitHub (deja clones locales desfasados).
+- Antes de tocar nada, sincronizar el clon (`git fetch` + `git merge --ff-only origin/main`).
+  Detalle completo en RUNBOOK.md §3.
 
 ## 11. Estandar de Documentacion
 

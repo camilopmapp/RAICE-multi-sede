@@ -38,7 +38,10 @@
   .btn-logout:hover{background:rgba(255,255,255,.16);color:white;border-color:rgba(255,255,255,.28);}
 
   /* search hero */
-  .search-hero{background:linear-gradient(135deg,#0a1628 0%,var(--navy) 45%,#122040 75%,var(--navy2) 100%);padding:2.2rem 1.5rem 1.8rem;position:relative;overflow:hidden;}
+  /* overflow:visible para que el desplegable de búsqueda NO se recorte. Los
+     adornos radiales (::before/::after) que sobresalen quedan DETRÁS de la
+     sección siguiente (sedes), así que no se notan. */
+  .search-hero{background:linear-gradient(135deg,#0a1628 0%,var(--navy) 45%,#122040 75%,var(--navy2) 100%);padding:2.2rem 1.5rem 1.8rem;position:relative;overflow:visible;}
   .search-hero::before{content:'';position:absolute;top:-80px;right:-100px;width:340px;height:340px;background:radial-gradient(circle,rgba(20,184,176,.12) 0%,transparent 70%);pointer-events:none;}
   .search-hero::after{content:'';position:absolute;bottom:-60px;left:-80px;width:240px;height:240px;background:radial-gradient(circle,rgba(232,160,32,.07) 0%,transparent 70%);pointer-events:none;}
   .hero-inner{position:relative;z-index:1;}
@@ -126,7 +129,7 @@
   /* modal */
   .modal-ov{display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.5);backdrop-filter:blur(2px);align-items:center;justify-content:center;padding:1rem;}
   .modal-ov.open{display:flex;}
-  .modal{background:white;border-radius:20px;width:100%;max-width:720px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,.25);}
+  .modal{background:white;border-radius:20px;overflow:hidden;width:100%;max-width:720px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,.25);}
   .modal-hd{padding:1rem 1.35rem;border-bottom:1.5px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;flex-shrink:0;}
   .modal-hd h3{font-family:'Fraunces',serif;font-size:1.05rem;font-weight:700;color:var(--navy);}
   .modal-sub{font-size:.78rem;color:var(--gray);margin-top:.15rem;}
@@ -310,8 +313,95 @@
 
   /* ── ab-av improvement ────────────────────────── */
   .ab-av{background:linear-gradient(135deg,#fee2e2,#fecaca);box-shadow:0 0 0 2px rgba(220,38,38,.12);}
+
+  /* ═══ FICHA MODAL — diseño portal-acudiente (scoped) ═══ */
+  #modal-ficha .modal{max-width:760px;overflow:hidden;}
+  #modal-ficha .modal-bd{padding:0;}
+  #modal-ficha .ficha-body{font-family:'DM Sans',sans-serif;}
+  #modal-ficha .student-card{background:var(--navy);color:#fff;padding:1.1rem 1.25rem;display:flex;align-items:center;gap:1rem;border-radius:0;}
+  #modal-ficha .student-avatar{width:48px;height:48px;border-radius:50%;background:var(--gold);color:var(--navy);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.1rem;flex-shrink:0;}
+  #modal-ficha .student-name{font-family:'Fraunces',serif;font-size:1.1rem;font-weight:700;}
+  #modal-ficha .student-meta{font-size:.8rem;color:rgba(255,255,255,.7);margin-top:.2rem;}
+  #modal-ficha .student-grade{background:var(--teal2);color:#fff;padding:.2rem .6rem;border-radius:6px;font-size:.78rem;font-weight:700;margin-left:.5rem;}
+  #modal-ficha .tabs{display:flex;gap:.4rem;margin-bottom:1.25rem;overflow-x:auto;padding-bottom:.25rem;}
+  #modal-ficha .tab{padding:.5rem 1rem;border-radius:9px;border:1.5px solid var(--border);background:#fff;color:var(--gray);font-size:.83rem;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit;transition:all .15s;}
+  #modal-ficha .tab.active{background:var(--teal);color:#fff;border-color:var(--teal);}
+  #modal-ficha .tab-content{display:none;}
+  #modal-ficha .tab-content.active{display:block;}
+  #modal-ficha .ficha-body .card{background:#fff;border-radius:12px;margin-bottom:1rem;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06);border:none;}
+  #modal-ficha .ficha-body .card:hover{box-shadow:0 1px 4px rgba(0,0,0,.06);transform:none;}
+  #modal-ficha .card-header{padding:.85rem 1.1rem;border-bottom:1px solid var(--border);font-weight:700;font-size:.9rem;color:var(--navy);}
+  #modal-ficha .card-body{padding:1rem 1.1rem;}
+  #modal-ficha .stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:.65rem;margin-bottom:1.1rem;}
+  #modal-ficha .stat-box{background:var(--light);border-radius:10px;padding:.75rem .5rem;text-align:center;}
+  #modal-ficha .stat-val{font-size:1.4rem;font-weight:700;color:var(--navy);}
+  #modal-ficha .stat-lbl{font-size:.73rem;color:var(--gray);margin-top:.15rem;}
+  #modal-ficha .att-list{display:flex;flex-direction:column;gap:.4rem;}
+  #modal-ficha .att-row{display:flex;align-items:center;gap:.75rem;padding:.5rem .65rem;border-radius:8px;background:var(--light);font-size:.84rem;}
+  #modal-ficha .att-badge{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;flex-shrink:0;}
+  #modal-ficha .att-P{background:#dcfce7;color:#15803d;}
+  #modal-ficha .att-A{background:#fee2e2;color:var(--red);}
+  #modal-ficha .att-PE{background:#fef9c3;color:#854d0e;}
+  #modal-ficha .att-T{background:#fef3c7;color:#b45309;}
+  #modal-ficha .mini-cal{display:grid;grid-template-columns:repeat(5,1fr);gap:2px;margin-bottom:.65rem;}
+  #modal-ficha .cal-hdr{font-size:.6rem;font-weight:700;text-align:center;color:var(--gray);padding:.15rem 0;}
+  #modal-ficha .cal-month-lbl{grid-column:1/-1;font-size:.65rem;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.04em;padding:.35rem 0 .1rem;}
+  #modal-ficha .cal-day{height:24px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:.62rem;font-weight:500;}
+  #modal-ficha .cal-empty{background:transparent;}
+  #modal-ficha .cal-P{background:#dcfce7;color:#15803d;}
+  #modal-ficha .cal-A{background:#fee2e2;color:var(--red);}
+  #modal-ficha .cal-PE{background:#fef9c3;color:#854d0e;}
+  #modal-ficha .cal-T{background:#fef3c7;color:#b45309;}
+  #modal-ficha .cal-nodata{background:var(--light);color:var(--gray);}
+  #modal-ficha .subj-table{width:100%;border-collapse:separate;border-spacing:0;font-size:.82rem;}
+  #modal-ficha .subj-table th{text-align:left;font-weight:600;color:var(--gray);font-size:.72rem;text-transform:uppercase;padding:.4rem .5rem;border-bottom:1.5px solid var(--border);}
+  #modal-ficha .subj-table td{padding:.55rem .5rem;border-bottom:1px solid var(--border);}
+  #modal-ficha .subj-table tr:last-child td{border-bottom:none;}
+  #modal-ficha .subj-pct{font-weight:700;font-size:.88rem;}
+  #modal-ficha .case-item{border-left:4px solid var(--border);padding:.75rem 1rem;margin-bottom:.65rem;background:var(--light);border-radius:0 8px 8px 0;}
+  #modal-ficha .case-t1{border-color:#f59e0b;}
+  #modal-ficha .case-t2{border-color:#f97316;}
+  #modal-ficha .case-t3{border-color:var(--red);}
+  #modal-ficha .case-badge{display:inline-block;font-size:.72rem;font-weight:700;padding:.15rem .55rem;border-radius:5px;margin-bottom:.4rem;}
+  #modal-ficha .badge-t1{background:#fef3c7;color:#92400e;}
+  #modal-ficha .badge-t2{background:#ffedd5;color:#9a3412;}
+  #modal-ficha .badge-t3{background:#fee2e2;color:#991b1b;}
+  #modal-ficha .badge-closed{background:#f0fdf4;color:#15803d;font-size:.7rem;margin-left:.4rem;}
+  #modal-ficha .case-desc{font-size:.85rem;color:var(--navy);line-height:1.45;}
+  #modal-ficha .case-date{font-size:.75rem;color:var(--gray);margin-top:.35rem;}
+  #modal-ficha .obs-item{display:flex;gap:.75rem;margin-bottom:.65rem;}
+  #modal-ficha .obs-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:.35rem;}
+  #modal-ficha .obs-pos{background:#22c55e;}
+  #modal-ficha .obs-neu{background:#94a3b8;}
+  #modal-ficha .obs-neg{background:var(--red);}
+  #modal-ficha .obs-text{font-size:.85rem;color:var(--navy);line-height:1.45;}
+  #modal-ficha .obs-date{font-size:.75rem;color:var(--gray);margin-top:.2rem;}
+  #modal-ficha .sanc-item{background:var(--light);border-radius:8px;padding:.75rem 1rem;margin-bottom:.65rem;}
+  #modal-ficha .sanc-badge{display:inline-block;font-size:.72rem;font-weight:700;padding:.15rem .55rem;border-radius:5px;margin-bottom:.4rem;}
+  #modal-ficha .sanc-susp{background:#fee2e2;color:#991b1b;}
+  #modal-ficha .sanc-rem{background:#fef3c7;color:#92400e;}
+  #modal-ficha .sanc-text{font-size:.85rem;color:var(--navy);}
+  #modal-ficha .sanc-date{font-size:.75rem;color:var(--gray);margin-top:.3rem;}
+  #modal-ficha .commit-item{border-left:4px solid var(--border);padding:.65rem 1rem;margin-bottom:.55rem;background:var(--light);border-radius:0 8px 8px 0;}
+  #modal-ficha .commit-pending{border-color:#f59e0b;}
+  #modal-ficha .commit-done{border-color:#22c55e;}
+  #modal-ficha .commit-overdue{border-color:var(--red);}
+  #modal-ficha .director-card{display:flex;align-items:center;gap:.75rem;padding:.75rem 1rem;background:var(--light);border-radius:10px;margin-bottom:1.1rem;}
+  #modal-ficha .director-ico{width:38px;height:38px;border-radius:50%;background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;}
+  #modal-ficha .acud-item{display:flex;gap:.75rem;align-items:flex-start;padding:.55rem 0;border-bottom:1px solid var(--border);}
+  #modal-ficha .acud-item:last-child{border-bottom:none;}
+  #modal-ficha .acud-ico{width:32px;height:32px;border-radius:50%;background:#ede9fe;color:#7c3aed;display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0;margin-top:.1rem;}
+  #modal-ficha .empty-state{text-align:center;padding:2rem 1rem;color:var(--gray);font-size:.88rem;}
 </style>
 <script src="/js/chart.umd.min.js"></script>
+<script src="/shared/constants/index.js"></script>
+<script src="/shared/utils/index.js"></script>
+<script src="/shared/data/apiClient.js"></script>
+<script src="/shared/domain/index.js"></script>
+<script src="/shared/utils/printObservador.js"></script>
+<script src="/shared/utils/pwa.js"></script>
+<script src="/shared/data/realtime.js"></script>
+<script src="/shared/data/repositories.js"></script>
 </head>
 <body>
 
@@ -546,24 +636,102 @@
 <div class="modal-ov" id="modal-ficha">
   <div class="modal">
     <div class="modal-hd">
-      <div>
-        <h3 id="f-nombre">Estudiante</h3>
-        <div class="modal-sub" id="f-curso"></div>
-      </div>
+      <div><h3>Ficha del Estudiante</h3></div>
       <button id="ficha-print-btn" style="margin-left:auto;margin-right:.5rem;padding:.3rem .7rem;border-radius:8px;border:1.5px solid var(--border);background:white;color:var(--navy);font-size:.78rem;font-weight:600;cursor:pointer;" onclick="printObservador()">🖨️ Imprimir</button>
       <button class="m-close" onclick="closeFicha()">&#10005;</button>
     </div>
-    <div class="modal-bd">
-      <div class="f-tabs">
-        <button class="f-tab active" onclick="switchTab('resumen',this)">Resumen</button>
-        <button class="f-tab" onclick="switchTab('asistencia',this)">Asistencia</button>
-        <button class="f-tab" onclick="switchTab('casos',this)">Casos</button>
-        <button class="f-tab" onclick="switchTab('obs',this)">Observaciones</button>
+    <div class="modal-bd" style="padding:0;">
+      <div class="ficha-body" id="ficha-body">
+        <!-- Encabezado estudiante -->
+        <div class="student-card" id="f-student-hdr">
+          <div class="student-avatar" id="f-avatar">?</div>
+          <div>
+            <div class="student-name" id="f-nombre">Cargando...</div>
+            <div class="student-meta" id="f-meta"></div>
+          </div>
+        </div>
+        <div style="padding:1rem 1.1rem;">
+          <div id="f-director-wrap" style="display:none;"></div>
+          <div id="f-period-wrap" style="margin-bottom:.85rem;"></div>
+          <!-- Tabs -->
+          <div class="tabs" id="f-tabs-row">
+            <button class="tab active" onclick="fichaTab('asistencia',this)">📋 Asistencia</button>
+            <button class="tab" onclick="fichaTab('casos',this)">🚨 Casos</button>
+            <button class="tab" onclick="fichaTab('compromisos',this)">📝 Compromisos</button>
+            <button class="tab" onclick="fichaTab('observaciones',this)">👁️ Observador</button>
+            <button class="tab" onclick="fichaTab('sanciones',this)">⚖️ Disciplina</button>
+            <button class="tab" onclick="fichaTab('acudientes',this)">👨‍👩‍👦 Datos</button>
+          </div>
+          <!-- Tab: Asistencia -->
+          <div class="tab-content active" id="f-tab-asistencia">
+            <div class="stats-row" id="f-stats-row"></div>
+            <div class="card">
+              <div class="card-header">Calendario reciente</div>
+              <div class="card-body">
+                <div class="mini-cal" id="f-mini-cal"></div>
+                <div style="display:flex;gap:.75rem;flex-wrap:wrap;font-size:.73rem;color:var(--gray);margin-top:.25rem;">
+                  <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#dcfce7;margin-right:3px;"></span>Presente</span>
+                  <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#fee2e2;margin-right:3px;"></span>Ausente</span>
+                  <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#fef9c3;margin-right:3px;"></span>Excusa</span>
+                  <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#fef3c7;margin-right:3px;"></span>Tardanza</span>
+                  <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#f3f4f6;border:1px solid #e5e7eb;margin-right:3px;"></span>Sin datos</span>
+                </div>
+              </div>
+            </div>
+            <div class="card" id="f-subj-card" style="display:none;">
+              <div class="card-header">Asistencia por asignatura</div>
+              <div class="card-body" id="f-subj-body"></div>
+            </div>
+            <div class="card">
+              <div class="card-header">Detalle de inasistencias</div>
+              <div class="card-body" id="f-att-detail"></div>
+            </div>
+            <div class="card" id="f-excusas-card" style="display:none;">
+              <div class="card-header">Excusas registradas</div>
+              <div class="card-body" id="f-excusas-body"></div>
+            </div>
+          </div>
+          <!-- Tab: Casos -->
+          <div class="tab-content" id="f-tab-casos">
+            <div class="card">
+              <div class="card-header">Anotaciones y casos de convivencia</div>
+              <div class="card-body" id="f-casos-body"></div>
+            </div>
+          </div>
+          <!-- Tab: Compromisos -->
+          <div class="tab-content" id="f-tab-compromisos">
+            <div class="card">
+              <div class="card-header">Compromisos adquiridos</div>
+              <div class="card-body" id="f-compromisos-body"></div>
+            </div>
+          </div>
+          <!-- Tab: Observador -->
+          <div class="tab-content" id="f-tab-observaciones">
+            <div class="card">
+              <div class="card-header">Observador del estudiante</div>
+              <div class="card-body" id="f-obs-body"></div>
+            </div>
+          </div>
+          <!-- Tab: Disciplina -->
+          <div class="tab-content" id="f-tab-sanciones">
+            <div class="card">
+              <div class="card-header">Suspensiones</div>
+              <div class="card-body" id="f-susp-body"></div>
+            </div>
+            <div class="card">
+              <div class="card-header">Retiros de clase</div>
+              <div class="card-body" id="f-rem-body"></div>
+            </div>
+          </div>
+          <!-- Tab: Datos acudiente -->
+          <div class="tab-content" id="f-tab-acudientes">
+            <div class="card">
+              <div class="card-header">Datos del acudiente registrados</div>
+              <div class="card-body" id="f-acud-body"></div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div id="t-resumen"></div>
-      <div id="t-asistencia" style="display:none;"></div>
-      <div id="t-casos"      style="display:none;"></div>
-      <div id="t-obs"        style="display:none;"></div>
     </div>
     <div class="modal-ft">
       <button class="btn-g" onclick="closeFicha()">Cerrar</button>
@@ -621,47 +789,47 @@
   </div>
 </div>
 
-<script src="/js/shared/core.js"></script>
-<script src="/js/shared/core.js"></script>
 <script>
-const API_URL = '/api';
+var { CLASS_HOUR_ORDINALS, DAYS_OF_WEEK, OBSERVATION_TYPE_LABELS, OBSERVATION_TYPE_COLORS,
+      CASE_STATUS_LABELS, CASE_TYPE_PILL_CLASS, CASE_STATUS_PILL_CLASS, ESCALON_LABELS,
+      ALERT_SEVERITY_DOT_CLASS, ATTENDANCE_STATUS_LABELS } = window.RAICE;
+var { daysAgo, toast, startClock, attendanceColor, getInitials, formatDateCO, getGreeting, isoWeekday } = window.RAICE;
+var esc = window.RAICE.escapeHtml;
+var { createApiClient } = window.RAICE;
+var { getCurrentBell, calcAttendancePct, classifyRisk } = window.RAICE;
+var { logout } = window.RAICE;
 let _students = [];
 let _schoolConfig = null;
 let _lastData = { dash: null, alerts: [], absences: [] };
 let _insights = null;
-let _activeSede = null; // {id, name} or null for all
-let _schedData = null; // cached schedule overview
+let _activeSede = null;
+let _schedData = null;
 let _bellSchedule = [];
+
+const api = createApiClient({
+  getActiveSede: () => _activeSede
+});
 
 // AUTH
 async function initSession() {
-  const token = sessionStorage.getItem('raice_token');
-  const role  = sessionStorage.getItem('raice_role');
-  const user  = JSON.parse(sessionStorage.getItem('raice_user') || 'null');
-  if (!token || role !== 'rector') { window.location.href = '/login.html'; return; }
+  const user = window.RAICE.checkAuth('rector');
+  if (!user) return;
   loadSchoolConfig();
   startClock();
   if (user) {
-    const ini = ((user.first_name||'R')[0]+(user.last_name||'E')[0]).toUpperCase();
-    document.getElementById('r-av').textContent = ini;
-    document.getElementById('r-name').textContent = (user.first_name||'')+' '+(user.last_name||'');
-    document.getElementById('p-avatar').textContent = ini;
-    document.getElementById('p-fullname').textContent = `${user.first_name||''} ${user.last_name||''}`.trim();
-    document.getElementById('p-username').textContent = `@${user.username||'rector'}`;
-    const h = new Date().getHours();
-    const g = h<12?'Buenos dias':h<18?'Buenas tardes':'Buenas noches';
-    document.getElementById('greeting').textContent = g+', '+(user.first_name||'Rector')+' — Panel institucional';
+    var p = window.RAICE.deriveProfileData(user, 'Rector');
+    document.getElementById('r-av').textContent = p.initials;
+    document.getElementById('r-name').textContent = p.fullName;
+    document.getElementById('p-avatar').textContent = p.initials;
+    document.getElementById('p-fullname').textContent = p.fullName;
+    document.getElementById('p-username').textContent = p.displayUsername;
+    document.getElementById('greeting').textContent = getGreeting()+', '+(user.first_name||'Rector')+' — Panel institucional';
   }
   const d = new Date();
   document.getElementById('top-date').textContent = d.toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 }
 
-function logout() {
-  if (!confirm('Cerrar sesion?')) return;
-  sessionStorage.clear();
-  ['raice_token','raice_role','raice_user'].forEach(k => localStorage.removeItem(k));
-  window.location.href = '/login.html';
-}
+// logout → importado desde shared/utils
 
 function openPerfil() {
   ['p-pwd-current','p-pwd-new','p-pwd-confirm'].forEach(id => {
@@ -671,46 +839,14 @@ function openPerfil() {
 }
 function closePerfil() { document.getElementById('modal-perfil').classList.remove('open'); }
 
-async function api(path, opts={}) {
-  const token = sessionStorage.getItem('raice_token');
-  // Inject sede_filter for GET requests when a sede is selected
-  let fullPath = path;
-  if (_activeSede && _activeSede.id && (!opts.method || opts.method === 'GET')) {
-    const sep = path.includes('?') ? '&' : '?';
-    fullPath = path + sep + 'sede_filter=' + _activeSede.id;
-  }
-  try {
-    const r = await fetch(API_URL+fullPath, {...opts, headers:{'Content-Type':'application/json','Authorization':'Bearer '+token,...(opts.headers||{})}});
-    return { ok:r.ok, status:r.status, data: await r.json().catch(()=>({})) };
-  } catch { return { ok:false, status:0, data:{error:'Sin conexion'} }; }
-}
+// api() → creado desde shared/data/apiClient.js con createApiClient
 
-function toast(msg, type='info', ms=3500) {
-  const w = document.getElementById('t-wrap');
-  const t = document.createElement('div');
-  t.className = 'toast '+type; t.textContent = msg; w.appendChild(t);
-  setTimeout(() => t.remove(), ms);
-}
-
-function esc(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
-function startClock() {
-  function _tick() {
-    const now = new Date();
-    const hh = String(now.getHours()).padStart(2,'0');
-    const mm = String(now.getMinutes()).padStart(2,'0');
-    const el = document.getElementById('tb-clock');
-    if (el) el.textContent = hh + ':' + mm;
-  }
-  _tick();
-  setInterval(_tick, 30000);
-}
-
+// toast, esc (escapeHtml), startClock, daysAgo → importados desde shared/utils
 
 // DASHBOARD
 async function loadSchoolConfig() {
-  const { ok, data } = await api('/raice/config');
-  if (ok) {
+  const data = await window.RAICE.fetchConfig(api);
+  if (data) {
     _schoolConfig = data;
     const container = document.getElementById('school-logo-container');
     if (data.logo_url) {
@@ -723,9 +859,9 @@ async function loadSchoolConfig() {
 }
 
 async function loadSedes() {
-  const { ok, data } = await api('/raice/sedes');
-  if (!ok || !data.sedes?.length) return;
-  const sedes = data.sedes.filter(s => s.active !== false);
+  const allSedes = await window.RAICE.fetchSedes(api);
+  if (!allSedes.length) return;
+  const sedes = allSedes.filter(s => s.active !== false);
   if (sedes.length < 2) return; // no need for selector with 1 sede
   const sel = document.getElementById('sede-selector');
   sel.innerHTML = '<option value="">Todas las sedes</option>' +
@@ -761,21 +897,22 @@ function resetSede() {
 }
 
 async function loadDashboard() {
-  const [dash, abs, alr] = await Promise.all([
-    api('/raice/dashboard'),
-    api('/raice/teacher-absences'),
-    api('/raice/alerts')
+  const R = window.RAICE;
+  const [dash, absences, alerts] = await Promise.all([
+    R.fetchDashboard(api),
+    R.fetchTeacherAbsences(api),
+    R.fetchAlerts(api)
   ]);
-  if (dash.ok) _lastData.dash = dash.data;
-  if (alr.ok)  _lastData.alerts = alr.data.alerts || [];
-  if (abs.ok)  _lastData.absences = abs.data.absences || [];
+  if (dash) _lastData.dash = dash;
+  _lastData.alerts = alerts;
+  _lastData.absences = absences;
   applyFilters();
   loadSedesStats();
 }
 
 async function loadInsights() {
-  const { ok, data } = await api('/raice/rector-insights');
-  if (!ok) return;
+  const data = await window.RAICE.fetchRectorInsights(api);
+  if (!data) return;
   _insights = data;
   renderTrend(data.attendance_trend || []);
   renderRanking(data.grade_ranking || []);
@@ -786,9 +923,9 @@ async function loadInsights() {
 }
 
 async function loadSedesStats() {
-  const { ok, data } = await api('/raice/sedes?stats=true');
-  if (!ok || !data.sedes?.length) return;
-  const sedes = data.sedes.filter(s => s.active !== false);
+  const allSedes = await window.RAICE.fetchSedes(api, { stats: true });
+  if (!allSedes.length) return;
+  const sedes = allSedes.filter(s => s.active !== false);
   if (sedes.length < 2) return;
   const wrap = document.getElementById('sedes-stats-wrap');
   const grid = document.getElementById('sedes-stats-grid');
@@ -852,7 +989,7 @@ function renderDash(d, alerts=[], cases=[]) {
   document.getElementById('alerts-badge').textContent = alerts.length ? alerts.length+' activas':'';
   document.getElementById('alerts-bd').innerHTML = alerts.length
     ? alerts.map(a=>{
-        const dc=a.severity==='high'?'d-red':a.severity==='medium'?'d-orange':'d-blue';
+        const dc = ALERT_SEVERITY_DOT_CLASS[a.severity] || 'd-blue';
         return `<div class="a-row"><div class="a-dot ${dc}"></div>
           <div><div class="a-title">${esc(a.title)}</div>
           <div class="a-desc">${esc(a.description||'')}</div></div></div>`;
@@ -895,14 +1032,13 @@ function renderDash(d, alerts=[], cases=[]) {
   const absent = d.absent || 0;
   const late = d.late || 0;
   const permit = d.permit || 0;
-  const totalAtt = d.attendance_today != null ? (present + absent + late + permit) : 0;
+  const totalAtt = present + absent + late + permit;
   if (totalAtt > 0) {
     // Fórmula correcta: (P+T) / (P+A+T) — PE excluido del denominador (están excusados)
     // Usar != null en vez de || para que 0% no active el fallback
-    const _countable = present + absent + late;
     const attPct = d.attendance_today != null
       ? d.attendance_today
-      : (_countable > 0 ? Math.round(((present + late) / _countable) * 100) : null);
+      : calcAttendancePct(present, absent, late);
     const CIRC = 2 * Math.PI * 65;
     const segs = [
       [present,'#0d9488'],
@@ -974,8 +1110,8 @@ function renderDash(d, alerts=[], cases=[]) {
           <th style="text-align:center;padding:.4rem .3rem;font-size:.7rem;font-weight:700;color:var(--gray);text-transform:uppercase;">Estado</th>
         </tr></thead>
         <tbody>${cases.map(c=>{
-          const tp=c.type===3?'pill-t3':c.type===2?'pill-t2':'pill-t1';
-          const sc=c.status==='open'?'pill-open':'pill-closed';
+          const tp = CASE_TYPE_PILL_CLASS[c.type] || 'pill-t1';
+          const sc = CASE_STATUS_PILL_CLASS[c.status] || 'pill-closed';
           const tName = c.teacher_name && c.teacher_name!=='—' ? esc(c.teacher_name) : '—';
           return `<tr style="border-bottom:1px solid var(--border);cursor:pointer;" onclick="openFicha('${c.student_id}')">
             <td style="padding:.38rem .5rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><strong>${esc(c.student_name)}</strong></td>
@@ -1097,10 +1233,7 @@ function renderRisk(list) {
   badge.textContent = list.length ? list.length + ' identificados' : '';
   if (!list.length) { el.innerHTML = '<div class="empty"><div class="ei">&#10003;</div>No hay estudiantes en riesgo este mes.</div>'; return; }
   el.innerHTML = '<div class="risk-wrap">' + list.map(s => {
-    const level = s.risk_score >= 60 ? 'Alto' : s.risk_score >= 30 ? 'Medio' : 'Bajo';
-    const lvlColor = s.risk_score >= 60 ? '#dc2626' : s.risk_score >= 30 ? '#c2410c' : '#a16207';
-    const lvlBg = s.risk_score >= 60 ? '#fee2e2' : s.risk_score >= 30 ? '#fff7ed' : '#fef9c3';
-    const borderCol = s.risk_score >= 60 ? '#fca5a5' : s.risk_score >= 30 ? '#fed7aa' : '#fde68a';
+    const { level, color: lvlColor, bg: lvlBg, borderColor: borderCol } = classifyRisk(s.risk_score);
     const ini = (s.name||'??').split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
     const badges = [];
     if (s.att_pct !== null && s.att_pct < 80) badges.push(`<span style="background:#fee2e2;color:#dc2626;border-radius:6px;padding:.15rem .5rem;font-size:.7rem;font-weight:700;">${s.att_pct}% asist.</span>`);
@@ -1144,8 +1277,7 @@ function renderExcusas(ex) {
 // SEARCH
 let _sTimer=null;
 async function loadStudents() {
-  const {ok,data} = await api('/raice/students');
-  if (ok) _students = data.students||data||[];
+  _students = await window.RAICE.fetchStudents(api);
 }
 
 function onSearch(val) {
@@ -1162,7 +1294,7 @@ function onSearch(val) {
     if(!hits.length){res.innerHTML='<div style="padding:1rem;text-align:center;color:var(--gray);font-size:.83rem;">Sin resultados</div>';res.style.display='block';return;}
     res.innerHTML=hits.map(s=>{
       const ini=((s.first_name||'?')[0]+(s.last_name||'?')[0]).toUpperCase();
-      const curso=s.grade?`${s.grade}°${s.number||''}`:s.course_label||'';
+      const curso=s.grade?(s.number||s.course?`${s.grade}-${s.number||s.course}`:`${s.grade}°`):s.course_label||'';
       return `<div class="s-item" onclick="openFicha('${s.id}')">
         <div class="s-av">${ini}</div>
         <div><div class="s-name">${esc(s.last_name)}, ${esc(s.first_name)}</div>
@@ -1181,229 +1313,310 @@ function clearSearch() {
 document.addEventListener('click',e=>{if(!e.target.closest('.search-wrap'))document.getElementById('s-results').style.display='none';});
 
 // FICHA
-function switchTab(name, btn) {
-  ['resumen','asistencia','casos','obs'].forEach(t=>{
-    document.getElementById('t-'+t).style.display=t===name?'':'none';
-  });
-  document.querySelectorAll('.f-tab').forEach(b=>b.classList.remove('active'));
-  if(btn)btn.classList.add('active');
+function fichaTab(name, btn) {
+  document.querySelectorAll('#modal-ficha .tab-content').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('#modal-ficha .tab').forEach(b=>b.classList.remove('active'));
+  const el = document.getElementById('f-tab-'+name);
+  if (el) el.classList.add('active');
+  if (btn) btn.classList.add('active');
 }
 
 function closeFicha(){document.getElementById('modal-ficha').classList.remove('open');}
 
 let _fichaStudentId = null;
-async function openFicha(id) {
+async function openFicha(id, periodId) {
   _fichaStudentId = id;
   clearSearch();
-  ['t-resumen','t-asistencia','t-casos','t-obs'].forEach(t=>{
-    document.getElementById(t).innerHTML='<div style="text-align:center;padding:1.5rem;"><div class="spin"></div></div>';
-  });
-  document.getElementById('t-asistencia').style.display='none';
-  document.getElementById('t-casos').style.display='none';
-  document.getElementById('t-obs').style.display='none';
-  document.getElementById('t-resumen').style.display='';
   document.getElementById('f-nombre').textContent='Cargando...';
-  document.getElementById('f-curso').textContent='';
-  document.querySelectorAll('.f-tab').forEach((b,i)=>{ b.classList.toggle('active',i===0); });
+  document.getElementById('f-meta').textContent='';
+  document.getElementById('f-avatar').textContent='?';
+  document.querySelectorAll('#modal-ficha .tab-content').forEach(t=>t.classList.remove('active'));
+  document.getElementById('f-tab-asistencia').classList.add('active');
+  document.querySelectorAll('#modal-ficha .tab').forEach((b,i)=>b.classList.toggle('active',i===0));
+  ['f-stats-row','f-mini-cal','f-att-detail','f-subj-body','f-casos-body','f-obs-body',
+   'f-susp-body','f-rem-body','f-compromisos-body','f-acud-body'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.innerHTML='<div style="text-align:center;padding:1.5rem;"><div class="spin"></div></div>';
+  });
   document.getElementById('modal-ficha').classList.add('open');
 
-  const {ok,data} = await api('/raice/student-ficha?id='+id);
-  if(!ok){toast(data.error||'Error al cargar ficha','error');closeFicha();return;}
-  renderFicha(data);
+  const fichaData = await window.RAICE.fetchStudentFicha(api, id, false, periodId);
+  if(!fichaData){toast('Error al cargar ficha','error');closeFicha();return;}
+  renderFicha(fichaData);
+}
+
+function fichaFmtDate(d) {
+  if (!d) return '—';
+  const dt = new Date(d + 'T12:00:00');
+  const m = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  return `${dt.getDate()} ${m[dt.getMonth()]} ${dt.getFullYear()}`;
 }
 
 function renderFicha(d) {
-  const s=d.student, at=d.attendance;
-  document.getElementById('f-nombre').textContent=s.first_name+' '+s.last_name;
-  const curso=s.grade?'Grado '+s.grade+'°'+(s.number||''):'';
-  document.getElementById('f-curso').textContent=[curso,s.status==='inactive'?'Retirado':null].filter(Boolean).join(' &middot; ');
+  const s = d.student;
+  const att = d.att_records || d.attendance || [];
+  const courseNum = s.number || s.course || '';
+  const ini = ((s.first_name||'?')[0]+(s.last_name||'?')[0]).toUpperCase();
+  document.getElementById('f-avatar').textContent = ini;
+  document.getElementById('f-nombre').textContent = s.first_name+' '+s.last_name;
+  document.getElementById('f-meta').innerHTML =
+    `${s.doc_type||'CC'} ${s.doc_number||''} &nbsp;·&nbsp; Grado ${s.grade}°${courseNum}` +
+    (s.status !== 'active' ? ` &nbsp;<span class="student-grade">${s.status==='graduated'?'Egresado':'Trasladado'}</span>` : '');
 
-  const pc=at.pct===null?'#64748b':at.pct>=90?'#16a34a':at.pct>=75?'#ca8a04':'#dc2626';
-  const openC=(d.cases||[]).filter(c=>c.status==='open'||c.status==='tracking').length;
-  const tards=at.late||0;
+  // Director de grado
+  const dirWrap = document.getElementById('f-director-wrap');
+  if (d.director && d.director.name) {
+    dirWrap.style.display = 'block';
+    dirWrap.innerHTML = `<div class="director-card">
+      <div class="director-ico">👨‍🏫</div>
+      <div>
+        <div style="font-size:.88rem;font-weight:700;color:var(--navy);">${esc(d.director.name)}</div>
+        <div style="font-size:.75rem;color:var(--gray);">Director(a) de grado</div>
+      </div>
+    </div>`;
+  } else {
+    dirWrap.style.display = 'none';
+  }
 
-  // RESUMEN
-  const warns=[];
-  if(at.pct!==null&&at.pct<80) warns.push({txt:'Asistencia critica: '+at.pct+'%',bg:'#fee2e2',col:'#dc2626'});
-  if(openC>0) warns.push({txt:openC+' caso'+(openC>1?'s':'')+' RAICE abierto'+(openC>1?'s':''),bg:'#fff7ed',col:'#c2410c'});
-  if(tards>12) warns.push({txt:tards+' horas de tardanza',bg:'#fffbeb',col:'#92400e'});
-  const unpaid=(d.commitments||[]).filter(c=>!c.fulfilled).length;
-  if(unpaid>0) warns.push({txt:unpaid+' compromiso'+(unpaid>1?'s':'')+' sin cumplir',bg:'#f0fdf4',col:'#166534'});
+  // Selector de periodo
+  const pw = document.getElementById('f-period-wrap');
+  pw.innerHTML = (d.periods && d.periods.length) ? `
+    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
+      <span style="font-size:.82rem;color:var(--gray);font-weight:600;">📅 Periodo:</span>
+      <select onchange="openFicha('${_fichaStudentId}',this.value)" style="padding:.45rem .65rem;border:1.5px solid #e5e7eb;border-radius:8px;font-size:.85rem;background:#fff;">
+        ${d.periods.map(p=>`<option value="${p.id}" ${d.selected_period_id===p.id?'selected':''}>${esc(p.name)}${p.active?' (activo)':''}</option>`).join('')}
+        <option value="all" ${d.selected_period_id==='all'?'selected':''}>Todo el año</option>
+      </select>
+    </div>` : '';
 
-  const statsHtml=[
-    {v:at.pct!==null?at.pct+'%':'—',l:'Asistencia',c:pc},
-    {v:at.present||0,l:'Presencias',c:'#16a34a'},
-    {v:at.permit||0,l:'Permisos',c:'#7c3aed'},
-    {v:at.absent||0,l:'Ausencias',c:at.absent>10?'#dc2626':'var(--navy)'},
-    {v:tards,l:'Tardanzas',c:tards>12?'#c2410c':'var(--navy)'},
-    {v:openC,l:'Casos abiertos',c:openC>0?'#dc2626':'#16a34a'},
-  ].map(c=>`<div class="f-stat"><div class="f-val" style="color:${c.c};">${c.v}</div><div class="f-lbl">${c.l}</div></div>`).join('');
+  fichaRenderAsistencia(att);
+  fichaRenderAttBySubject(d.att_by_subject || []);
+  fichaRenderExcusas(d.excusas || []);
+  fichaRenderCasos(d.cases || []);
+  fichaRenderCompromisos(d.commitments || []);
+  fichaRenderObservaciones(d.observations || []);
+  fichaRenderSanciones(d.suspensions || [], d.removals || []);
+  fichaRenderAcudientes(d.acudientes || []);
+}
 
-  const noteHtml = `<div style="font-size:.65rem;color:var(--gray);text-align:center;margin: -.5rem 0 1rem;text-transform:uppercase;letter-spacing:.02em;">Estadisticas en <b>horas de clase</b></div>`;
-  const warnsHtml=warns.map(w=>`<div style="background:${w.bg};border-radius:10px;padding:.55rem .85rem;margin-bottom:.45rem;font-size:.82rem;font-weight:600;color:${w.col};">${w.txt}</div>`).join('');
+function fichaRenderAsistencia(att) {
+  const cntP  = att.filter(a=>a.status==='P').length;
+  const cntA  = att.filter(a=>a.status==='A').length;
+  const cntT  = att.filter(a=>a.status==='T').length;
+  const cntPE = att.filter(a=>a.status==='PE').length;
+  const cntS  = att.filter(a=>a.status==='S').length;
+  const totalH = att.length;
+  const countable = totalH - cntS - cntPE;
+  const pct = countable > 0 ? Math.round(((cntP+cntT)/countable)*100) : (totalH-cntS > 0 ? 100 : 0);
 
-  const acuds=d.acudientes||[];
-  const acudHtml=acuds.length?`<div style="margin-top:.75rem;">
-    <div style="font-size:.75rem;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.35rem;">Acudientes</div>
-    ${acuds.map(a=>`<div style="font-size:.81rem;padding:.28rem 0;border-bottom:1px solid var(--border);">
-      <strong>${esc(a.name)}</strong>${a.relationship?' &middot; '+esc(a.relationship):''}${a.phone?' &middot; Tel: '+esc(a.phone):''}${a.email?' &middot; '+esc(a.email):''}
-    </div>`).join('')}</div>`:'';
-
-  document.getElementById('t-resumen').innerHTML=`<div class="f-stats">${statsHtml}</div>${noteHtml}${warnsHtml}${acudHtml}`;
-
-  // ASISTENCIA
-  const rec=at.recent||[];
-  const calHtml=rec.map(r=>{
-    const cls=r.status==='P'?'mc-p':r.status==='A'?'mc-a':r.status==='T'?'mc-t':r.status==='PE'?'mc-pe':'mc-x';
-    const [,m,day]=r.date.split('-');
-    const tit={P:'Presente',A:'Ausente',T:'Tarde',PE:'Con permiso'}[r.status]||r.status;
-    return `<div class="mc-c ${cls}" title="${tit} — ${parseInt(day)}/${parseInt(m)}">${parseInt(day)}</div>`;
-  }).join('');
-
-  document.getElementById('t-asistencia').innerHTML=
-    `<div style="font-size:.75rem;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.45rem;">Ultimas 30 fechas registradas</div>
-    <div class="mc">${calHtml||'<span style="color:var(--gray);font-size:.82rem;">Sin registros</span>'}</div>
-    <div style="display:flex;gap:.65rem;flex-wrap:wrap;margin:.6rem 0;font-size:.73rem;">
-      <span><span class="mc-c mc-p" style="display:inline-flex;width:14px;height:14px;margin-right:3px;border-radius:3px;"></span>Presente</span>
-      <span><span class="mc-c mc-a" style="display:inline-flex;width:14px;height:14px;margin-right:3px;border-radius:3px;"></span>Ausente</span>
-      <span><span class="mc-c mc-t" style="display:inline-flex;width:14px;height:14px;margin-right:3px;border-radius:3px;"></span>Tarde</span>
-      <span><span class="mc-c mc-pe" style="display:inline-flex;width:14px;height:14px;margin-right:3px;border-radius:3px;"></span>Con permiso</span>
+  document.getElementById('f-stats-row').innerHTML = `
+    <div class="stat-box">
+      <div class="stat-val" style="color:${pct>=80?'#16a34a':'#dc2626'}">${pct}%</div>
+      <div class="stat-lbl">Asistencia</div>
+      <div style="font-size:.67rem;color:var(--gray);margin-top:.25rem;">${totalH} hora${totalH!==1?'s':''} de clase</div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-top:.75rem;">
-      ${[{l:'Registros',v:at.total||0},{l:'Presentes',v:at.present||0},{l:'Ausentes',v:at.absent||0}]
-        .map(c=>`<div style="background:var(--light);border-radius:10px;padding:.55rem .7rem;text-align:center;">
-          <div style="font-family:'Fraunces',serif;font-size:1.25rem;font-weight:800;color:var(--navy);">${c.v}</div>
-          <div style="font-size:.68rem;color:var(--gray);font-weight:600;">${c.l}</div>
-        </div>`).join('')}
+    <div class="stat-box">
+      <div class="stat-val" style="color:${cntA>0?'#dc2626':'var(--navy)'}">${cntA}</div>
+      <div class="stat-lbl">Ausencias</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-val" style="color:${cntT>0?'#d97706':'var(--navy)'}">${cntT}</div>
+      <div class="stat-lbl">Tardanzas</div>
     </div>`;
 
-  // CASOS (enriched)
-  const cases=d.cases||[];
-  document.getElementById('t-casos').innerHTML=cases.length
-    ? cases.map(c => renderCaseCard(c)).join('')
-    :'<div class="empty"><div class="ei">&#10003;</div>Sin casos RAICE registrados.</div>';
+  // Calendario — misma lógica que portal-acudiente (5 semanas, lun–vie)
+  const statusPriority = {A:4,T:3,PE:2,P:1,S:1};
+  const dayMap = {};
+  for (const r of att) {
+    const cur = dayMap[r.date];
+    if (!cur || (statusPriority[r.status]||0) > (statusPriority[cur.status]||0)) dayMap[r.date] = r;
+  }
+  const MONTHS  = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const dayHdrs = ['Lu','Ma','Mi','Ju','Vi'];
+  const today   = new Date();
+  const todayDow = (today.getDay()+6)%7;
+  const thisMonday = new Date(today);
+  thisMonday.setDate(today.getDate()-todayDow);
+  const startDate = new Date(thisMonday);
+  startDate.setDate(thisMonday.getDate()-28);
+  let calHtml = dayHdrs.map(d=>`<div class="cal-hdr">${d}</div>`).join('');
+  let prevMonth = -1;
+  for (let w=0; w<5; w++) {
+    const monday = new Date(startDate);
+    monday.setDate(startDate.getDate()+w*7);
+    const mo = monday.getMonth();
+    if (mo !== prevMonth) { calHtml += `<div class="cal-month-lbl">${MONTHS[mo]} ${monday.getFullYear()}</div>`; prevMonth = mo; }
+    for (let dd=0; dd<5; dd++) {
+      const date = new Date(monday);
+      date.setDate(monday.getDate()+dd);
+      const key = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+      const isFuture = date > today;
+      const rec = dayMap[key];
+      const st  = rec && rec.status;
+      let cls = isFuture ? 'cal-empty' : !st ? 'cal-nodata' : st==='S' ? 'cal-P' : 'cal-'+st;
+      calHtml += `<div class="cal-day ${cls}" title="${key}">${date.getDate()}</div>`;
+    }
+  }
+  document.getElementById('f-mini-cal').innerHTML = calHtml;
 
-  // OBSERVACIONES
-  const obs=d.observations||[];
-  document.getElementById('t-obs').innerHTML=obs.length
-    ?obs.map(o=>{
-        const fecha=new Date(o.created_at).toLocaleDateString('es-CO',{day:'numeric',month:'short',year:'numeric'});
-        return `<div class="o-row"><div>${esc(o.text||'')}</div>
-          <div class="o-meta">${fecha} &middot; ${esc(o.teacher_name||'—')}</div></div>`;
-      }).join('')
-    :'<div class="empty"><div class="ei">&#128221;</div>Sin observaciones registradas.</div>';
+  // Detalle de inasistencias / tardanzas
+  const ORD = (window.RAICE && window.RAICE.CLASS_HOUR_ORDINALS) || [];
+  const detail = att.filter(a=>a.status==='A'||a.status==='T')
+    .sort((a,b)=>b.date.localeCompare(a.date)||(a.class_hour||0)-(b.class_hour||0)).slice(0,30);
+  if (!detail.length) {
+    document.getElementById('f-att-detail').innerHTML = `<div class="empty-state">✅ Sin inasistencias ni tardanzas registradas</div>`;
+    return;
+  }
+  const stLabel = {A:'Ausente',T:'Tardanza'};
+  document.getElementById('f-att-detail').innerHTML = `<div class="att-list">`+detail.map(r=>`
+    <div class="att-row">
+      <div class="att-badge att-${r.status}">${r.status}</div>
+      <div>
+        <div style="font-size:.84rem;font-weight:500;">${fichaFmtDate(r.date)}${r.class_hour?` · ${ORD[r.class_hour]||r.class_hour+'ª'} hora`:''}${r.subject?` · ${esc(r.subject)}`:''}</div>
+        <div style="font-size:.75rem;color:var(--gray);">${stLabel[r.status]||r.status}${r.teacher_name?` · 👤 ${esc(r.teacher_name)}`:''}</div>
+      </div>
+    </div>`).join('')+`</div>`;
+}
+
+function fichaRenderAttBySubject(subjects) {
+  const card = document.getElementById('f-subj-card');
+  const el   = document.getElementById('f-subj-body');
+  if (!subjects.length) { card.style.display='none'; return; }
+  card.style.display = 'block';
+  el.innerHTML = `<table class="subj-table"><thead><tr>
+    <th>Asignatura</th><th style="text-align:center;">✅</th><th style="text-align:center;">❌</th>
+    <th style="text-align:center;">⏰</th><th style="text-align:center;">🤒</th><th style="text-align:center;">%</th>
+  </tr></thead><tbody>${subjects.map(s=>{
+    const pc = s.pct===null?'var(--gray)':s.pct>=80?'#16a34a':s.pct>=60?'#d97706':'#dc2626';
+    return `<tr><td style="font-weight:600;">${esc(s.subject)}</td>
+      <td style="text-align:center;">${s.present}</td>
+      <td style="text-align:center;color:${s.absent>0?'#dc2626':'inherit'}">${s.absent}</td>
+      <td style="text-align:center;">${s.late}</td>
+      <td style="text-align:center;">${s.permit}</td>
+      <td style="text-align:center;"><span class="subj-pct" style="color:${pc}">${s.pct!==null?s.pct+'%':'—'}</span></td>
+    </tr>`;
+  }).join('')}</tbody></table>`;
+}
+
+function fichaRenderExcusas(excusas) {
+  const card = document.getElementById('f-excusas-card');
+  const el   = document.getElementById('f-excusas-body');
+  if (!excusas.length) { card.style.display='none'; return; }
+  card.style.display = 'block';
+  el.innerHTML = `<div class="att-list">${excusas.map(e=>{
+    const horasText = e.horas&&e.horas.length?`Horas: ${e.horas.join(', ')}`:'Día completo';
+    return `<div class="att-row">
+      <div class="att-badge att-PE">🤒</div>
+      <div>
+        <div style="font-size:.84rem;font-weight:500;">${fichaFmtDate(e.date)} · <span style="color:var(--gray);font-weight:400;">${horasText}</span></div>
+        <div style="font-size:.8rem;color:var(--navy);margin-top:.15rem;">${esc(e.motivo||'')}</div>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function fichaRenderCasos(cases) {
+  const el = document.getElementById('f-casos-body');
+  if (!cases.length) { el.innerHTML=`<div class="empty-state">✅ Sin casos RAICE registrados</div>`; return; }
+  const typeLabel = {1:'Tipo 1 · Situación de Aula',2:'Tipo 2 · Situación Escolar',3:'Tipo 3 · Situación Grave'};
+  el.innerHTML = cases.map(c=>`
+    <div class="case-item case-t${c.type}">
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:.35rem;margin-bottom:.4rem;">
+        <span class="case-badge badge-t${c.type}" style="margin-bottom:0;">${typeLabel[c.type]||'Tipo '+c.type}</span>
+        ${c.status==='closed'?`<span class="case-badge badge-closed" style="margin-bottom:0;">Cerrado</span>`:'<span class="case-badge" style="background:#fef9c3;color:#854d0e;margin-bottom:0;">Abierto</span>'}
+      </div>
+      <div class="case-desc">${esc(c.description||'')}</div>
+      ${c.actions_taken?`<div style="font-size:.78rem;color:var(--navy);margin-top:.4rem;">🔧 <em>${esc(c.actions_taken)}</em></div>`:''}
+      ${c.falta_numeral?`<div style="font-size:.78rem;color:var(--gray);margin-top:.3rem;">📌 ${esc(c.falta_numeral)}${c.falta_descripcion?' — '+esc(c.falta_descripcion):''}</div>`:''}
+      <div class="case-date">📅 ${fichaFmtDate(c.created_at&&c.created_at.slice(0,10))}${c.teacher_name?` · 👤 ${esc(c.teacher_name)}`:''}</div>
+    </div>`).join('');
+}
+
+function fichaRenderObservaciones(obs) {
+  const el = document.getElementById('f-obs-body');
+  if (!obs.length) { el.innerHTML=`<div class="empty-state">Sin observaciones registradas</div>`; return; }
+  const typeLabel = {positive:'Positiva',neutral:'Neutral',negative:'Negativa'};
+  el.innerHTML = `<div>`+obs.map(o=>`
+    <div class="obs-item">
+      <div class="obs-dot obs-${o.type==='positive'?'pos':o.type==='negative'?'neg':'neu'}"></div>
+      <div>
+        <div class="obs-text">${esc(o.text||'')}</div>
+        <div class="obs-date">${typeLabel[o.type]||o.type} · ${fichaFmtDate(o.created_at&&o.created_at.slice(0,10))}${o.teacher_name?` · 👤 ${esc(o.teacher_name)}`:''}</div>
+      </div>
+    </div>`).join('')+`</div>`;
+}
+
+function fichaRenderSanciones(suspensions, removals) {
+  const suspEl = document.getElementById('f-susp-body');
+  const remEl  = document.getElementById('f-rem-body');
+  suspEl.innerHTML = !suspensions.length
+    ? `<div class="empty-state">✅ Sin suspensiones registradas</div>`
+    : suspensions.map(s=>`<div class="sanc-item">
+        <div><span class="sanc-badge sanc-susp">Suspensión</span></div>
+        <div class="sanc-text">${esc(s.reason||'')}</div>
+        <div class="sanc-date">Del ${fichaFmtDate(s.start_date)} al ${fichaFmtDate(s.end_date)}</div>
+      </div>`).join('');
+  remEl.innerHTML = !removals.length
+    ? `<div class="empty-state">Sin retiros de clase registrados</div>`
+    : removals.map(r=>`<div class="sanc-item">
+        <div><span class="sanc-badge sanc-rem">Retiro de clase</span></div>
+        <div class="sanc-text">${esc(r.reason||'')}</div>
+        <div class="sanc-date">${fichaFmtDate(r.date)}${r.class_hour?` · Hora ${r.class_hour}`:''}</div>
+      </div>`).join('');
+}
+
+function fichaRenderCompromisos(commitments) {
+  const el = document.getElementById('f-compromisos-body');
+  if (!commitments.length) { el.innerHTML=`<div class="empty-state">✅ Sin compromisos registrados</div>`; return; }
+  const _now  = new Date();
+  const today = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}`;
+  el.innerHTML = commitments.map(c=>{
+    const overdue = !c.fulfilled && c.due_date && c.due_date < today;
+    const cls = c.fulfilled?'commit-done':overdue?'commit-overdue':'commit-pending';
+    const badge = c.fulfilled
+      ? '<span style="font-size:.72rem;font-weight:700;padding:.15rem .55rem;border-radius:5px;background:#f0fdf4;color:#15803d;">✅ Cumplido</span>'
+      : overdue
+        ? '<span style="font-size:.72rem;font-weight:700;padding:.15rem .55rem;border-radius:5px;background:#fee2e2;color:#991b1b;">⚠️ Vencido</span>'
+        : '<span style="font-size:.72rem;font-weight:700;padding:.15rem .55rem;border-radius:5px;background:#fef9c3;color:#854d0e;">⏳ Pendiente</span>';
+    return `<div class="commit-item ${cls}">
+      <div style="margin-bottom:.35rem;">${badge}</div>
+      <div style="font-size:.85rem;color:var(--navy);line-height:1.45;">${esc(c.description||'')}</div>
+      ${c.due_date?`<div style="font-size:.75rem;color:var(--gray);margin-top:.3rem;">📅 Fecha límite: ${fichaFmtDate(c.due_date)}</div>`:''}
+      ${c.signed_by?`<div style="font-size:.75rem;color:var(--gray);margin-top:.15rem;">✍️ Firmado por: ${esc(c.signed_by)}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function fichaRenderAcudientes(acudientes) {
+  const el = document.getElementById('f-acud-body');
+  if (!acudientes.length) { el.innerHTML=`<div class="empty-state">No hay datos de acudiente registrados.</div>`; return; }
+  el.innerHTML = acudientes.map(a=>`
+    <div class="acud-item">
+      <div class="acud-ico">👤</div>
+      <div>
+        <div style="font-size:.88rem;font-weight:600;color:var(--navy);">${esc(a.name)}</div>
+        <div style="font-size:.78rem;color:var(--gray);margin-top:.1rem;">${a.relationship||'Acudiente'}</div>
+        ${a.phone?`<div style="font-size:.82rem;color:var(--navy);margin-top:.25rem;">📞 ${esc(a.phone)}</div>`:''}
+        ${a.email?`<div style="font-size:.82rem;color:var(--navy);margin-top:.1rem;">✉️ ${esc(a.email)}</div>`:''}
+      </div>
+    </div>`).join('');
 }
 
 async function printObservador() {
   if (!_fichaStudentId) { toast('No hay estudiante seleccionado','warning'); return; }
   toast('Generando observador…','info');
-  const { ok, data } = await api('/raice/student-ficha?id=' + _fichaStudentId + '&all_obs=1');
-  if (!ok || !data?.student) { toast('Error al cargar datos','error'); return; }
+  const data = await window.RAICE.fetchStudentFicha(api, _fichaStudentId, true);
+  if (!data?.student) { toast('Error al cargar datos','error'); return; }
   _printObservadorWindow(data, _schoolConfig || {});
 }
 
-function _printObservadorWindow(d, cfg) {
-  const s = d.student, at = d.attendance || {}, obs = d.observations || [], cases = d.cases || [];
-  const schoolName = cfg.school_name || 'Institución Educativa';
-  const schoolLoc  = cfg.location || '';
-  const schoolLogo = cfg.logo_url
-    ? `<img src="${cfg.logo_url}" style="height:55px;object-fit:contain;" alt="logo">`
-    : `<div style="font-size:2.2rem;">🏫</div>`;
-  const raiceLogo = `<img src="${window.location.origin}/favicon.png" style="height:40px;object-fit:contain;" alt="RAICE" onerror="this.style.display='none'">`;
-  const now = new Date().toLocaleDateString('es-CO', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
-  const curso = s.grade ? `${s.grade}°${s.number || ''}` : (s.course || '—');
-
-  const typeLabel = { positive: 'Positiva', neutral: 'Neutra', negative: 'Negativa' };
-  const typeColor = { positive: '#16a34a', neutral: '#64748b', negative: '#dc2626' };
-  const statusLbl = { open: 'Abierto', tracking: 'En seguimiento', closed: 'Cerrado' };
-
-  const obsRows = obs.map(o => {
-    const fecha = new Date(o.created_at).toLocaleDateString('es-CO', { day:'numeric', month:'short', year:'numeric' });
-    return `<tr>
-      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${fecha}</td>
-      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;font-weight:600;color:${typeColor[o.type]||'#333'};">${typeLabel[o.type]||o.type}</td>
-      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${o.text || ''}</td>
-      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${o.teacher_name || '—'}</td>
-    </tr>`;
-  }).join('');
-
-  const casesRows = cases.map(c => {
-    const fecha = new Date(c.created_at).toLocaleDateString('es-CO', { day:'numeric', month:'short', year:'numeric' });
-    return `<tr>
-      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${fecha}</td>
-      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;text-align:center;">Tipo ${c.type}</td>
-      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${(c.description || '').substring(0, 120)}</td>
-      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;text-align:center;">${statusLbl[c.status]||c.status}</td>
-      <td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">${c.teacher_name || '—'}</td>
-    </tr>`;
-  }).join('');
-
-  const w = window.open('', '_blank');
-  w.document.write(`<!DOCTYPE html><html><head><title>Observador — ${s.first_name} ${s.last_name}</title>
-  <style>
-    @page{size:A4;margin:15mm}
-    body{font-family:Arial,sans-serif;font-size:10pt;color:#1e293b;line-height:1.5;}
-    table{width:100%;border-collapse:collapse;}
-    th{background:#f1f5f9;border:1px solid #ccc;padding:5px 8px;font-size:8.5pt;text-transform:uppercase;letter-spacing:.03em;text-align:left;}
-    tr:nth-child(even){background:#fafbfc;}
-    .header{display:flex;align-items:center;justify-content:space-between;border-bottom:2.5px solid #1e293b;padding-bottom:.8rem;margin-bottom:1.2rem;}
-    .header-center{text-align:center;flex:1;}
-    .header-center h1{margin:0;font-size:13pt;font-weight:800;}
-    .header-center .loc{font-size:8.5pt;color:#555;margin-top:2px;}
-    .section-title{font-size:11pt;font-weight:800;color:#1e293b;margin:1.2rem 0 .5rem;padding-bottom:.3rem;border-bottom:1.5px solid #e2e8f0;}
-    .student-info{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem .8rem;margin-bottom:1rem;background:#f8fafc;padding:.7rem 1rem;border-radius:6px;border:1px solid #e2e8f0;}
-    .si-label{font-size:8pt;color:#64748b;text-transform:uppercase;letter-spacing:.04em;}
-    .si-value{font-size:10pt;font-weight:700;color:#1e293b;}
-    .att-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:.5rem;margin-bottom:1rem;}
-    .att-box{text-align:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:.5rem .3rem;}
-    .att-val{font-size:14pt;font-weight:800;}
-    .att-lbl{font-size:7.5pt;color:#64748b;text-transform:uppercase;}
-    .footer{text-align:center;margin-top:2rem;font-size:8pt;color:#999;border-top:1px solid #e2e8f0;padding-top:.5rem;}
-  </style></head><body>
-  <div class="header">
-    ${schoolLogo}
-    <div class="header-center">
-      <h1>${schoolName}</h1>
-      ${schoolLoc ? `<div class="loc">${schoolLoc}</div>` : ''}
-      <div style="font-size:10pt;font-weight:600;margin-top:6px;color:#0b7a75;">OBSERVADOR DEL ESTUDIANTE</div>
-    </div>
-    ${raiceLogo}
-  </div>
-
-  <div class="student-info">
-    <div><div class="si-label">Nombre completo</div><div class="si-value">${s.first_name} ${s.last_name}</div></div>
-    <div><div class="si-label">Curso</div><div class="si-value">${curso}</div></div>
-    <div><div class="si-label">Estado</div><div class="si-value">${s.status === 'inactive' ? 'Retirado' : 'Activo'}</div></div>
-  </div>
-
-  <div class="section-title">Resumen de asistencia</div>
-  <div class="att-grid">
-    <div class="att-box"><div class="att-val" style="color:${at.pct !== null && at.pct < 80 ? '#dc2626' : '#16a34a'};">${at.pct ?? '—'}%</div><div class="att-lbl">Asistencia</div></div>
-    <div class="att-box"><div class="att-val" style="color:#16a34a;">${at.present || 0}</div><div class="att-lbl">Presencias</div></div>
-    <div class="att-box"><div class="att-val" style="color:#dc2626;">${at.absent || 0}</div><div class="att-lbl">Ausencias</div></div>
-    <div class="att-box"><div class="att-val" style="color:#f59e0b;">${at.late || 0}</div><div class="att-lbl">Tardanzas</div></div>
-    <div class="att-box"><div class="att-val" style="color:#7c3aed;">${at.permit || 0}</div><div class="att-lbl">Permisos</div></div>
-  </div>
-  <div style="font-size:7.5pt;color:#94a3b8;text-align:center;margin-top:-.5rem;margin-bottom:.8rem;">* Estadísticas en horas de clase</div>
-
-  <div class="section-title">Observaciones (${obs.length})</div>
-  ${obs.length ? `<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Observación</th><th>Docente</th></tr></thead><tbody>${obsRows}</tbody></table>`
-    : '<div style="text-align:center;padding:1rem;color:#94a3b8;font-size:9pt;">Sin observaciones registradas</div>'}
-
-  <div class="section-title">Casos RAICE (${cases.length})</div>
-  ${cases.length ? `<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Descripción</th><th>Estado</th><th>Reportado por</th></tr></thead><tbody>${casesRows}</tbody></table>`
-    : '<div style="text-align:center;padding:1rem;color:#94a3b8;font-size:9pt;">Sin casos RAICE registrados</div>'}
-
-  <div class="footer">Generado el ${now} — Sistema RAICE</div>
-  </body></html>`);
-  w.document.close();
-  setTimeout(() => w.print(), 500);
-}
+// _printObservadorWindow → importado desde shared/utils/printObservador.js
+function _printObservadorWindow(d, cfg) { window.RAICE.printObservadorWindow(d, cfg); }
 
 function renderCaseCard(c) {
-  const pt = c.type===3?'pill-t3':c.type===2?'pill-t2':'pill-t1';
-  const sc = c.status==='open'?'pill-open': c.status==='tracking'?'pill-open':'pill-closed';
-  const stLabel = c.status==='open'?'Abierto':c.status==='tracking'?'En seguimiento':'Cerrado';
+  const pt = CASE_TYPE_PILL_CLASS[c.type] || 'pill-t1';
+  const sc = CASE_STATUS_PILL_CLASS[c.status] || 'pill-closed';
+  const stLabel = CASE_STATUS_LABELS[c.status] || 'Cerrado';
   const fecha = new Date(c.created_at).toLocaleDateString('es-CO',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
 
   let html = `<div class="case-card">
@@ -1439,8 +1652,7 @@ function renderCaseCard(c) {
   if (c.escalones && c.escalones.length) {
     html += `<div class="case-section"><div class="case-section-title">Escalones</div>`;
     c.escalones.forEach(e => {
-      const labels = {'llamado_verbal':'Llamado verbal','amonestacion_escrita':'Amonestacion escrita','citacion_acudiente':'Citacion acudiente','remision_coordinacion':'Remision a coordinacion'};
-      html += `<div class="case-sub-item">${labels[e.tipo_llamado]||esc(e.tipo_llamado)} <span class="case-sub-meta">&middot; Escalon ${e.numero_escalon}</span></div>`;
+      html += `<div class="case-sub-item">${ESCALON_LABELS[e.tipo_llamado]||esc(e.tipo_llamado)} <span class="case-sub-meta">&middot; Escalon ${e.numero_escalon}</span></div>`;
     });
     html += `</div>`;
   }
@@ -1497,10 +1709,9 @@ function switchSchedView(view, btn) {
 }
 
 async function loadScheduleOverview() {
-  const { ok, data } = await api('/raice/schedules/overview');
-  if (!ok) return;
-  _schedData = data.schedules || [];
-  _bellSchedule = data.bell_schedule || [];
+  const data = await window.RAICE.fetchSchedulesOverview(api);
+  _schedData = data.schedules;
+  _bellSchedule = data.bell_schedule;
 
   // Populate grade selector
   const grades = {};
@@ -1529,10 +1740,10 @@ async function loadScheduleOverview() {
   // Auto-refresco "Ahora mismo" cada 2 minutos
   if (window._rectorAhoraTimer) clearInterval(window._rectorAhoraTimer);
   window._rectorAhoraTimer = setInterval(async () => {
-    const r = await api('/raice/schedules/overview');
-    if (r.ok) {
-      _schedData    = r.data.schedules    || [];
-      _bellSchedule = r.data.bell_schedule || [];
+    const r = await window.RAICE.fetchSchedulesOverview(api);
+    if (r.schedules.length) {
+      _schedData    = r.schedules;
+      _bellSchedule = r.bell_schedule;
       renderRectorAhora();
     }
   }, 120000);
@@ -1540,15 +1751,7 @@ async function loadScheduleOverview() {
 
 // ── AHORA MISMO ──────────────────────────────────────
 function rectorCurrentBell() {
-  if (!_bellSchedule?.length) return null;
-  const now = new Intl.DateTimeFormat('es-CO', {
-    timeZone:'America/Bogota', hour:'2-digit', minute:'2-digit', hour12:false
-  }).format(new Date());
-  return _bellSchedule.find(b =>
-    b.start_time && b.end_time &&
-    now >= b.start_time.slice(0,5) &&
-    now <= b.end_time.slice(0,5)
-  ) || null;
+  return getCurrentBell(_bellSchedule);
 }
 
 function renderRectorAhora() {
@@ -1557,12 +1760,7 @@ function renderRectorAhora() {
   const badgeEl  = document.getElementById('rector-ahora-badge');
   if (!headerEl || !gridEl) return;
 
-  const ORD  = ['','1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª','10ª'];
-  const DAYS = {1:'Lunes',2:'Martes',3:'Miércoles',4:'Jueves',5:'Viernes',6:'Sábado',7:'Domingo'};
-
-  // Día actual Colombia
-  const jsDay   = new Date().getDay();
-  const todayDow = jsDay === 0 ? 7 : jsDay;
+  const todayDow = isoWeekday(new Date().getDay());
 
   if (todayDow >= 6) {
     headerEl.innerHTML = '<div style="color:var(--gray);font-size:.85rem;">📅 Hoy es fin de semana.</div>';
@@ -1600,11 +1798,11 @@ function renderRectorAhora() {
   headerEl.innerHTML = `
     <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
       <div style="background:var(--navy);color:white;border-radius:10px;padding:.45rem .9rem;font-family:'Fraunces',serif;font-size:1.2rem;font-weight:900;white-space:nowrap;">
-        ${ORD[bell.class_hour] || bell.class_hour+'ª'} hora
+        ${CLASS_HOUR_ORDINALS[bell.class_hour] || bell.class_hour+'ª'} hora
       </div>
       <div>
         <div style="font-weight:700;font-size:.9rem;">${bell.start_time?.slice(0,5)||''} – ${bell.end_time?.slice(0,5)||''}</div>
-        <div style="font-size:.78rem;color:var(--gray);">${DAYS[todayDow]}</div>
+        <div style="font-size:.78rem;color:var(--gray);">${DAYS_OF_WEEK[todayDow]}</div>
       </div>
       <div style="margin-left:auto;font-size:.82rem;font-weight:700;color:${pctClr};">
         ${taken} de ${total} docente${total!==1?'s':''} ${taken===1&&total===1?'pasó':'pasaron'} lista
@@ -1697,16 +1895,14 @@ function loadTeacherSchedule() {
   const bellMap = {};
   (_bellSchedule || []).forEach(b => bellMap[b.class_hour] = b);
 
-  // Current day of week (1=Mon … 5=Fri; weekend → 6/7 = no "today" column)
-  const jsDay  = new Date().getDay(); // 0=Sun
-  const todayDow = jsDay === 0 ? 7 : jsDay; // 1=Mon … 7=Sun
+  const todayDow = isoWeekday(new Date().getDay());
 
   const DAYS = [
-    { dow:1, label:'Lunes'     },
-    { dow:2, label:'Martes'    },
-    { dow:3, label:'Miércoles' },
-    { dow:4, label:'Jueves'    },
-    { dow:5, label:'Viernes'   },
+    { dow:1, label:DAYS_OF_WEEK[1] },
+    { dow:2, label:DAYS_OF_WEEK[2] },
+    { dow:3, label:DAYS_OF_WEEK[3] },
+    { dow:4, label:DAYS_OF_WEEK[4] },
+    { dow:5, label:DAYS_OF_WEEK[5] },
   ];
 
   const hours = [...new Set(scheds.map(s => s.class_hour))].sort((a, b) => a - b);
@@ -1771,39 +1967,25 @@ async function changeMyPassword() {
   if (newPwd.length < 6)   { toast('Minimo 6 caracteres', 'warning'); return; }
   const btn = document.getElementById('p-pwd-btn');
   btn.disabled = true; btn.textContent = 'Guardando...';
-  const { ok, data } = await api('/raice/change-password', {
-    method: 'POST',
-    body: JSON.stringify({ current_password: current, new_password: newPwd })
-  });
+  const result = await window.RAICE.changePassword(api, current, newPwd);
   btn.disabled = false; btn.textContent = 'Actualizar contrasena';
-  if (ok) {
+  if (result.ok) {
     toast('Contrasena actualizada', 'info');
     ['p-pwd-current','p-pwd-new','p-pwd-confirm'].forEach(id => document.getElementById(id).value = '');
   } else {
-    toast(data?.error || 'Contrasena actual incorrecta', 'error');
+    toast(result.error || 'Contrasena actual incorrecta', 'error');
   }
 }
 
 // REALTIME
-async function initRealtime() {
-  try {
-    const { ok, data } = await api('/raice/realtime-config');
-    if (!ok || !data.supabase_url || !data.supabase_anon_key) return;
-    const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
-    script.onload = () => {
-      const { createClient } = window.supabase;
-      const sb = createClient(data.supabase_url, data.supabase_anon_key);
-      const reload = () => { loadDashboard(); loadInsights(); };
-      sb.channel('realtime:rector')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'raice_excusas' }, reload)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'raice_cases' }, reload)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'raice_alerts' }, reload)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'raice_attendance' }, reload)
-        .subscribe();
-    };
-    document.body.appendChild(script);
-  } catch (err) {}
+function initRealtime() {
+  var reload = function() { loadDashboard(); loadInsights(); };
+  window.RAICE.initRealtime(api, [
+    { channel: 'realtime:rector', table: 'raice_excusas', callback: reload },
+    { channel: 'realtime:rector-cases', table: 'raice_cases', callback: reload },
+    { channel: 'realtime:rector-alerts', table: 'raice_alerts', callback: reload },
+    { channel: 'realtime:rector-att', table: 'raice_attendance', callback: reload }
+  ], 'Rector');
 }
 
 // INIT
@@ -1834,16 +2016,7 @@ if ('serviceWorker' in navigator) {
     if (e.data?.type === 'SW_UPDATED') showUpdateBanner();
   });
 }
-function showUpdateBanner() {
-  let b = document.getElementById('pwa-update-banner');
-  if (!b) {
-    b = document.createElement('div');
-    b.id = 'pwa-update-banner';
-    b.style.cssText = 'position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);z-index:99999;background:#0f1f3d;color:#fff;border-radius:14px;padding:.75rem 1.25rem;font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:.75rem;box-shadow:0 4px 20px rgba(0,0,0,.3);';
-    b.innerHTML = '✨ Nueva versión disponible <button onclick="location.reload()" style="background:#14b8b0;border:none;color:#fff;padding:.3rem .8rem;border-radius:8px;cursor:pointer;font-weight:700;">Actualizar</button>';
-    document.body.appendChild(b);
-  }
-}
+var showUpdateBanner = window.RAICE.showUpdateBanner;
 </script>
 </body>
 </html>

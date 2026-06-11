@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS raice_users (
   last_name            TEXT        NOT NULL DEFAULT '',
   email                TEXT,
   role                 TEXT        NOT NULL
-                                   CHECK (role IN ('superadmin','admin','rector','teacher')),
+                                   CHECK (role IN ('superadmin','admin','rector','teacher','counselor')),
   subject              TEXT,
   sede_id              UUID        REFERENCES raice_sedes(id) ON DELETE SET NULL,
   password_hash        TEXT        NOT NULL,
@@ -213,7 +213,7 @@ CREATE TABLE IF NOT EXISTS raice_students (
   birth_date DATE,
   notes      TEXT,
   status     TEXT        NOT NULL DEFAULT 'active'
-                         CHECK (status IN ('active','transferred','retired','graduated')),
+                         CHECK (status IN ('active','transferred','retired','graduated','desertor')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -346,13 +346,14 @@ CREATE TABLE IF NOT EXISTS raice_followups (
 CREATE TABLE IF NOT EXISTS raice_tipo1_escalones (
   id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   case_id          UUID        NOT NULL REFERENCES raice_cases(id) ON DELETE CASCADE,
-  numero_escalon   INTEGER     NOT NULL CHECK (numero_escalon BETWEEN 1 AND 4),
+  numero_escalon   INTEGER     NOT NULL CHECK (numero_escalon BETWEEN 1 AND 5),
   tipo_llamado     TEXT        NOT NULL
                                CHECK (tipo_llamado IN (
                                  'verbal',
                                  'escrito',
                                  'escrito_con_mediador',
-                                 'citacion_acudiente'
+                                 'citacion_acudiente',
+                                 'cierre'
                                )),
   descripcion      TEXT        NOT NULL,
   descargos        TEXT,
@@ -579,15 +580,15 @@ CREATE TABLE IF NOT EXISTS raice_student_grade_history (
 -- Seguras sobre instalaciones anteriores — idempotentes
 -- =====================================================================
 
--- Roles: asegurar que rector esté incluido
+-- Roles: asegurar que todos los roles estén incluidos
 ALTER TABLE raice_users DROP CONSTRAINT IF EXISTS raice_users_role_check;
 ALTER TABLE raice_users ADD CONSTRAINT raice_users_role_check
-  CHECK (role IN ('superadmin','admin','rector','teacher'));
+  CHECK (role IN ('superadmin','admin','rector','teacher','counselor'));
 
--- Estudiantes: incluir 'graduated' para fin de año escolar
+-- Estudiantes: incluir 'graduated' y 'desertor' para fin de año escolar y deserción
 ALTER TABLE raice_students DROP CONSTRAINT IF EXISTS raice_students_status_check;
 ALTER TABLE raice_students ADD CONSTRAINT raice_students_status_check
-  CHECK (status IN ('active','transferred','retired','graduated'));
+  CHECK (status IN ('active','transferred','retired','graduated','desertor'));
 
 -- Asistencia: incluir S (actividad especial) y NR (sin registro / omisión)
 ALTER TABLE raice_attendance DROP CONSTRAINT IF EXISTS raice_attendance_status_check;
@@ -601,6 +602,9 @@ ALTER TABLE raice_attendance
 -- Asignación docente: eliminar unique sin subject (versiones antiguas)
 ALTER TABLE raice_teacher_courses
   DROP CONSTRAINT IF EXISTS raice_teacher_courses_teacher_id_course_id_key;
+
+-- Observaciones: columna de asignatura
+ALTER TABLE raice_observations ADD COLUMN IF NOT EXISTS subject TEXT;
 
 -- Columnas de auditoría de asistencia
 ALTER TABLE raice_attendance ADD COLUMN IF NOT EXISTS corrected_by      UUID REFERENCES raice_users(id) ON DELETE SET NULL;
@@ -657,6 +661,14 @@ ALTER TABLE raice_courses ADD COLUMN IF NOT EXISTS name TEXT;
 ALTER TABLE raice_courses DROP CONSTRAINT IF EXISTS raice_courses_type_check;
 ALTER TABLE raice_courses ADD CONSTRAINT raice_courses_type_check
   CHECK (type IN ('normal','subgroup'));
+
+-- Escalones Tipo I: incluir 'cierre' en tipo_llamado y permitir numero_escalon hasta 5
+ALTER TABLE raice_tipo1_escalones DROP CONSTRAINT IF EXISTS raice_tipo1_escalones_tipo_llamado_check;
+ALTER TABLE raice_tipo1_escalones ADD CONSTRAINT raice_tipo1_escalones_tipo_llamado_check
+  CHECK (tipo_llamado IN ('verbal','escrito','escrito_con_mediador','citacion_acudiente','cierre'));
+ALTER TABLE raice_tipo1_escalones DROP CONSTRAINT IF EXISTS raice_tipo1_escalones_numero_escalon_check;
+ALTER TABLE raice_tipo1_escalones ADD CONSTRAINT raice_tipo1_escalones_numero_escalon_check
+  CHECK (numero_escalon BETWEEN 1 AND 5);
 
 -- Hacer grade y number nullable (los subgrupos no tienen número de grupo)
 ALTER TABLE raice_courses ALTER COLUMN grade DROP NOT NULL;
