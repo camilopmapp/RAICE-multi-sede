@@ -496,14 +496,16 @@ function togglePass() {
             const dest = data.role === 'superadmin' ? '/superadmin.html'
                        : data.role === 'admin'      ? '/admin.html'
                        : data.role === 'rector'     ? '/rector.html'
+                       : data.role === 'counselor'  ? '/orientador.html'
                        :                              '/docente.html';
             window.location.href = dest + '?cambiar-contrasena=1';
             return;
           }
-          if (data.role === 'superadmin')    window.location.href = '/superadmin.html';
-          else if (data.role === 'admin')    window.location.href = '/admin.html';
-          else if (data.role === 'rector')   window.location.href = '/rector.html';
-          else                               window.location.href = '/docente.html';
+          if (data.role === 'superadmin')       window.location.href = '/superadmin.html';
+          else if (data.role === 'admin')       window.location.href = '/admin.html';
+          else if (data.role === 'rector')      window.location.href = '/rector.html';
+          else if (data.role === 'counselor')   window.location.href = '/orientador.html';
+          else                                  window.location.href = '/docente.html';
         }, 800);
       } else {
         showAlert('error', data.error || 'Usuario o contraseña incorrectos.');

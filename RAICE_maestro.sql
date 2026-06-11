@@ -346,13 +346,14 @@ CREATE TABLE IF NOT EXISTS raice_followups (
 CREATE TABLE IF NOT EXISTS raice_tipo1_escalones (
   id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   case_id          UUID        NOT NULL REFERENCES raice_cases(id) ON DELETE CASCADE,
-  numero_escalon   INTEGER     NOT NULL CHECK (numero_escalon BETWEEN 1 AND 4),
+  numero_escalon   INTEGER     NOT NULL CHECK (numero_escalon BETWEEN 1 AND 5),
   tipo_llamado     TEXT        NOT NULL
                                CHECK (tipo_llamado IN (
                                  'verbal',
                                  'escrito',
                                  'escrito_con_mediador',
-                                 'citacion_acudiente'
+                                 'citacion_acudiente',
+                                 'cierre'
                                )),
   descripcion      TEXT        NOT NULL,
   descargos        TEXT,
@@ -602,6 +603,9 @@ ALTER TABLE raice_attendance
 ALTER TABLE raice_teacher_courses
   DROP CONSTRAINT IF EXISTS raice_teacher_courses_teacher_id_course_id_key;
 
+-- Observaciones: columna de asignatura
+ALTER TABLE raice_observations ADD COLUMN IF NOT EXISTS subject TEXT;
+
 -- Columnas de auditoría de asistencia
 ALTER TABLE raice_attendance ADD COLUMN IF NOT EXISTS corrected_by      UUID REFERENCES raice_users(id) ON DELETE SET NULL;
 ALTER TABLE raice_attendance ADD COLUMN IF NOT EXISTS corrected_at      TIMESTAMPTZ;
@@ -657,6 +661,14 @@ ALTER TABLE raice_courses ADD COLUMN IF NOT EXISTS name TEXT;
 ALTER TABLE raice_courses DROP CONSTRAINT IF EXISTS raice_courses_type_check;
 ALTER TABLE raice_courses ADD CONSTRAINT raice_courses_type_check
   CHECK (type IN ('normal','subgroup'));
+
+-- Escalones Tipo I: incluir 'cierre' en tipo_llamado y permitir numero_escalon hasta 5
+ALTER TABLE raice_tipo1_escalones DROP CONSTRAINT IF EXISTS raice_tipo1_escalones_tipo_llamado_check;
+ALTER TABLE raice_tipo1_escalones ADD CONSTRAINT raice_tipo1_escalones_tipo_llamado_check
+  CHECK (tipo_llamado IN ('verbal','escrito','escrito_con_mediador','citacion_acudiente','cierre'));
+ALTER TABLE raice_tipo1_escalones DROP CONSTRAINT IF EXISTS raice_tipo1_escalones_numero_escalon_check;
+ALTER TABLE raice_tipo1_escalones ADD CONSTRAINT raice_tipo1_escalones_numero_escalon_check
+  CHECK (numero_escalon BETWEEN 1 AND 5);
 
 -- Hacer grade y number nullable (los subgrupos no tienen número de grupo)
 ALTER TABLE raice_courses ALTER COLUMN grade DROP NOT NULL;

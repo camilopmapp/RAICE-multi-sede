@@ -370,8 +370,9 @@
   }
 
   /* ═══ FICHA MODAL — diseño portal-acudiente (scoped) ═══ */
-  #modal-ficha .modal{max-width:760px;}
+  #modal-ficha .modal{max-width:760px;overflow:hidden;}
   #modal-ficha .modal-body{padding:0;}
+  #modal-ficha .modal-header{padding:1rem 1.35rem;position:static;}
   #modal-ficha .ficha-body{font-family:'DM Sans',sans-serif;}
   #modal-ficha .student-card{background:var(--navy);color:#fff;padding:1.1rem 1.25rem;display:flex;align-items:center;gap:1rem;border-radius:0;}
   #modal-ficha .student-avatar{width:48px;height:48px;border-radius:50%;background:var(--gold);color:var(--navy);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.1rem;flex-shrink:0;}
@@ -1880,6 +1881,26 @@
       <button class="modal-close" onclick="closeModal('modal-student-obs')">✕</button>
     </div>
     <div class="modal-body" id="obs-modal-body">Cargando…</div>
+    <div class="modal-footer" style="flex-direction:column;align-items:stretch;gap:.65rem;padding-top:.85rem;">
+      <div style="font-size:.8rem;font-weight:700;color:var(--navy);margin-bottom:.1rem;">➕ Nueva observación</div>
+      <input type="hidden" id="admin-obs-type" value="neutral">
+      <div style="display:flex;gap:.5rem;">
+        <button type="button" class="admin-obs-type-btn" data-val="positive" onclick="setAdminObsType('positive',this)"
+          style="flex:1;padding:.45rem .25rem;border-radius:8px;border:2px solid #bbf7d0;background:#f0fdf4;color:#16a34a;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:.8rem;opacity:.65;">✅ Positiva</button>
+        <button type="button" class="admin-obs-type-btn admin-obs-type-active" data-val="neutral" onclick="setAdminObsType('neutral',this)"
+          style="flex:1;padding:.45rem .25rem;border-radius:8px;border:2px solid #94a3b8;background:#f1f5f9;color:#475569;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:.8rem;">📋 Neutra</button>
+        <button type="button" class="admin-obs-type-btn" data-val="negative" onclick="setAdminObsType('negative',this)"
+          style="flex:1;padding:.45rem .25rem;border-radius:8px;border:2px solid #fecaca;background:#fff5f5;color:#dc2626;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:.8rem;opacity:.65;">⚠️ Negativa</button>
+      </div>
+      <input type="text" id="admin-obs-subject" placeholder="Asignatura (opcional)"
+        style="padding:.45rem .65rem;border:1.5px solid var(--border);border-radius:8px;font-size:.84rem;font-family:'DM Sans',sans-serif;background:var(--white);">
+      <textarea id="admin-obs-text" rows="2" placeholder="Escribe la observación…"
+        style="padding:.45rem .65rem;border:1.5px solid var(--border);border-radius:8px;font-size:.84rem;font-family:'DM Sans',sans-serif;resize:vertical;"></textarea>
+      <div style="display:flex;gap:.5rem;justify-content:flex-end;">
+        <button class="btn btn-ghost" onclick="closeModal('modal-student-obs')">Cerrar</button>
+        <button class="btn btn-teal" onclick="saveAdminObservation()">Guardar observación</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -4706,6 +4727,33 @@ async function printObservador() {
 
 // _printObservadorWindow → importado desde shared/utils/printObservador.js
 function _printObservadorWindow(d, cfg) { window.RAICE.printObservadorWindow(d, cfg); }
+
+function setAdminObsType(val, btn) {
+  document.getElementById('admin-obs-type').value = val;
+  document.querySelectorAll('.admin-obs-type-btn').forEach(b => {
+    b.style.fontWeight = '600'; b.style.opacity = '.65';
+  });
+  btn.style.fontWeight = '700'; btn.style.opacity = '1';
+}
+
+async function saveAdminObservation() {
+  const text    = document.getElementById('admin-obs-text').value.trim();
+  const type    = document.getElementById('admin-obs-type').value;
+  const subject = document.getElementById('admin-obs-subject').value.trim();
+  if (!text) { showToast('Escribe la observación', 'warning'); return; }
+  if (!_obsStudentId) { showToast('No hay estudiante seleccionado', 'error'); return; }
+  const { ok } = await window.RAICE.createObservation(fetchAPI, {
+    student_id: _obsStudentId, type, text, subject: subject || null
+  });
+  if (!ok) { showToast('Error al guardar observación', 'error'); return; }
+  showToast('Observación guardada', 'success');
+  document.getElementById('admin-obs-text').value = '';
+  document.getElementById('admin-obs-subject').value = '';
+  // Recargar el historial para mostrar la nueva observación
+  const titleEl = document.getElementById('obs-modal-title');
+  const name = titleEl.textContent.replace('📖 Observador — ', '');
+  viewStudentObs(_obsStudentId, name);
+}
 
 // ---- TEACHERS ----
 async function loadTeachers() {

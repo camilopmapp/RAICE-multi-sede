@@ -315,7 +315,7 @@
   .ab-av{background:linear-gradient(135deg,#fee2e2,#fecaca);box-shadow:0 0 0 2px rgba(220,38,38,.12);}
 
   /* ═══ FICHA MODAL — diseño portal-acudiente (scoped) ═══ */
-  #modal-ficha .modal{max-width:760px;}
+  #modal-ficha .modal{max-width:760px;overflow:hidden;}
   #modal-ficha .modal-bd{padding:0;}
   #modal-ficha .ficha-body{font-family:'DM Sans',sans-serif;}
   #modal-ficha .student-card{background:var(--navy);color:#fff;padding:1.1rem 1.25rem;display:flex;align-items:center;gap:1rem;border-radius:0;}
@@ -1294,7 +1294,7 @@ function onSearch(val) {
     if(!hits.length){res.innerHTML='<div style="padding:1rem;text-align:center;color:var(--gray);font-size:.83rem;">Sin resultados</div>';res.style.display='block';return;}
     res.innerHTML=hits.map(s=>{
       const ini=((s.first_name||'?')[0]+(s.last_name||'?')[0]).toUpperCase();
-      const curso=s.grade?(s.number?`${s.grade}-${s.number}`:`${s.grade}°`):s.course_label||'';
+      const curso=s.grade?(s.number||s.course?`${s.grade}-${s.number||s.course}`:`${s.grade}°`):s.course_label||'';
       return `<div class="s-item" onclick="openFicha('${s.id}')">
         <div class="s-av">${ini}</div>
         <div><div class="s-name">${esc(s.last_name)}, ${esc(s.first_name)}</div>

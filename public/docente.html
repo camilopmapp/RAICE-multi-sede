@@ -441,6 +441,7 @@
 <script src="/shared/data/apiClient.js"></script>
 <script src="/shared/domain/index.js"></script>
 <script src="/shared/utils/printObservador.js"></script>
+<script src="/shared/utils/printLista.js"></script>
 <script src="/shared/utils/pwa.js"></script>
 <script src="/shared/data/realtime.js"></script>
 <script src="/shared/data/repositories.js"></script>
@@ -1111,6 +1112,9 @@
                 placeholder="Buscar por nombre…"
                 style="width:100%;padding:.45rem .75rem .45rem 2rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.83rem;box-sizing:border-box;background:var(--white);">
             </div>
+            <button id="btn-print-lista-me" class="btn btn-ghost btn-sm" onclick="openPrintListaModal('mis-estudiantes')"
+              title="Imprimir lista del curso" disabled
+              style="white-space:nowrap;opacity:.4;cursor:not-allowed;">🖨️ Imprimir lista</button>
           </div>
         </div>
         <div class="card-body" style="padding:0;">
@@ -2174,7 +2178,7 @@
                 onmouseleave="hideExcusaTooltip()"
               ` : ''}
             >${statusLabel}</span>
-            <button class="obs-btn" onclick="openObsModal('${s.id}','${s.first_name} ${s.last_name}')" title="Observación">📝</button>
+            <button class="obs-btn" onclick="openObsModal('${s.id}','${s.first_name} ${s.last_name}','${(activeCourse?.subject||'').replace(/'/g,"\\'")}','${activeCourse?.id||''}')" title="Observación">📝</button>
           </div>`;
       }
 
@@ -2197,7 +2201,7 @@
               ` : ''}
             ><span>🤒</span></button>
           </div>`}
-          <button class="obs-btn" onclick="openObsModal('${s.id}','${s.first_name} ${s.last_name}')" title="Observación">📝</button>
+          <button class="obs-btn" onclick="openObsModal('${s.id}','${s.first_name} ${s.last_name}','${(activeCourse?.subject||'').replace(/'/g,"\\'")}','${activeCourse?.id||''}')" title="Observación">📝</button>
           ${isSuspended ? '' : `<button class="btn-removal" onclick="openRemovalModal('${s.id}','${s.first_name} ${s.last_name}')" title="Retirar de clase">⛔</button>`}
         </div>`;
     }).join('');
@@ -2381,10 +2385,13 @@
     const course   = myCourses.find(c => c.id === courseId);
     const subject  = course?.subject || '';
     const list = document.getElementById('me-list');
+    const printBtn = document.getElementById('btn-print-lista-me');
     if (!students.length) {
       list.innerHTML = '<div style="text-align:center;padding:2.5rem;color:var(--gray);">No se encontraron estudiantes.</div>';
+      if (printBtn) { printBtn.disabled = true; printBtn.style.opacity = '.4'; printBtn.style.cursor = 'not-allowed'; }
       return;
     }
+    if (printBtn) { printBtn.disabled = false; printBtn.style.opacity = '1'; printBtn.style.cursor = 'pointer'; }
     list.innerHTML = students.map((s, i) => {
       const fullName = escapeHtml(s.first_name) + ' ' + escapeHtml(s.last_name);
       const initials = (s.first_name[0] || '') + (s.last_name[0] || '');
@@ -2419,6 +2426,102 @@
     ]);
     if (!d?.student) { showToast('Error al cargar datos del estudiante', 'error'); return; }
     _printObservadorWindow(d, cfg || {});
+  }
+
+  // ---- PRINT LISTA ----
+  let _printListaSource = 'mis-estudiantes';
+
+  function openPrintListaModal(source) {
+    _printListaSource = source || 'mis-estudiantes';
+    const docLabel = document.getElementById('prl-doc-label');
+    const docChk   = document.getElementById('prl-show-doc');
+    if (source === 'pasar-lista') {
+      docChk.checked = false;
+      docLabel.style.opacity = '.4';
+      docLabel.style.pointerEvents = 'none';
+      docLabel.title = 'No disponible desde Pasar lista';
+    } else {
+      docLabel.style.opacity = '';
+      docLabel.style.pointerEvents = '';
+      docLabel.title = '';
+    }
+    const startDate = document.getElementById('prl-col-start-date');
+    if (startDate && !startDate.value) startDate.value = todayColombia();
+    onPrintListaColTypeChange();
+    validatePrintListaFit();
+    openModal('modal-print-lista');
+  }
+
+  function onPrintListaColTypeChange() {
+    const type     = document.querySelector('input[name="prl-col-type"]:checked')?.value || 'number';
+    const dateRow  = document.getElementById('prl-date-row');
+    const customEl = document.getElementById('prl-custom-labels');
+    dateRow.style.display  = type === 'date'   ? 'block' : 'none';
+    customEl.style.display = type === 'custom' ? 'grid'  : 'none';
+    if (type === 'custom') onPrintListaColCountChange();
+    validatePrintListaFit();
+  }
+
+  function onPrintListaColCountChange() {
+    const count    = Math.min(20, Math.max(1, parseInt(document.getElementById('prl-col-count').value) || 5));
+    const type     = document.querySelector('input[name="prl-col-type"]:checked')?.value || 'number';
+    if (type === 'custom') {
+      const container = document.getElementById('prl-custom-labels');
+      const existing  = Array.from(container.querySelectorAll('input')).map(i => i.value);
+      container.innerHTML = '';
+      for (let i = 0; i < count; i++) {
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.placeholder = 'Col ' + (i + 1);
+        inp.value = existing[i] || '';
+        inp.style.cssText = 'padding:.35rem .5rem;border:1.5px solid var(--border);border-radius:7px;font-family:"DM Sans",sans-serif;font-size:.78rem;width:100%;';
+        container.appendChild(inp);
+      }
+    }
+    validatePrintListaFit();
+  }
+
+  function validatePrintListaFit() {
+    const count  = parseInt(document.getElementById('prl-col-count')?.value) || 5;
+    const orient = document.querySelector('input[name="prl-orient"]:checked')?.value || 'landscape';
+    const warn   = document.getElementById('prl-warning');
+    if (!warn) return;
+    warn.style.display = count > (orient === 'landscape' ? 15 : 8) ? 'block' : 'none';
+  }
+
+  async function executePrintLista() {
+    const sortBy       = document.querySelector('input[name="prl-sort"]:checked')?.value || 'lastname';
+    const colCount     = parseInt(document.getElementById('prl-col-count').value) || 5;
+    const colType      = document.querySelector('input[name="prl-col-type"]:checked')?.value || 'number';
+    const colStartDate = document.getElementById('prl-col-start-date')?.value || '';
+    const colLabels    = colType === 'custom'
+      ? Array.from(document.querySelectorAll('#prl-custom-labels input')).map(i => i.value)
+      : [];
+    const showDoc  = !!document.getElementById('prl-show-doc')?.checked;
+    const showSig  = !!document.getElementById('prl-show-sig')?.checked;
+    const showObs  = !!document.getElementById('prl-show-obs')?.checked;
+    const orient   = document.querySelector('input[name="prl-orient"]:checked')?.value || 'landscape';
+    const paper    = document.querySelector('input[name="prl-paper"]:checked')?.value || 'letter';
+
+    let students, course;
+    if (_printListaSource === 'pasar-lista') {
+      if (!studentsAtt.length) { showToast('No hay lista cargada', 'warning'); return; }
+      students = studentsAtt;
+      course   = activeCourse || {};
+    } else {
+      students = _misEstudiantesStudents || [];
+      if (!students.length) { showToast('Selecciona un curso con estudiantes', 'warning'); return; }
+      const courseId = document.getElementById('me-course-sel')?.value;
+      course = myCourses.find(c => c.id === courseId) || {};
+    }
+
+    const teacherName = document.getElementById('teacher-name')?.textContent || '';
+    const cfg = (await window.RAICE.fetchConfig(fetchAPI)) || {};
+    closeModal('modal-print-lista');
+    window.RAICE.printLista(students, course, teacherName, cfg, {
+      sortBy, colCount, colType, colStartDate, colLabels,
+      showDoc, showSig, showObs, orientation: orient, paper
+    });
   }
 
   // ---- CASES ----
@@ -4902,6 +5005,119 @@ var showUpdateBanner = window.RAICE.showUpdateBanner;
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-cierre-caso')">Cancelar</button>
       <button class="btn btn-teal" onclick="saveCierreCaso()" style="background:#16a34a;border-color:#16a34a;">✅ Confirmar cierre</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: Imprimir lista de estudiantes ===== -->
+<div class="modal-overlay" id="modal-print-lista">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-header">
+      <h3>🖨️ Configurar lista para imprimir</h3>
+      <button class="modal-close" onclick="closeModal('modal-print-lista')">✕</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:1rem;">
+
+      <!-- Ordenar por -->
+      <div class="form-group">
+        <label style="font-weight:700;font-size:.82rem;color:var(--navy);text-transform:uppercase;letter-spacing:.04em;">Ordenar lista por</label>
+        <div style="display:flex;gap:.5rem;margin-top:.35rem;">
+          <label style="flex:1;display:flex;align-items:center;gap:.5rem;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:9px;cursor:pointer;font-size:.85rem;">
+            <input type="radio" name="prl-sort" value="lastname" checked onchange="validatePrintListaFit()"> Apellidos
+          </label>
+          <label style="flex:1;display:flex;align-items:center;gap:.5rem;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:9px;cursor:pointer;font-size:.85rem;">
+            <input type="radio" name="prl-sort" value="firstname" onchange="validatePrintListaFit()"> Nombres
+          </label>
+        </div>
+      </div>
+
+      <!-- Columnas de registro -->
+      <div class="form-group">
+        <label style="font-weight:700;font-size:.82rem;color:var(--navy);text-transform:uppercase;letter-spacing:.04em;">Columnas de registro</label>
+        <div style="display:flex;align-items:center;gap:.75rem;margin-top:.35rem;">
+          <input type="number" id="prl-col-count" min="1" max="20" value="5"
+            oninput="onPrintListaColCountChange()"
+            style="width:70px;padding:.45rem .6rem;border:1.5px solid var(--border);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:.9rem;text-align:center;">
+          <span style="font-size:.8rem;color:var(--gray);">columnas (máx. 20)</span>
+        </div>
+      </div>
+
+      <!-- Tipo de cabecera -->
+      <div class="form-group">
+        <label style="font-weight:700;font-size:.82rem;color:var(--navy);text-transform:uppercase;letter-spacing:.04em;">Cabecera de columnas</label>
+        <div style="display:flex;gap:.4rem;margin-top:.35rem;flex-wrap:wrap;">
+          <label style="display:flex;align-items:center;gap:.4rem;padding:.45rem .7rem;border:1.5px solid var(--border);border-radius:9px;cursor:pointer;font-size:.83rem;">
+            <input type="radio" name="prl-col-type" value="number" checked onchange="onPrintListaColTypeChange()"> Números (1,2,3…)
+          </label>
+          <label style="display:flex;align-items:center;gap:.4rem;padding:.45rem .7rem;border:1.5px solid var(--border);border-radius:9px;cursor:pointer;font-size:.83rem;">
+            <input type="radio" name="prl-col-type" value="date" onchange="onPrintListaColTypeChange()"> Fechas
+          </label>
+          <label style="display:flex;align-items:center;gap:.4rem;padding:.45rem .7rem;border:1.5px solid var(--border);border-radius:9px;cursor:pointer;font-size:.83rem;">
+            <input type="radio" name="prl-col-type" value="custom" onchange="onPrintListaColTypeChange()"> Personalizado
+          </label>
+        </div>
+        <div id="prl-date-row" style="display:none;margin-top:.5rem;">
+          <label style="font-size:.78rem;color:var(--gray);display:block;margin-bottom:.25rem;">Fecha de inicio (genera días hábiles consecutivos)</label>
+          <input type="date" id="prl-col-start-date"
+            style="padding:.45rem .6rem;border:1.5px solid var(--border);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:.83rem;">
+        </div>
+        <div id="prl-custom-labels" style="display:none;margin-top:.5rem;grid-template-columns:repeat(4,1fr);gap:.3rem;"></div>
+      </div>
+
+      <!-- Columnas adicionales -->
+      <div class="form-group">
+        <label style="font-weight:700;font-size:.82rem;color:var(--navy);text-transform:uppercase;letter-spacing:.04em;">Columnas adicionales</label>
+        <div style="display:flex;flex-direction:column;gap:.4rem;margin-top:.35rem;">
+          <label id="prl-doc-label" style="display:flex;align-items:center;gap:.6rem;font-size:.85rem;cursor:pointer;">
+            <input type="checkbox" id="prl-show-doc" onchange="validatePrintListaFit()"> Número de documento
+          </label>
+          <label style="display:flex;align-items:center;gap:.6rem;font-size:.85rem;cursor:pointer;">
+            <input type="checkbox" id="prl-show-sig" checked onchange="validatePrintListaFit()"> Columna de firma / VB
+          </label>
+          <label style="display:flex;align-items:center;gap:.6rem;font-size:.85rem;cursor:pointer;">
+            <input type="checkbox" id="prl-show-obs" onchange="validatePrintListaFit()"> Columna de observaciones
+          </label>
+        </div>
+      </div>
+
+      <!-- Formato -->
+      <div class="form-group">
+        <label style="font-weight:700;font-size:.82rem;color:var(--navy);text-transform:uppercase;letter-spacing:.04em;">Formato de impresión</label>
+        <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:.35rem;">
+          <div>
+            <div style="font-size:.75rem;color:var(--gray);margin-bottom:.3rem;">Orientación</div>
+            <div style="display:flex;gap:.4rem;">
+              <label style="display:flex;align-items:center;gap:.4rem;padding:.4rem .65rem;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;font-size:.82rem;">
+                <input type="radio" name="prl-orient" value="landscape" checked onchange="validatePrintListaFit()"> Horizontal
+              </label>
+              <label style="display:flex;align-items:center;gap:.4rem;padding:.4rem .65rem;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;font-size:.82rem;">
+                <input type="radio" name="prl-orient" value="portrait" onchange="validatePrintListaFit()"> Vertical
+              </label>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:.75rem;color:var(--gray);margin-bottom:.3rem;">Papel</div>
+            <div style="display:flex;gap:.4rem;">
+              <label style="display:flex;align-items:center;gap:.4rem;padding:.4rem .65rem;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;font-size:.82rem;">
+                <input type="radio" name="prl-paper" value="letter" checked> Carta
+              </label>
+              <label style="display:flex;align-items:center;gap:.4rem;padding:.4rem .65rem;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;font-size:.82rem;">
+                <input type="radio" name="prl-paper" value="a4"> A4
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Advertencia de ajuste -->
+      <div id="prl-warning" style="display:none;background:#fef9c3;border:1.5px solid #fbbf24;border-radius:10px;padding:.6rem .9rem;font-size:.82rem;color:#92400e;font-weight:600;">
+        ⚠️ Con estas opciones la lista puede no caber en una hoja. Se recomienda orientación horizontal y reducir el número de columnas.
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-print-lista')">Cancelar</button>
+      <button class="btn btn-teal" onclick="executePrintLista()">🖨️ Generar lista</button>
     </div>
   </div>
 </div>

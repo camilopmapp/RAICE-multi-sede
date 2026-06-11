@@ -1690,6 +1690,7 @@
           <select id="nu-role" onchange="toggleCourseField(); renderSedeField('nu-sede-wrap','nu-role')">
             <option value="admin">🗂️ Coordinador</option>
             <option value="rector">🏫 Rector</option>
+            <option value="counselor">🧠 Orientador</option>
             <option value="teacher">👨‍🏫 Docente</option>
           </select>
         </div>
@@ -1745,6 +1746,7 @@
           <select id="eu-role" onchange="renderSedeField('eu-sede-wrap','eu-role')">
             <option value="admin">🗂️ Coordinador</option>
             <option value="rector">🏫 Rector</option>
+            <option value="counselor">🧠 Orientador</option>
             <option value="teacher">👨‍🏫 Docente</option>
             <option value="superadmin">🛡️ Superadministrador</option>
           </select>
@@ -2512,7 +2514,7 @@
           <td class="td-muted">${s.doc_number || '—'}</td>
           <td>${statusPill}</td>
           <td>
-            <div style="display:flex;gap:.35rem;flex-wrap:wrap;">
+            <div style="display:flex;gap:.35rem;">
               <button class="btn btn-ghost btn-sm" title="Editar datos" onclick="editStudent(${JSON.stringify(s).replace(/"/g,'&quot;')})">✏️</button>
               <button class="btn btn-ghost btn-sm" title="Cambiar de grado/curso" onclick="openChangeGrade(${JSON.stringify(s).replace(/"/g,'&quot;')})">🏫</button>
               <button class="btn btn-danger btn-sm" title="Eliminar" onclick="deleteStudent('${s.id}')">🗑️</button>

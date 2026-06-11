@@ -90,9 +90,9 @@ export default async function handler(req, res) {
     const user = await verifyToken(req);
     if (!user) return res.status(401).json({ error: 'No autorizado. Inicia sesión.' });
 
-    // Rector is read-only: block all non-GET methods globally
-    if (user.role === 'rector' && req.method !== 'GET') {
-      return res.status(403).json({ error: 'El rector solo tiene acceso de lectura. Esta acción no está permitida.' });
+    // Rector and counselor are read-only: block all non-GET methods globally
+    if (['rector','counselor'].includes(user.role) && req.method !== 'GET') {
+      return res.status(403).json({ error: 'Este rol solo tiene acceso de lectura. Esta acción no está permitida.' });
     }
 
     const route = pathParts.join('/');
@@ -428,8 +428,11 @@ function attendanceStats(records) {
 //   periodId = <uuid>         → ese periodo
 // Devuelve { from, to, periods (del año), selectedId }.
 async function resolvePeriodRange(sb, periodId) {
+  const { data: cfg } = await sb.from('raice_config').select('num_periods').eq('id', 1).maybeSingle();
+  const maxPeriods = cfg?.num_periods || 4;
   const { data: periods } = await sb.from('raice_periods')
     .select('id, name, start_date, end_date, year, period_num, active')
+    .lte('period_num', maxPeriods)
     .order('year', { ascending: false }).order('period_num', { ascending: true });
   const list = periods || [];
   const active = list.find(p => p.active) || null;
@@ -600,7 +603,7 @@ async function getAlerts(sb) {
 // ALERTS ENDPOINT — combina alertas computadas + notificaciones no leídas
 // =====================================================
 async function getAlertsEndpoint(req, res, user) {
-  requireRole(user, 'superadmin', 'admin', 'rector');
+  requireRole(user, 'superadmin', 'admin', 'rector', 'counselor');
   if (req.method !== 'GET') return res.status(405).end();
   const sb  = getSupabase();
   const url = new URL(req.url, `http://${req.headers.host}`);
@@ -1026,8 +1029,8 @@ async function handleUsers(req, res, user) {
 
     // Only superadmin can create admin/superadmin/rector accounts
     const assignedRole = role || 'teacher';
-    if (['admin', 'superadmin', 'rector'].includes(assignedRole) && user.role !== 'superadmin') {
-      return res.status(403).json({ error: 'Solo el superadministrador puede crear coordinadores o rectores' });
+    if (['admin', 'superadmin', 'rector', 'counselor'].includes(assignedRole) && user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Solo el superadministrador puede crear coordinadores, rectores u orientadores' });
     }
 
     const password_hash = await bcrypt.hash(password, 10);
@@ -1078,7 +1081,7 @@ async function handleUsers(req, res, user) {
     const { id, first_name, last_name, username, email, role, subject, active, password, sede_id: newSedeId, sede_ids: newSedeIds } = req.body || {};
     if (!id) return res.status(400).json({ error: 'ID requerido' });
 
-    if (role && ['admin','superadmin','rector'].includes(role) && user.role !== 'superadmin')
+    if (role && ['admin','superadmin','rector','counselor'].includes(role) && user.role !== 'superadmin')
       return res.status(403).json({ error: 'Solo el superadministrador puede asignar ese rol' });
 
     const updates = { first_name, last_name, subject, active };
@@ -1187,7 +1190,7 @@ async function handleStudents(req, res, user) {
       .select('id, first_name, last_name, grade, course, course_id, doc_type, doc_number, birth_date, phone, status, notes')
       .order('grade').order('course').order('last_name');
 
-    const isAdmin = ['superadmin','admin','rector'].includes(user.role);
+    const isAdmin = ['superadmin','admin','rector','counselor'].includes(user.role);
     const courseId = url.searchParams.get('course_id');
     // Teachers always see only active students; admins see all by default
     if (!isAdmin) query = query.eq('status', 'active');
@@ -3235,7 +3238,7 @@ async function getAttendanceByCourse(req, res, user) {
 }
 
 async function getAttendanceRange(req, res, user) {
-  requireRole(user, 'superadmin', 'admin', 'teacher', 'rector');
+  requireRole(user, 'superadmin', 'admin', 'teacher', 'rector', 'counselor');
   const sb  = getSupabase();
   const url = new URL(req.url, `http://${req.headers.host}`);
   const course_id = url.searchParams.get('course_id');
@@ -3324,6 +3327,7 @@ async function handleCases(req, res, user) {
       .range(offset, offset + limit - 1);
 
     if (user.role === 'teacher') query = query.eq('teacher_id', user.id);
+    // counselor sees all cases (like rector)
     // Filtrar por sedes para coordinadores — siempre leemos desde la BD, con sede_filter opcional
     if (user.role === 'admin') {
       const caseSedeFilter = url.searchParams.get('sede_filter');
@@ -3726,12 +3730,21 @@ async function getCasesReport(req, res, user) {
 
 
 async function updateCaseStatus(req, res, user) {
-  requireRole(user, 'superadmin', 'admin');
-  if (req.method !== 'PUT') return res.status(405).end();
+  requireRole(user, 'superadmin', 'admin', 'teacher');
+  if (req.method !== 'PUT' && req.method !== 'POST') return res.status(405).end();
   const sb = getSupabase();
-  const { id, status, type } = req.body || {};
-  if (!id) return res.status(400).json({ error: 'ID requerido' });
+  const { id, case_id, status, type } = req.body || {};
+  const caseId = id || case_id;
+  if (!caseId) return res.status(400).json({ error: 'ID requerido' });
   if (!status && !type) return res.status(400).json({ error: 'Se requiere status o type' });
+
+  // Docentes solo pueden cerrar sus propios casos
+  if (user.role === 'teacher') {
+    if (status !== 'closed') return res.status(403).json({ error: 'Sin permiso para este cambio de estado' });
+    const { data: c } = await sb.from('raice_cases').select('teacher_id').eq('id', caseId).single();
+    if (!c || c.teacher_id !== user.id) return res.status(403).json({ error: 'No eres el docente de este caso' });
+  }
+
   const updates = {};
   if (status) {
     updates.status = status;
@@ -3740,13 +3753,13 @@ async function updateCaseStatus(req, res, user) {
   if (type && [1, 2, 3].includes(parseInt(type))) {
     updates.type = parseInt(type);
   }
-  const { error } = await sb.from('raice_cases').update(updates).eq('id', id);
+  const { error } = await sb.from('raice_cases').update(updates).eq('id', caseId);
   if (error) return res.status(500).json({ error: 'Error al actualizar caso' });
   const logDetail = [
     status ? `estado → ${status}` : null,
     type   ? `tipo → ${type}`     : null
   ].filter(Boolean).join(', ');
-  await logActivity(sb, user.id, 'update_case_status', `Caso ${id}: ${logDetail}`);
+  await logActivity(sb, user.id, 'update_case_status', `Caso ${caseId}: ${logDetail}`);
   return res.status(200).json({ success: true });
 }
 
@@ -3871,7 +3884,7 @@ async function getStudentHistory(req, res, user) {
 
 // ---- STUDENT GRADE HISTORY (endpoint dedicado) ----
 async function getStudentGradeHistory(req, res, user) {
-  requireRole(user, 'superadmin', 'admin', 'rector');
+  requireRole(user, 'superadmin', 'admin', 'rector', 'counselor');
   const sb = getSupabase();
   const parts = new URL(req.url, `http://${req.headers.host}`)
     .pathname.replace('/api/', '').split('/').filter(Boolean);
@@ -3895,7 +3908,7 @@ async function getStudentGradeHistory(req, res, user) {
 
 // ---- DASHBOARD ENHANCED (Fase 2) ----
 async function getDashboardV2(req, res, user) {
-  requireRole(user, 'superadmin', 'admin', 'rector');
+  requireRole(user, 'superadmin', 'admin', 'rector', 'counselor');
   const sb           = getSupabase();
   const url          = new URL(req.url, `http://${req.headers.host}`);
   const today        = todayCO();
@@ -4207,7 +4220,7 @@ async function getDashboardV2(req, res, user) {
 // RECTOR INSIGHTS — Tendencias, cumplimiento, riesgo
 // =====================================================
 async function getRectorInsights(req, res, user) {
-  requireRole(user, 'superadmin', 'admin', 'rector');
+  requireRole(user, 'superadmin', 'admin', 'rector', 'counselor');
   const sb = getSupabase();
   const url = new URL(req.url, `http://${req.headers.host}`);
   const today = todayCO();
@@ -5629,7 +5642,7 @@ async function handleSchedules(req, res, user) {
 // SCHEDULES OVERVIEW — All courses, all teachers, real-time
 // =====================================================
 async function getSchedulesOverview(req, res, user) {
-  requireRole(user, 'superadmin', 'admin', 'rector');
+  requireRole(user, 'superadmin', 'admin', 'rector', 'counselor');
   if (req.method !== 'GET') return res.status(405).end();
   const sb    = getSupabase();
   const url   = new URL(req.url, `http://${req.headers.host}`);
@@ -6437,7 +6450,7 @@ async function getGradeCases(req, res, user) {
 // =====================================================
 
 async function handleTeacherAbsences(req, res, user) {
-  requireRole(user, 'superadmin', 'admin', 'rector');
+  requireRole(user, 'superadmin', 'admin', 'rector', 'counselor');
   // Rector is read-only — writes already blocked globally, but also block here for clarity
   const sb  = getSupabase();
   const url = new URL(req.url, `http://${req.headers.host}`);
@@ -7910,12 +7923,13 @@ async function handleTipo1Escalones(req, res, user) {
       return res.status(400).json({ error: 'Solo casos Tipo I tienen escalones' });
     if (caseRow.status === 'escalado')
       return res.status(400).json({ error: 'Este caso ya fue escalado a Tipo II' });
+
+    const isCierre = req.body?._cierre === true;
+
     if (caseRow.status === 'closed' && !isCierre)
       return res.status(400).json({ error: 'Este caso ya fue cerrado como resuelto' });
 
     // Determine next escalon number
-    // Determine if this is a closure entry FIRST (before any checks that use isCierre)
-    const isCierre = req.body?._cierre === true;
 
     const { count } = await sb.from('raice_tipo1_escalones')
       .select('id', { count: 'exact', head: true }).eq('case_id', case_id);
@@ -7923,8 +7937,14 @@ async function handleTipo1Escalones(req, res, user) {
 
     if (!isCierre && numero_escalon > 4)
       return res.status(400).json({ error: 'Máximo 4 escalones. Debe escalar a Tipo II.' });
-    if (isCierre && numero_escalon > 5)
+    // Si ya existe al menos un escalón de cierre, el paso es idempotente: retornar éxito
+    // para que el frontend pueda proceder a actualizar el status del caso
+    if (isCierre && numero_escalon > 5) {
+      const { data: existing } = await sb.from('raice_tipo1_escalones')
+        .select('id').eq('case_id', case_id).eq('tipo_llamado', 'cierre').limit(1);
+      if (existing && existing.length > 0) return res.status(200).json({ success: true, escalon: existing[0], escalado: false });
       return res.status(400).json({ error: 'Caso ya cerrado' });
+    }
 
     const tipoMap = { 1:'verbal', 2:'escrito', 3:'escrito_con_mediador', 4:'citacion_acudiente' };
     const tipo_llamado = isCierre ? 'cierre' : tipoMap[numero_escalon];
@@ -8895,7 +8915,7 @@ async function handleRegisterOmission(req, res, user) {
 // SEDES
 // =====================================================
 async function handleSedes(req, res, user) {
-  requireRole(user, 'superadmin', 'admin', 'rector');
+  requireRole(user, 'superadmin', 'admin', 'rector', 'counselor');
   const sb = getSupabase();
   const url = new URL(req.url, `http://${req.headers.host}`);
 
