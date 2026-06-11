@@ -816,15 +816,17 @@ function renderKPIs(d) {
 }
 
 function renderAlerts(alerts) {
-  document.getElementById('alerts-badge').textContent = alerts.length ? alerts.length + ' activas' : '';
-  document.getElementById('alerts-bd').innerHTML = alerts.length
-    ? alerts.map(a => {
+  // Omit teacher attendance-omission alerts — not relevant for the counselor view
+  const filtered = alerts.filter(a => a.type !== 'attendance_omission');
+  document.getElementById('alerts-badge').textContent = filtered.length ? filtered.length + ' activas' : '';
+  document.getElementById('alerts-bd').innerHTML = filtered.length
+    ? filtered.map(a => {
         const dc = ALERT_SEVERITY_DOT_CLASS[a.severity] || 'd-blue';
         return `<div class="a-row"><div class="a-dot ${dc}"></div>
           <div><div class="a-title">${esc(a.title)}</div>
           <div class="a-desc">${esc(a.description||'')}</div></div></div>`;
       }).join('')
-    : '<div class="empty"><div class="ei">&#10003;</div>Sin alertas activas.</div>';
+    : '<div class="empty"><div class="ei">&#10003;</div>Sin alertas relevantes.</div>';
 }
 
 // ── CASES ──
