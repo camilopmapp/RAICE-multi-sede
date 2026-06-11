@@ -236,6 +236,7 @@
   .pill-teal { background:#ccfbf1; color:#0f766e; }
   .pill-gold { background:#fef3c7; color:#92400e; }
   .pill-orange { background:#fed7aa; color:#9a3412; }
+  .pill-purple { background:#ede9fe; color:#5b21b6; }
 
   /* === FORM === */
   .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
@@ -288,7 +289,7 @@
   }
   .modal-overlay.open { display:flex; }
   .modal {
-    background:var(--white); border-radius:20px;
+    background:var(--white); border-radius:20px; overflow:hidden;
     width:100%; max-width:520px;
     box-shadow:0 20px 60px rgba(15,31,61,.25);
     animation:modalIn .25s ease;
@@ -410,8 +411,8 @@
     .form-grid, .form-grid.cols3 { grid-template-columns:1fr; }
     table { font-size:.78rem; }
     th, td { padding:.45rem .5rem; }
-    .modal-overlay { align-items:flex-end; padding:0; }
-    .modal, .modal.modal-lg { max-width:100%; border-radius:20px 20px 0 0; max-height:92vh; max-height:92dvh; display:flex;flex-direction:column;}
+    .modal-overlay { align-items:center; padding:.75rem; }
+    .modal, .modal.modal-lg { max-width:100%; border-radius:20px; max-height:92vh; max-height:92dvh; display:flex;flex-direction:column;}
     .btn { padding:.55rem .9rem; font-size:.82rem; }
     .btn-sm { padding:.4rem .65rem; font-size:.76rem; }
 
@@ -468,6 +469,12 @@
   }
 </style>
 <script src="/js/xlsx.full.min.js"></script>
+<script src="/shared/constants/index.js"></script>
+<script src="/shared/utils/index.js"></script>
+<script src="/shared/data/apiClient.js"></script>
+<script src="/shared/domain/index.js"></script>
+<script src="/shared/utils/pwa.js"></script>
+<script src="/shared/data/repositories.js"></script>
 </head>
 <body>
 
@@ -708,7 +715,7 @@
             <div class="upload-text">Arrastra tu archivo Excel aquí o haz clic para seleccionarlo</div>
             <div class="upload-hint" style="margin-top:.4rem;">
               <strong>Obligatorias:</strong> Nombres · Apellidos · Grado &nbsp;|&nbsp;
-              <strong>Opcionales:</strong> Curso · Tipo Doc · Documento · Fecha Nacimiento · Teléfono
+              <strong>Opcionales:</strong> Curso · Tipo Doc · Documento · Fecha Nacimiento · Teléfono · Acudiente · Parentesco · Teléfono Acudiente
             </div>
             <div style="margin-top:.6rem;font-size:.78rem;color:var(--gray);">Solo archivos .xlsx / .xls · Máx. 1000 filas</div>
           </div>
@@ -832,13 +839,14 @@
                   <th>Nombre completo</th>
                   <th>Grado · Curso</th>
                   <th>Sede</th>
+                  <th>Contacto</th>
                   <th>Documento</th>
                   <th>Estado</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
               <tbody id="students-tbody">
-                <tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--gray);">Cargando…</td></tr>
+                <tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--gray);">Cargando…</td></tr>
               </tbody>
             </table>
           </div>
@@ -1683,6 +1691,7 @@
           <select id="nu-role" onchange="toggleCourseField(); renderSedeField('nu-sede-wrap','nu-role')">
             <option value="admin">🗂️ Coordinador</option>
             <option value="rector">🏫 Rector</option>
+            <option value="counselor">🧠 Orientador</option>
             <option value="teacher">👨‍🏫 Docente</option>
           </select>
         </div>
@@ -1738,6 +1747,7 @@
           <select id="eu-role" onchange="renderSedeField('eu-sede-wrap','eu-role')">
             <option value="admin">🗂️ Coordinador</option>
             <option value="rector">🏫 Rector</option>
+            <option value="counselor">🧠 Orientador</option>
             <option value="teacher">👨‍🏫 Docente</option>
             <option value="superadmin">🛡️ Superadministrador</option>
           </select>
@@ -2262,42 +2272,33 @@
 
 <!-- ===== SCRIPT ===== -->
 <script>
-  const API_URL = '/api';
+  var { DAYS_OF_WEEK } = window.RAICE;
+  var { createApiClient } = window.RAICE;
+  var { gradeLbl, todayColombia } = window.RAICE;
+  var { showToast, logout, avatarColor, formatDate, applyLogoToSidebar } = window.RAICE;
   let currentUser = null;
 
-  /** Formatea un número de grado: 0 → 'Transición', 1-11 → '1°'…'11°' */
-  function gradeLbl(g) { return (g === 0 || g === '0' || g === null) && g !== undefined ? 'Transición' : (g + '°'); }
+  // gradeLbl → importado desde shared/domain
   let allStudents = [], allUsers = [], allTeachers = [], allSedes = [];
   let importedData = [];
   let activeUserRoleFilter = 'all';
 
   // ---- AUTH ----
   function initSession() {
-    const token = sessionStorage.getItem('raice_token');
-    const role  = sessionStorage.getItem('raice_role');
-    const user  = JSON.parse(sessionStorage.getItem('raice_user') || 'null');
-
-    if (!token || role !== 'superadmin') {
-      window.location.href = '/login.html';
-      return;
-    }
+    const user = window.RAICE.checkAuth('superadmin');
+    if (!user) return;
 
     currentUser = user;
-    if (user) {
-      const initials = ((user.first_name||'S')[0] + (user.last_name||'A')[0]).toUpperCase();
-      document.getElementById('user-avatar-sb').textContent = initials;
-      document.getElementById('user-name-sb').textContent = user.name || 'Superadmin';
-    }
+    var p = window.RAICE.deriveProfileData(user, 'Superadmin');
+    document.getElementById('user-avatar-sb').textContent = p.initials;
+    document.getElementById('user-name-sb').textContent = p.fullName;
   }
 
-  function logout() {
-    if (!confirm('¿Cerrar sesión?')) return;
-    sessionStorage.clear();
-    localStorage.removeItem('raice_token');
-    localStorage.removeItem('raice_role');
-    localStorage.removeItem('raice_user');
-    window.location.href = '/login.html';
-  }
+  // logout → importado desde shared/utils
+
+  const fetchAPI = createApiClient({
+    onUnauthorized: function() { logout(); }
+  });
 
   // ---- NAV ----
   function showSection(name, btn) {
@@ -2367,27 +2368,12 @@
   });
 
   // ---- TOAST ----
-  function showToast(msg, type = 'success') {
-    const c = document.getElementById('toast-container');
-    const t = document.createElement('div');
-    t.className = 'toast ' + type;
-    const ico = { success:'✅', error:'❌', warning:'⚠️' }[type] || 'ℹ️';
-    t.innerHTML = `<span>${ico}</span><span>${msg}</span>`;
-    c.appendChild(t);
-    setTimeout(() => t.remove(), 3800);
-  }
+  // showToast → importado desde shared/utils
 
   // ---- HELPERS ----
-  function avatarColor(name) {
-    const colors = ['#3b82f6','#10b981','#8b5cf6','#f59e0b','#ef4444','#0b7a75','#ec4899'];
-    const i = (name || 'A').charCodeAt(0) % colors.length;
-    return colors[i];
-  }
+  // avatarColor → importado desde shared/utils
 
-  function formatDate(iso) {
-    if (!iso) return '—';
-    return new Date(iso).toLocaleDateString('es-CO', { day:'2-digit', month:'short', year:'numeric' });
-  }
+  // formatDate → importado desde shared/utils
 
   function timeAgo(iso) {
     if (!iso) return '';
@@ -2401,29 +2387,12 @@
     return `Hace ${days} día${days > 1 ? 's' : ''}`;
   }
 
-  async function fetchAPI(path, opts = {}) {
-    const token = sessionStorage.getItem('raice_token');
-    try {
-      const res = await fetch(API_URL + path, {
-        ...opts,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          ...(opts.headers || {})
-        }
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.status === 401) { logout(); return { ok: false, status: 401, data: {} }; }
-      return { ok: res.ok, status: res.status, data };
-    } catch (err) {
-      console.error('fetchAPI error:', path, err);
-      return { ok: false, status: 0, data: { error: 'Error de conexión' } };
-    }
-  }
+  // fetchAPI → creado desde shared/data/apiClient.js con createApiClient
 
   // ---- DASHBOARD ----
   async function loadDashboard() {
-    const { ok, data } = await fetchAPI('/raice/dashboard');
+    const data = await window.RAICE.fetchDashboard(fetchAPI);
+    const ok = !!data;
     if (!ok) return;
     document.getElementById('stat-students').textContent  = data.students  ?? '—';
     document.getElementById('stat-teachers').textContent  = data.teachers  ?? '—';
@@ -2492,12 +2461,9 @@
   async function loadStudents() {
     // Asegurar que las sedes estén cargadas para el filtrado
     if (!allSedes || !allSedes.length) {
-      const { ok: sOk, data: sData } = await fetchAPI('/raice/sedes');
-      if (sOk) allSedes = sData.sedes || [];
+      allSedes = await window.RAICE.fetchSedes(fetchAPI);
     }
-    const { ok, data } = await fetchAPI('/raice/students');
-    if (!ok) { showToast('Error al cargar estudiantes', 'error'); return; }
-    allStudents = data.students || [];
+    allStudents = await window.RAICE.fetchStudents(fetchAPI);
     populateSedeFilter();
     populateGradeFilter();
     filterStudents();
@@ -2514,9 +2480,10 @@
   function renderStudents(list) {
     const tbody = document.getElementById('students-tbody');
     if (!list.length) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--gray);">No hay estudiantes registrados.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--gray);">No hay estudiantes registrados.</td></tr>';
       return;
     }
+    const _esc = window.RAICE.escapeHtml;
     tbody.innerHTML = list.map(s => {
       const initials = ((s.first_name||'?')[0] + (s.last_name||'?')[0]).toUpperCase();
       const statusPill = s.status === 'active'
@@ -2526,6 +2493,11 @@
         : s.status === 'transferred'
         ? '<span class="pill pill-yellow">📦 Trasladado</span>'
         : '<span class="pill pill-red">🚪 Retirado</span>';
+      let contacto = s.phone ? `<div style="font-size:.78rem;">📞 ${_esc(s.phone)}</div>` : '';
+      (s.acudientes||[]).forEach(a => {
+        contacto += `<div style="font-size:.74rem;color:var(--gray);">👤 ${a.phone?_esc(a.phone)+' · ':''}${_esc(a.name)}${a.relationship?' ('+_esc(a.relationship)+')':''}</div>`;
+      });
+      if (!contacto) contacto = '<span class="td-muted">—</span>';
       return `
         <tr>
           <td>
@@ -2539,10 +2511,11 @@
           </td>
           <td><strong>${gradeLbl(s.grade)}${s.course}</strong></td>
           <td class="td-muted">🏢 ${s.sede_name || '—'}</td>
+          <td>${contacto}</td>
           <td class="td-muted">${s.doc_number || '—'}</td>
           <td>${statusPill}</td>
           <td>
-            <div style="display:flex;gap:.35rem;flex-wrap:wrap;">
+            <div style="display:flex;gap:.35rem;">
               <button class="btn btn-ghost btn-sm" title="Editar datos" onclick="editStudent(${JSON.stringify(s).replace(/"/g,'&quot;')})">✏️</button>
               <button class="btn btn-ghost btn-sm" title="Cambiar de grado/curso" onclick="openChangeGrade(${JSON.stringify(s).replace(/"/g,'&quot;')})">🏫</button>
               <button class="btn btn-danger btn-sm" title="Eliminar" onclick="deleteStudent('${s.id}')">🗑️</button>
@@ -2638,11 +2611,10 @@
 
   // Fetch all sedes, populate selector, then load grades for selected sede
   async function loadSedesForStudentModal(selectedSedeId, selectedGrade, selectedCourse, currentCourseId) {
-    const { data: sData } = await fetchAPI('/raice/sedes');
-    const sedes = sData?.sedes || [];
+    const sedes = await window.RAICE.fetchSedes(fetchAPI);
     // Load all non-subgroup courses for modal filtering
-    const { data: cData } = await fetchAPI('/raice/courses');
-    window._allCoursesForModal = (cData?.courses || []).filter(c => c.type !== 'subgroup');
+    const allCourses = await window.RAICE.fetchCourses(fetchAPI);
+    window._allCoursesForModal = allCourses.filter(c => c.type !== 'subgroup');
     // Auto-detect sede from the student's current course_id if not provided
     if (!selectedSedeId && currentCourseId) {
       const found = window._allCoursesForModal.find(c => c.id === currentCourseId);
@@ -2731,10 +2703,30 @@
     }
 
     const isNew = !id;
-    const { ok, data } = await fetchAPI('/raice/students', {
-      method: isNew ? 'POST' : 'PUT',
-      body: JSON.stringify(isNew ? payload : { id, ...payload })
-    });
+
+    async function enviar(force) {
+      const body = isNew ? { ...payload, force } : { id, ...payload };
+      return await fetchAPI('/raice/students', {
+        method: isNew ? 'POST' : 'PUT',
+        body: JSON.stringify(body)
+      });
+    }
+
+    let { ok, data } = await enviar(false);
+
+    // Duplicado por documento → bloquear
+    if (!ok && data?.code === 'DUPLICATE_DOC') {
+      showToast(data.error, 'error');
+      return;
+    }
+    // Duplicado por nombre → confirmar si es la misma persona
+    if (ok && data?.warning === 'DUPLICATE_NAME') {
+      if (!confirm('⚠️ ' + data.message + '\n\nAceptar = crear de todas formas (es otra persona)\nCancelar = no crear')) {
+        return;
+      }
+      ({ ok, data } = await enviar(true));
+    }
+
     if (ok) {
       // Save acudientes
       const studentId = isNew ? data?.student?.id : id;
@@ -2915,7 +2907,7 @@
       showToast('Eliminación cancelada — el texto no coincide', 'warning');
       return;
     }
-    const { ok } = await fetchAPI('/raice/students', { method:'DELETE', body: JSON.stringify({ id }) });
+    const { ok } = await window.RAICE.deleteStudent(fetchAPI, id);
     if (ok) { showToast('Estudiante eliminado permanentemente', 'success'); loadStudents(); }
     else showToast('Error al eliminar', 'error');
   }
@@ -2970,6 +2962,13 @@
           }
           return -1;
         };
+        const colIdxExcept = (names, except) => {
+          for (const name of names) {
+            const idx = header.findIndex((h, i) => i !== except && h.includes(name));
+            if (idx >= 0) return idx;
+          }
+          return -1;
+        };
 
         const iNombre    = colIdx(['nombres', 'nombre', 'name', 'names', 'primer nombre']);
         const iApellido  = colIdx(['apellidos', 'apellido', 'lastname', 'last name']);
@@ -2978,7 +2977,12 @@
         const iTipoDoc   = colIdx(['tipo doc', 'tipo de doc', 'tipo_doc', 'tipo documento']);
         const iDoc       = colIdx(['documento', 'numero doc', 'num doc', 'cedula', 'tarjeta', 'identificacion']);
         const iFechaNac  = colIdx(['fecha nac', 'fecha de nac', 'nacimiento', 'birth', 'birth_date']);
-        const iPhone     = colIdx(['telefono', 'celular', 'phone', 'tel']);
+        const iAcud      = colIdx(['acudiente', 'nombre acudiente', 'padre', 'madre', 'responsable']);
+        const iParent    = colIdx(['parentesco', 'relacion']);
+        // Teléfono del acudiente (columna separada, opcional)
+        const iAcudPhone = colIdx(['telefono acudiente', 'tel acudiente', 'celular acudiente', 'telefono padre', 'telefono madre', 'tel padre', 'tel madre']);
+        // Teléfono del estudiante, sin tomar la columna del acudiente
+        const iPhone     = colIdxExcept(['telefono', 'celular', 'phone', 'tel'], iAcudPhone);
 
         if (iNombre < 0 || iApellido < 0 || iGrado < 0) {
           showToast('No se encontraron las columnas obligatorias: Nombres, Apellidos, Grado. Revisa el archivo.', 'error');
@@ -2996,6 +3000,7 @@
           return s.match(/^\d{4}-\d{2}-\d{2}$/) ? s : null;
         };
 
+        const relMap = { 'padre':'Padre','madre':'Madre','responsable':'Responsable','acudiente':'Responsable' };
         importedData = rows.slice(1)
           .map((row, idx) => ({
             first_name:  String(row[iNombre]   || '').trim(),
@@ -3006,6 +3011,9 @@
             doc_number:  iDoc >= 0     ? String(row[iDoc]       || '').trim() : '',
             birth_date:  iFechaNac >= 0 ? parseExcelDate(row[iFechaNac]) : null,
             phone:       iPhone >= 0   ? String(row[iPhone]     || '').trim() || null : null,
+            acudiente_name: iAcud >= 0 ? (String(row[iAcud] || '').trim() || null) : null,
+            acudiente_relationship: iParent >= 0 ? (relMap[String(row[iParent]||'').trim().toLowerCase()] || 'Responsable') : 'Responsable',
+            acudiente_phone: iAcudPhone >= 0 ? (String(row[iAcudPhone] || '').trim() || null) : null,
             _row: idx + 2
           }))
           .filter(s => s.first_name && s.last_name && s.grade > 0);
@@ -3040,11 +3048,14 @@
     const withDoc  = importedData.filter(s => s.doc_number).length;
     const withDob  = importedData.filter(s => s.birth_date).length;
     const withPhone= importedData.filter(s => s.phone).length;
+    const withAcud = importedData.filter(s => s.acudiente_name).length;
+    const _escP = window.RAICE.escapeHtml;
     document.getElementById('import-count').innerHTML =
       `📊 <strong>${importedData.length} estudiantes</strong> listos para importar`
       + (withDoc   ? ` · 📄 ${withDoc} con documento`       : '')
       + (withDob   ? ` · 🎂 ${withDob} con fecha nac.`      : '')
-      + (withPhone ? ` · 📞 ${withPhone} con teléfono`      : '');
+      + (withPhone ? ` · 📞 ${withPhone} con teléfono`      : '')
+      + (withAcud  ? ` · 👤 ${withAcud} con acudiente`      : '');
 
     const rows = importedData.slice(0, 8).map(s => `
       <tr>
@@ -3052,8 +3063,8 @@
         <td style="padding:.45rem .7rem;font-size:.82rem;">${s.last_name}</td>
         <td style="padding:.45rem .7rem;font-size:.82rem;"><strong>${gradeLbl(s.grade)}${s.course}</strong></td>
         <td style="padding:.45rem .7rem;font-size:.79rem;color:var(--gray);">${s.doc_type} ${s.doc_number || '—'}</td>
-        <td style="padding:.45rem .7rem;font-size:.79rem;color:var(--gray);">${s.birth_date || '—'}</td>
         <td style="padding:.45rem .7rem;font-size:.79rem;color:var(--gray);">${s.phone || '—'}</td>
+        <td style="padding:.45rem .7rem;font-size:.79rem;color:var(--gray);">${s.acudiente_name?_escP(s.acudiente_name)+' ('+s.acudiente_relationship+')'+(s.acudiente_phone?' · 📞 '+_escP(s.acudiente_phone):''):'—'}</td>
       </tr>`).join('');
 
     document.getElementById('import-table-wrap').innerHTML = `
@@ -3064,8 +3075,8 @@
           <th style="text-align:left;padding:.45rem .7rem;font-size:.73rem;color:var(--gray);">Apellidos</th>
           <th style="text-align:left;padding:.45rem .7rem;font-size:.73rem;color:var(--gray);">Grado·Curso</th>
           <th style="text-align:left;padding:.45rem .7rem;font-size:.73rem;color:var(--gray);">Documento</th>
-          <th style="text-align:left;padding:.45rem .7rem;font-size:.73rem;color:var(--gray);">Fecha Nac.</th>
           <th style="text-align:left;padding:.45rem .7rem;font-size:.73rem;color:var(--gray);">Teléfono</th>
+          <th style="text-align:left;padding:.45rem .7rem;font-size:.73rem;color:var(--gray);">Acudiente</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table></div>
@@ -3181,14 +3192,14 @@
   }
 
   function downloadImportTemplate() {
-    const headers = ['Nombres','Apellidos','Grado','Curso','Tipo Doc','Documento','Fecha Nacimiento','Telefono'];
+    const headers = ['Nombres','Apellidos','Grado','Curso','Tipo Doc','Documento','Fecha Nacimiento','Telefono','Acudiente','Parentesco','Telefono Acudiente'];
     const examples = [
-      ['Carlos Andrés','Parra Gómez',7,1,'TI','1061234567','2011-03-15','3217654321'],
-      ['María José','López Ruiz',6,2,'TI','1062345678','2012-07-22',''],
-      ['Juan','Rodríguez',0,1,'RC','1063456789','2019-01-10','3134567890'],
+      ['Carlos Andrés','Parra Gómez',7,1,'TI','1061234567','2011-03-15','3217654321','Pedro Parra López','Padre','3001112233'],
+      ['María José','López Ruiz',6,2,'TI','1062345678','2012-07-22','3158889900','Ana Ruiz Díaz','Madre','3004445566'],
+      ['Juan','Rodríguez',0,1,'RC','1063456789','2019-01-10','3134567890','Marta Rodríguez','Responsable',''],
     ];
     const ws = XLSX.utils.aoa_to_sheet([headers, ...examples]);
-    ws['!cols'] = headers.map((h,i) => ({ wch: [16,16,8,8,10,14,18,14][i] }));
+    ws['!cols'] = headers.map((h,i) => ({ wch: [16,16,8,8,10,14,18,14,22,14,16][i] }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Estudiantes');
     XLSX.writeFile(wb, 'formato_importacion_estudiantes.xlsx');
@@ -3196,9 +3207,7 @@
 
   // ---- SEDES ----
   async function loadSedes() {
-    const { ok, data } = await fetchAPI('/raice/sedes');
-    if (!ok) return;
-    allSedes = data.sedes || [];
+    allSedes = await window.RAICE.fetchSedes(fetchAPI);
     renderSedes(allSedes);
     populateSedeSelects();
   }
@@ -3375,9 +3384,7 @@
 
   // ---- USERS ----
   async function loadUsers() {
-    const { ok, data } = await fetchAPI('/raice/users');
-    if (!ok) return;
-    allUsers = data.users || [];
+    allUsers = await window.RAICE.fetchUsers(fetchAPI);
     renderUsers(allUsers);
   }
 
@@ -3418,8 +3425,8 @@
       tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--gray);">Sin usuarios</td></tr>';
       return;
     }
-    const roleLabels = { admin:'🗂️ Coordinador', teacher:'👨‍🏫 Docente', superadmin:'🛡️ Superadmin', rector:'🏫 Rector' };
-    const rolePills  = { admin:'pill-blue', teacher:'pill-teal', superadmin:'pill-gold', rector:'pill-yellow' };
+    const roleLabels = { admin:'🗂️ Coordinador', teacher:'👨‍🏫 Docente', superadmin:'🛡️ Superadmin', rector:'🏫 Rector', counselor:'🧠 Orientador' };
+    const rolePills  = { admin:'pill-blue', teacher:'pill-teal', superadmin:'pill-gold', rector:'pill-yellow', counselor:'pill-purple' };
     tbody.innerHTML = list.map(u => `
       <tr>
         <td>
@@ -3462,7 +3469,7 @@
       showToast('Completa los campos requeridos', 'warning');
       return;
     }
-    const { ok, data } = await fetchAPI('/raice/users', { method:'POST', body: JSON.stringify(payload) });
+    const { ok, data } = await window.RAICE.createUser(fetchAPI, payload);
     if (ok) {
       showToast(`Usuario @${payload.username} creado`, 'success');
       closeModal('modal-new-user');
@@ -3491,7 +3498,7 @@
     if (typed.trim().toUpperCase() !== 'ELIMINAR') {
       showToast('Texto incorrecto — usuario no eliminado', 'warning'); return;
     }
-    const { ok, status, data } = await fetchAPI('/raice/users', { method:'DELETE', body: JSON.stringify({ id, force }) });
+    const { ok, status, data } = await window.RAICE.deleteUser(fetchAPI, id, force);
     if (ok) {
       showToast('Usuario eliminado', 'success');
       loadUsers();
@@ -3545,7 +3552,7 @@
     if (!payload.first_name || !payload.username) {
       showToast('Nombre y usuario son requeridos', 'warning'); return;
     }
-    const { ok, data } = await fetchAPI('/raice/users', { method:'PUT', body: JSON.stringify(payload) });
+    const { ok, data } = await window.RAICE.updateUser(fetchAPI, payload);
     if (ok) {
       showToast('Usuario actualizado', 'success');
       closeModal('modal-edit-user');
@@ -3557,9 +3564,7 @@
 
   // ---- TEACHERS ----
   async function loadTeachers() {
-    const { ok, data } = await fetchAPI('/raice/teachers');
-    if (!ok) return;
-    allTeachers = data.teachers || [];
+    allTeachers = await window.RAICE.fetchTeachers(fetchAPI);
     renderTeachers(allTeachers);
   }
 
@@ -3602,9 +3607,7 @@
 
   // ---- COURSES ----
   async function loadCourses() {
-    const { ok, data } = await fetchAPI('/raice/courses');
-    if (!ok) return;
-    const allCourses = data.courses || [];
+    const allCourses = await window.RAICE.fetchCourses(fetchAPI);
     const grid = document.getElementById('courses-grid');
     if (!allCourses.length) {
       grid.innerHTML = '<div class="empty-state"><div class="empty-ico">🏫</div>No hay cursos creados aún.</div>';
@@ -3710,9 +3713,7 @@
 
   // ---- CASES ----
   async function loadCases() {
-    const { ok, data } = await fetchAPI('/raice/cases');
-    if (!ok) return;
-    const cases = data.cases || [];
+    const cases = await window.RAICE.fetchCases(fetchAPI);
     _saAllCases = cases; // store for viewCaseSA
     const tbody = document.getElementById('cases-tbody');
     if (!cases.length) {
@@ -3727,7 +3728,8 @@
     const statusPills = {
       open:     '<span class="pill pill-red">Abierto</span>',
       tracking: '<span class="pill pill-yellow">Seguimiento</span>',
-      closed:   '<span class="pill pill-green">Cerrado</span>'
+      closed:   '<span class="pill pill-green">Cerrado</span>',
+      escalado: '<span class="pill pill-red" style="background:#fef2f2;color:#991b1b;border:1px solid #fca5a5;">Escalado</span>'
     };
     tbody.innerHTML = cases.map(c => `
       <tr>
@@ -3940,9 +3942,8 @@
   }
 
   async function loadConfig() {
-    const { ok, data } = await fetchAPI('/raice/config');
-    if (!ok) return;
-    // Cache config globally so hour selectors can use classes_per_day
+    const data = await window.RAICE.fetchConfig(fetchAPI);
+    if (!data) return;
     window._schoolConfig = data;
     if (data.school_name)      document.getElementById('cfg-school-name').value      = data.school_name;
     if (data.location)         document.getElementById('cfg-location').value         = data.location;
@@ -3979,8 +3980,7 @@
   async function loadBellSchedule() {
     const wrap = document.getElementById('bell-table-wrap');
     if (!wrap) return;
-    const { ok, data } = await fetchAPI('/raice/bell-schedule');
-    const hours = ok ? (data.bell_schedule || []).sort((a,b) => a.class_hour - b.class_hour) : [];
+    const hours = (await window.RAICE.fetchBellSchedule(fetchAPI)).sort((a,b) => a.class_hour - b.class_hour);
 
     if (!hours.length) {
       wrap.innerHTML = `<div style="color:var(--gray);font-size:.84rem;font-style:italic;padding:.5rem 0;">
@@ -4409,12 +4409,10 @@
   }
 
   function loadProfile() {
-    const user = currentUser;
-    if (!user) return;
-    const initials = ((user.first_name||'S')[0] + (user.last_name||'A')[0]).toUpperCase();
-    document.getElementById('profile-avatar-big').textContent  = initials;
-    document.getElementById('profile-fullname').textContent    = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Superadmin';
-    document.getElementById('profile-username-disp').textContent = `@${user.username || 'superadmin'}`;
+    var p = window.RAICE.deriveProfileData(currentUser, 'Superadmin');
+    document.getElementById('profile-avatar-big').textContent = p.initials;
+    document.getElementById('profile-fullname').textContent = p.fullName;
+    document.getElementById('profile-username-disp').textContent = p.displayUsername;
   }
 
   async function changeMyPassword() {
@@ -4425,17 +4423,14 @@
     if (newPwd !== confirm)     { showToast('Las contraseñas nuevas no coinciden', 'error'); return; }
     if (newPwd.length < 6)      { showToast('La contraseña debe tener al menos 6 caracteres', 'warning'); return; }
 
-    const { ok, data } = await fetchAPI('/raice/change-password', {
-      method: 'POST',
-      body: JSON.stringify({ current_password: current, new_password: newPwd })
-    });
-    if (ok) {
+    const result = await window.RAICE.changePassword(fetchAPI, current, newPwd);
+    if (result.ok) {
       showToast('✅ Contraseña actualizada correctamente', 'success');
       document.getElementById('pwd-current').value = '';
       document.getElementById('pwd-new').value     = '';
       document.getElementById('pwd-confirm').value = '';
     } else {
-      showToast(data?.error || 'Contraseña actual incorrecta', 'error');
+      showToast(result.error || 'Contraseña actual incorrecta', 'error');
     }
   }
 
@@ -4445,12 +4440,12 @@
     document.getElementById('assign-subject').value           = '';
     document.getElementById('assign-teacher-id').value        = '';
 
-    const { ok, data } = await fetchAPI('/raice/teachers');
+    const teachers = await window.RAICE.fetchTeachers(fetchAPI);
     const sel = document.getElementById('assign-teacher-id');
-    if (ok && data.teachers?.length) {
+    if (teachers.length) {
       const filtered = sedeId
-        ? data.teachers.filter(t => t.sede_id === sedeId)
-        : data.teachers;
+        ? teachers.filter(t => t.sede_id === sedeId)
+        : teachers;
       sel.innerHTML = '<option value="">— Selecciona el docente —</option>' +
         filtered.map(t => `<option value="${t.id}">${t.first_name} ${t.last_name}${t.subject ? ' · ' + t.subject : ''}</option>`).join('');
     }
@@ -4608,7 +4603,7 @@
 
   async function deleteCourse(id, name) {
     if (!confirm('¿Eliminar el curso ' + name + '? Los estudiantes asignados quedarán sin curso.')) return;
-    const { ok } = await fetchAPI('/raice/courses', { method: 'DELETE', body: JSON.stringify({ id }) });
+    const { ok } = await window.RAICE.deleteCourse(fetchAPI, id);
     if (ok) { showToast('Curso eliminado', 'success'); loadCourses(); }
     else showToast('Error al eliminar curso', 'error');
   }
@@ -4673,7 +4668,7 @@
 
   async function deleteSubgroup(id, name) {
     if (!confirm('¿Eliminar el subgrupo "' + name + '"? Se perderán todos los miembros asignados.')) return;
-    const { ok } = await fetchAPI('/raice/courses', { method: 'DELETE', body: JSON.stringify({ id }) });
+    const { ok } = await window.RAICE.deleteCourse(fetchAPI, id);
     if (ok) { showToast('Subgrupo eliminado', 'success'); loadCourses(); }
     else showToast('Error al eliminar subgrupo', 'error');
   }
@@ -4710,7 +4705,7 @@
             '<span style="background:var(--light);border:1px solid var(--border);border-radius:999px;padding:.18rem .55rem;font-size:.78rem;display:inline-flex;align-items:center;gap:.35rem;">'
             + m.last_name + ', ' + m.first_name
             + ' <span style="color:var(--gray);font-size:.7rem;">' + gradeLbl(m.course_grade??'?') + (m.course_number||'?') + '</span>'
-            + '<button onclick="smRemoveMember(\'' + m.student_id + '\')" style="background:none;border:none;cursor:pointer;color:var(--rose);font-size:.78rem;padding:0;line-height:1;margin-left:.1rem;">✕</button>'
+            + '<button onclick="smRemoveMember(\'' + m.student_id + '\',\'' + (m.first_name + ' ' + m.last_name).replace(/'/g,"\\'") + '\')" style="background:none;border:none;cursor:pointer;color:var(--rose);font-size:.78rem;padding:0;line-height:1;margin-left:.1rem;">✕</button>'
             + '</span>'
           ).join('') + '</div>';
       }
@@ -4806,7 +4801,8 @@
     } else showToast(data?.error || 'Error al agregar', 'error');
   }
 
-  async function smRemoveMember(studentId) {
+  async function smRemoveMember(studentId, studentName = 'este estudiante') {
+    if (!confirm('¿Estás seguro de que deseas eliminar a "' + studentName + '" del subgrupo?')) return;
     const { ok, data } = await fetchAPI('/raice/subgroup-members', {
       method: 'DELETE',
       body: JSON.stringify({ subgroup_id: _currentSubgroupId, student_id: studentId })
@@ -4830,7 +4826,7 @@
   // =====================================================
   // HORARIO DEL CURSO
   // =====================================================
-  const DAYS = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
+  const DAYS = DAYS_OF_WEEK;
   const DAY_COLORS = ['','#dbeafe','#dcfce7','#fef9c3','#f5f3ff','#fff7ed'];
   const DAY_BORDER = ['','#93c5fd','#86efac','#fde68a','#c4b5fd','#fed7aa'];
 
@@ -4862,8 +4858,7 @@
       }).join('');
 
     // Populate hour selector from bell schedule
-    const bellRes = await fetchAPI('/raice/bell-schedule');
-    const bells = bellRes.ok ? (bellRes.data.bell_schedule || []).sort((a,b) => a.class_hour - b.class_hour) : [];
+    const bells = (await window.RAICE.fetchBellSchedule(fetchAPI)).sort((a,b) => a.class_hour - b.class_hour);
     const hourSel = document.getElementById('sched-hour');
     if (bells.length) {
       hourSel.innerHTML = bells.map(b => {
@@ -5213,8 +5208,8 @@
   async function loadBackupHistory() {
     const el = document.getElementById('backup-history-list');
     if (!el) return;
-    const { ok, data } = await fetchAPI('/raice/config');
-    if (ok && data.backup_email) {
+    const data = await window.RAICE.fetchConfig(fetchAPI);
+    if (data && data.backup_email) {
       document.getElementById('backup-email').value = data.backup_email;
     }
     // Show last few backup logs
@@ -5275,17 +5270,60 @@
           ? '<span style="color:#15803d;font-size:.77rem;margin-left:.5rem;">✓ metadatos verificados</span>'
           : '';
 
+        // Cursos normales vs subgrupos (los subgrupos son cursos con type='subgroup')
+        const _courses    = t.courses || [];
+        const nCursos     = _courses.filter(c => c.type !== 'subgroup').length;
+        const nSubgrupos  = _courses.filter(c => c.type === 'subgroup').length;
+        const n = (arr) => (arr || []).length;
+
+        // Períodos: contar solo los válidos según num_periods de la config
+        // (descarta huérfanos period_num > num_periods que la app ya ignora)
+        const _cfg        = (t.config && t.config[0]) || {};
+        const _maxPer     = _cfg.num_periods || 4;
+        const nPeriodos   = (t.periods || []).filter(p => !p.period_num || p.period_num <= _maxPer).length;
+
+        // Filas: [emoji, etiqueta, cantidad]
+        const rows = [
+          ['🏢', 'Sedes',              n(t.sedes)],
+          ['👥', 'Estudiantes',       n(t.students)],
+          ['🏫', 'Cursos',            nCursos],
+          ['🔀', 'Subgrupos',         nSubgrupos],
+          ['👨‍👩‍👧', 'Miembros subgrupo', n(t.subgroup_members)],
+          ['🧑‍🤝‍🧑', 'Acudientes',        n(t.acudientes)],
+          ['📋', 'Asistencia',        n(t.attendance)],
+          ['📝', 'Observaciones',     n(t.observations)],
+          ['⚠️', 'Casos',             n(t.cases)],
+          ['🔁', 'Seguimientos',      n(t.followups)],
+          ['🪜', 'Escalones T1',      n(t.tipo1_escalones)],
+          ['📅', 'Citaciones',        n(t.citations)],
+          ['🤝', 'Compromisos',       n(t.commitments)],
+          ['🏠', 'Suspensiones',      n(t.suspensions)],
+          ['🚪', 'Retiros aula',      n(t.classroom_removals)],
+          ['🩺', 'Excusas',           n(t.excusas)],
+          ['📖', 'Faltas catálogo',   n(t.faltas_catalogo)],
+          ['🗓️', 'Períodos',          nPeriodos],
+          ['📆', 'Calendario',        n(t.calendar)],
+          ['🕐', 'Horario timbres',   n(t.bell_schedule)],
+          ['📚', 'Horarios clase',    n(t.schedules)],
+          ['🎓', 'Asignaciones doc.', n(t.teacher_courses)],
+          ['🤒', 'Ausencias doc.',    n(t.teacher_absences)],
+          ['🔄', 'Reemplazos',        n(t.absence_replacements)],
+          ['📊', 'Hist. grados',      n(t.student_grade_history)],
+        ];
+        const rowsHtml = rows.map(([emoji, label, count]) =>
+          `<div style="display:flex;justify-content:space-between;padding:.15rem .1rem;">
+            <span>${emoji} ${label}</span><strong>${count}</strong>
+          </div>`
+        ).join('');
+
         preview.style.display = 'block';
         preview.innerHTML = `
           <strong>📋 Contenido del archivo:</strong><br>
           Exportado: <strong>${data.exported_at ? new Date(data.exported_at).toLocaleString('es-CO') : '?'}</strong> ·
-          Versión: <strong>${data.version || '?'}</strong><br><br>
-          👥 Estudiantes: <strong>${(t.students||[]).length}</strong> ·
-          📋 Asistencia: <strong>${(t.attendance||[]).length}</strong> ·
-          ⚠️ Casos: <strong>${(t.cases||[]).length}</strong> ·
-          🏫 Cursos: <strong>${(t.courses||[]).length}</strong><br>
-          📅 Citaciones: <strong>${(t.citations||[]).length}</strong> ·
-          🤝 Compromisos: <strong>${(t.commitments||[]).length}</strong>
+          Versión: <strong>${data.version || '?'}</strong>
+          <div style="margin-top:.65rem;display:grid;grid-template-columns:1fr 1fr;gap:.1rem 1.2rem;font-size:.82rem;">
+            ${rowsHtml}
+          </div>
           <div style="margin-top:.65rem;padding:.5rem .8rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:.84rem;">
             👨‍🏫 <strong>Personal:</strong> ${nDocentes} docente${nDocentes!==1?'s':''} · ${nCoords} coordinador${nCoords!==1?'es':''} · ${nRectores} rector${nRectores!==1?'es':''}${metaVerified}
           </div>
@@ -5441,24 +5479,53 @@
     });
     allErrors.push(...((ok4 ? data4.errors : ['Error al importar casos']) || []));
 
-    // ── Paso 5: tablas grandes en paralelo (asistencia, observaciones, historial)
+    // ── Paso 5: tablas grandes EN CHUNKS (asistencia, observaciones, historial)
+    // Vercel limita el body a ~4.5MB, así que se envían de a 500 registros.
     const attRows   = t.attendance            || [];
     const obsRows   = t.observations          || [];
     const gradeRows = t.student_grade_history || [];
     let step2Result = { results: { attendance: 0, observations: 0, student_grade_history: 0 }, errors: [] };
-    if (attRows.length || obsRows.length || gradeRows.length) {
-      const total5 = attRows.length + obsRows.length + gradeRows.length;
-      status.innerHTML = `<span style="color:var(--navy);">⏳ Asistencia y observaciones (${total5} registros)…</span>`;
-      const { ok: ok5, data: data5 } = await fetchAPI('/raice/backup/import', {
-        method: 'POST',
-        body: JSON.stringify({
-          step: 2,
-          backup: { tables: { attendance: attRows, observations: obsRows, student_grade_history: gradeRows } },
-        })
-      });
-      if (ok5) step2Result = data5;
-      allErrors.push(...(step2Result.errors || []));
+    const BIG_CHUNK = 500;
+
+    // Envía un lote con reintentos; si falla 3 veces lo subdivide a la mitad
+    // hasta llegar a lotes de 50. Así un timeout puntual no pierde 500 registros.
+    async function sendChunk(tableName, slice, depth) {
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const { ok, data } = await fetchAPI('/raice/backup/import', {
+            method: 'POST',
+            body: JSON.stringify({ step: 'chunk', tableName, rows: slice, deleteFirst: false })
+          });
+          if (ok) {
+            allErrors.push(...(data.errors || []));
+            return data.imported || 0;
+          }
+        } catch (_) { /* reintentar */ }
+        await new Promise(r => setTimeout(r, 400 * attempt)); // backoff
+      }
+      // Falló 3 veces: subdividir si el lote es grande
+      if (slice.length > 50) {
+        const mid = Math.floor(slice.length / 2);
+        const a = await sendChunk(tableName, slice.slice(0, mid), (depth||0)+1);
+        const b = await sendChunk(tableName, slice.slice(mid), (depth||0)+1);
+        return a + b;
+      }
+      allErrors.push(`${tableName}: lote de ${slice.length} no se pudo importar tras reintentos`);
+      return 0;
     }
+
+    async function importBigTable(tableName, rows, label) {
+      let total = 0;
+      for (let i = 0; i < rows.length; i += BIG_CHUNK) {
+        status.innerHTML = `<span style="color:var(--navy);">⏳ ${label}: ${Math.min(i+BIG_CHUNK, rows.length)}/${rows.length}…</span>`;
+        total += await sendChunk(tableName, rows.slice(i, i + BIG_CHUNK), 0);
+      }
+      return total;
+    }
+
+    if (attRows.length)   step2Result.results.attendance            = await importBigTable('raice_attendance', attRows, 'Asistencia');
+    if (obsRows.length)   step2Result.results.observations          = await importBigTable('raice_observations', obsRows, 'Observaciones');
+    if (gradeRows.length) step2Result.results.student_grade_history = await importBigTable('raice_student_grade_history', gradeRows, 'Historial de grados');
 
     // ── Combinar todos los resultados ────────────────────────────────────────
     const combinedData = {
@@ -5601,24 +5668,11 @@
   }
 
   // ---- INIT ----
-  function applyLogoToSidebar(logoUrl, schoolName) {
-    const logoImg  = document.getElementById('sb-logo-img');
-    const markFb   = document.getElementById('sb-mark-fallback');
-    const nameEl   = document.querySelector('.sb-name');
-    if (logoUrl) {
-      logoImg.src = logoUrl;
-      logoImg.style.display = 'block';
-      if (markFb) markFb.style.display = 'flex'; // mostrar ambos logos
-    } else {
-      logoImg.style.display = 'none';
-      if (markFb) markFb.style.display = 'flex';
-    }
-    if (schoolName && nameEl) nameEl.title = schoolName;
-  }
+  // applyLogoToSidebar → importado desde shared/utils
 
   async function loadSchoolConfig() {
-    const { ok, data } = await fetchAPI('/raice/config');
-    if (!ok || !data) return;
+    const data = await window.RAICE.fetchConfig(fetchAPI);
+    if (!data) return;
     applyLogoToSidebar(data.logo_url, data.school_name);
   }
 
@@ -6258,6 +6312,7 @@
     ayeData = null; // force reload next time
   }
   // ==================== FIN NUEVO AÑO ESCOLAR ====================
+
 </script>
 
 <script>
@@ -6289,37 +6344,12 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// Banner sin conexión
+// PWA banners → importados desde shared/utils/pwa.js
+var showOfflineBanner = window.RAICE.showOfflineBanner;
+var hideOfflineBanner = window.RAICE.hideOfflineBanner;
+var showUpdateBanner = window.RAICE.showUpdateBanner;
 window.addEventListener('offline', showOfflineBanner);
 window.addEventListener('online',  hideOfflineBanner);
-
-function showOfflineBanner() {
-  let b = document.getElementById('pwa-offline-banner');
-  if (!b) {
-    b = document.createElement('div');
-    b.id = 'pwa-offline-banner';
-    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#b91c1c;color:#fff;text-align:center;padding:.55rem 1rem;font-size:.82rem;font-weight:700;letter-spacing:.02em;';
-    b.innerHTML = '📡 Sin conexión — mostrando datos guardados';
-    document.body.prepend(b);
-  }
-  b.style.display = 'block';
-}
-
-function hideOfflineBanner() {
-  const b = document.getElementById('pwa-offline-banner');
-  if (b) b.style.display = 'none';
-}
-
-function showUpdateBanner() {
-  let b = document.getElementById('pwa-update-banner');
-  if (!b) {
-    b = document.createElement('div');
-    b.id = 'pwa-update-banner';
-    b.style.cssText = 'position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);z-index:99999;background:#0f1f3d;color:#fff;border-radius:14px;padding:.75rem 1.25rem;font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:.75rem;box-shadow:0 4px 20px rgba(0,0,0,.3);';
-    b.innerHTML = '✨ Nueva versión disponible <button onclick="location.reload()" style="background:#14b8b0;border:none;color:#fff;padding:.3rem .8rem;border-radius:8px;cursor:pointer;font-weight:700;">Actualizar</button>';
-    document.body.appendChild(b);
-  }
-}
 
 // Si ya estaba sin conexión al cargar
 if (!navigator.onLine) showOfflineBanner();

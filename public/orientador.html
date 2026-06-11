@@ -1,0 +1,1556 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#1a0a4d">
+<link rel="icon" href="/favicon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/manifest.json">
+<title>RAICE — Orientador Escolar</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,700;9..144,900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --sidebar:230px;
+    --navy:#0f1f3d; --gold:#e8a020; --white:#ffffff; --light:#f8fafc;
+    --gray:#64748b; --border:#e2e8f0;
+    --violet:#7c3aed; --violet2:#a78bfa; --violet3:#ede9fe;
+    --sb-bg:#150b3a;
+    --shadow:0 2px 12px rgba(15,31,61,.08);
+    --shadow-md:0 6px 24px rgba(15,31,61,.13);
+    --radius:16px;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;font-family:'DM Sans',sans-serif;background:#f1f5f9;color:var(--navy);display:flex;}
+
+  /* ── SIDEBAR ── */
+  .sidebar{width:var(--sidebar);background:var(--sb-bg);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:100;}
+  .sidebar-brand{padding:1.35rem 1.15rem 1.05rem;border-bottom:1px solid rgba(255,255,255,.07);display:flex;align-items:center;gap:.7rem;}
+  .sb-mark{width:36px;height:36px;background:var(--violet2);border-radius:9px;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-weight:900;font-size:.95rem;color:var(--sb-bg);flex-shrink:0;}
+  .sb-logo{width:36px;height:36px;object-fit:contain;border-radius:9px;background:white;flex-shrink:0;display:none;}
+  .sb-text .sb-name{font-family:'Fraunces',serif;font-weight:900;color:white;font-size:.98rem;}
+  .sb-text .sb-role{font-size:.65rem;color:rgba(255,255,255,.38);text-transform:uppercase;letter-spacing:.06em;}
+  .sidebar-nav{flex:1;padding:.75rem .65rem;display:flex;flex-direction:column;gap:.08rem;overflow-y:auto;}
+  .nav-group-title{font-size:.62rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.28);padding:.65rem .5rem .3rem;}
+  .nav-item{display:flex;align-items:center;gap:.65rem;padding:.6rem .72rem;border-radius:9px;cursor:pointer;transition:background .15s;font-size:.85rem;color:rgba(255,255,255,.58);border:none;background:none;width:100%;text-align:left;font-family:'DM Sans',sans-serif;}
+  .nav-item:hover{background:rgba(255,255,255,.07);color:rgba(255,255,255,.9);}
+  .nav-item.active{background:rgba(167,139,250,.18);color:var(--violet2);font-weight:600;}
+  .nav-item .nav-ico{font-size:.93rem;width:18px;text-align:center;flex-shrink:0;}
+  .nav-badge{background:#dc2626;color:white;font-size:.58rem;font-weight:700;padding:.1rem .38rem;border-radius:999px;margin-left:auto;min-width:16px;text-align:center;}
+  .sidebar-footer{padding:.85rem .65rem;border-top:1px solid rgba(255,255,255,.07);}
+  .user-chip{display:flex;align-items:center;gap:.6rem;padding:.5rem .65rem;background:rgba(255,255,255,.06);border-radius:9px;margin-bottom:.42rem;min-width:0;}
+  .user-avatar{width:30px;height:30px;border-radius:50%;background:var(--violet2);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.73rem;color:var(--sb-bg);flex-shrink:0;}
+  .user-info{min-width:0;}
+  .user-name{font-size:.79rem;font-weight:600;color:white;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .user-role-label{font-size:.64rem;color:var(--violet2);}
+  .btn-logout-sb{width:100%;padding:.48rem;border:none;border-radius:7px;background:rgba(220,38,38,.14);color:#fca5a5;font-family:'DM Sans',sans-serif;font-size:.79rem;font-weight:600;cursor:pointer;transition:background .2s;}
+  .btn-logout-sb:hover{background:rgba(220,38,38,.28);}
+
+  /* ── MAIN ── */
+  .main{margin-left:var(--sidebar);flex:1;display:flex;flex-direction:column;min-height:100vh;}
+
+  /* ── TOPBAR ── */
+  .topbar{background:white;border-bottom:1.5px solid var(--border);padding:.62rem 1.5rem;display:flex;align-items:center;gap:.9rem;position:sticky;top:0;z-index:50;}
+  .page-title{font-family:'Fraunces',serif;font-size:1.05rem;font-weight:700;color:var(--navy);white-space:nowrap;}
+  .topbar-search{flex:1;max-width:420px;position:relative;}
+  .tb-bell{position:relative;background:none;border:none;cursor:pointer;padding:.3rem .4rem;border-radius:8px;font-size:1.05rem;color:var(--gray);transition:background .15s;}
+  .tb-bell:hover{background:var(--light);}
+  .tb-bell-badge{position:absolute;top:2px;right:2px;background:#dc2626;color:white;font-size:.54rem;font-weight:700;border-radius:99px;min-width:14px;height:14px;display:flex;align-items:center;justify-content:center;padding:0 3px;display:none;}
+  .tb-datetime{display:flex;flex-direction:column;align-items:flex-end;line-height:1.2;}
+  .tb-time{font-family:'Fraunces',serif;font-weight:700;font-size:.88rem;color:var(--navy);letter-spacing:.02em;}
+  .tb-date{font-size:.65rem;color:var(--gray);white-space:nowrap;}
+  .topbar-search input{width:100%;padding:.5rem .9rem .5rem 2.2rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.85rem;outline:none;background:var(--light);color:var(--navy);transition:border-color .2s;}
+  .topbar-search input:focus{border-color:var(--violet2);background:white;}
+  .topbar-search input::placeholder{color:var(--gray);}
+  .ts-ico{position:absolute;left:.7rem;top:50%;transform:translateY(-50%);font-size:.82rem;pointer-events:none;}
+  .ts-clear{position:absolute;right:.55rem;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--gray);cursor:pointer;padding:.15rem;display:none;font-size:.82rem;}
+  .s-results{position:absolute;top:calc(100% + .3rem);left:0;right:0;background:white;border-radius:12px;border:1.5px solid var(--border);box-shadow:0 8px 28px rgba(0,0,0,.14);z-index:200;max-height:300px;overflow-y:auto;display:none;}
+  .s-item{display:flex;align-items:center;gap:.65rem;padding:.65rem .95rem;cursor:pointer;border-bottom:1px solid var(--border);transition:background .1s;}
+  .s-item:last-child{border-bottom:none;}
+  .s-item:hover{background:var(--light);}
+  .s-av{width:31px;height:31px;border-radius:50%;background:var(--violet3);color:var(--violet);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.76rem;flex-shrink:0;}
+  .s-name{font-weight:600;font-size:.84rem;color:var(--navy);}
+  .s-sub{font-size:.72rem;color:var(--gray);margin-top:.06rem;}
+  .topbar-right{display:flex;align-items:center;gap:.6rem;flex-shrink:0;}
+  #menu-btn{display:none;background:none;border:none;cursor:pointer;font-size:1.2rem;padding:.2rem;color:var(--navy);}
+
+  /* ── CONTENT ── */
+  .content{padding:1.25rem 1.5rem;flex:1;width:100%;}
+  .section{display:none;width:100%;}
+  .section.active{display:block;animation:fadeIn .18s ease;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+  .card{width:100%;}
+
+  /* ── CARDS ── */
+  .card{background:white;border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:1.2rem;}
+  .card-header{padding:1rem 1.35rem .8rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.6rem;}
+  .card-header h3{font-family:'Fraunces',serif;font-size:.97rem;font-weight:700;color:var(--navy);margin:0;}
+  .card-body{padding:1.25rem 1.35rem;}
+
+  /* ── KPIs ── */
+  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.4rem;}
+  .kpi-card{background:white;border-radius:14px;padding:1.1rem 1.2rem;box-shadow:var(--shadow);border-top:3px solid var(--kpi-color,var(--violet));position:relative;overflow:hidden;}
+  .kpi-card .kpi-bg-ico{position:absolute;top:-4px;right:-4px;font-size:2.8rem;opacity:.07;line-height:1;pointer-events:none;user-select:none;}
+  .kpi-ico-row{font-size:.95rem;margin-bottom:.3rem;display:flex;align-items:center;gap:.4rem;}
+  .kpi-badge-sm{font-size:.62rem;font-weight:700;padding:.1rem .38rem;border-radius:5px;background:var(--kpi-bg,#ede9fe);color:var(--kpi-col,#5b21b6);}
+  .kpi-val{font-family:'Fraunces',serif;font-size:1.9rem;font-weight:900;color:var(--kpi-color,var(--navy));line-height:1;}
+  .kpi-lbl{font-size:.67rem;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:.04em;margin-top:.2rem;}
+
+  /* ── DASHBOARD GRID ── */
+  .dash-grid{display:grid;grid-template-columns:1fr 300px 280px;gap:1.2rem;}
+  @media(max-width:1280px){.dash-grid{grid-template-columns:1fr 280px;}}
+  @media(max-width:880px){.dash-grid{grid-template-columns:1fr;}}
+
+  /* ── ALERTS ── */
+  .a-row{display:flex;align-items:flex-start;gap:.5rem;padding:.42rem 0;border-bottom:1px solid var(--border);}
+  .a-row:last-child{border-bottom:none;}
+  .a-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:5px;}
+  .d-red{background:#ef4444;}.d-orange{background:#f97316;}.d-blue{background:#3b82f6;}
+  .a-title{font-size:.82rem;font-weight:600;color:var(--navy);}
+  .a-desc{font-size:.73rem;color:var(--gray);margin-top:.1rem;}
+
+  /* ── CASES LIST ── */
+  .c-row{display:flex;align-items:center;gap:.5rem;padding:.45rem 0;border-bottom:1px solid var(--border);font-size:.8rem;}
+  .c-row:last-child{border-bottom:none;}
+  .pill-t1{background:#dbeafe;color:#1d4ed8;border-radius:6px;padding:.12rem .45rem;font-size:.68rem;font-weight:700;flex-shrink:0;}
+  .pill-t2{background:#fef9c3;color:#a16207;border-radius:6px;padding:.12rem .45rem;font-size:.68rem;font-weight:700;flex-shrink:0;}
+  .pill-t3{background:#fee2e2;color:#dc2626;border-radius:6px;padding:.12rem .45rem;font-size:.68rem;font-weight:700;flex-shrink:0;}
+  .pill-open{background:#dcfce7;color:#16a34a;border-radius:6px;padding:.1rem .38rem;font-size:.65rem;font-weight:700;flex-shrink:0;}
+  .pill-closed{background:#f1f5f9;color:#64748b;border-radius:6px;padding:.1rem .38rem;font-size:.65rem;font-weight:700;flex-shrink:0;}
+  .btn-sm{background:var(--light);border:1.5px solid var(--border);color:var(--navy);border-radius:7px;padding:.2rem .55rem;font-size:.72rem;font-weight:600;cursor:pointer;flex-shrink:0;font-family:'DM Sans',sans-serif;}
+  .btn-sm:hover{background:var(--border);}
+
+  /* ── RISK & GRADES ── */
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;}
+  .g-row{display:flex;align-items:center;gap:.5rem;padding:.3rem 0;}
+  .g-lbl{font-size:.76rem;font-weight:600;color:var(--navy);width:48px;flex-shrink:0;}
+  .g-track{flex:1;height:8px;background:#f1f5f9;border-radius:99px;overflow:hidden;}
+  .g-fill{height:100%;border-radius:99px;transition:width .5s cubic-bezier(.22,1,.36,1);}
+  .g-pct{font-size:.72rem;font-weight:700;width:36px;text-align:right;flex-shrink:0;}
+
+  /* ── SCHEDULE ── */
+  .sched-select{padding:.38rem .6rem;border:1.5px solid var(--border);border-radius:9px;font-size:.82rem;font-family:'DM Sans',sans-serif;outline:none;background:white;color:var(--navy);margin-bottom:1rem;}
+  .sched-select:focus{border-color:var(--violet2);}
+  .sched-table{width:100%;border-collapse:collapse;font-size:.76rem;}
+  .sched-table th{background:var(--navy);color:white;padding:.4rem .5rem;font-weight:600;font-size:.68rem;text-transform:uppercase;letter-spacing:.03em;position:sticky;top:0;}
+  .sched-table td{padding:.35rem .45rem;border:1px solid var(--border);vertical-align:top;min-width:90px;}
+  .sched-cell{font-size:.72rem;line-height:1.3;}
+  .sched-subj{font-weight:600;color:var(--navy);}
+  .sched-teacher{color:var(--gray);font-size:.67rem;}
+
+  /* ── ATT RANGE ── */
+  .att-controls{display:flex;gap:.75rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1.1rem;}
+  .att-controls label{font-size:.76rem;font-weight:600;display:block;margin-bottom:.25rem;color:var(--navy);}
+  .att-controls input[type=date]{border:1.5px solid var(--border);border-radius:9px;padding:.4rem .65rem;font-size:.83rem;font-family:'DM Sans',sans-serif;outline:none;color:var(--navy);}
+  .att-controls input[type=date]:focus{border-color:var(--violet2);}
+  .btn-primary{background:var(--violet);color:white;border:none;border-radius:10px;padding:.48rem 1.2rem;font-size:.84rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:background .15s;}
+  .btn-primary:hover{background:#6d28d9;}
+
+  /* ── EXCUSAS RECIENTES ── */
+  .exc-item{padding:.45rem 0;border-bottom:1px solid var(--border);font-size:.8rem;}
+  .exc-item:last-child{border-bottom:none;}
+  .exc-name{font-weight:600;color:var(--navy);}
+  .exc-meta{font-size:.72rem;color:var(--gray);margin-top:.1rem;}
+
+  /* ── FILTER BAR ── */
+  .filter-bar{display:flex;gap:.55rem;align-items:center;flex-wrap:wrap;padding:.85rem 1.35rem;border-bottom:1px solid var(--border);background:var(--light);}
+  .filter-input{padding:.38rem .7rem;border:1.5px solid var(--border);border-radius:8px;font-size:.8rem;font-family:'DM Sans',sans-serif;outline:none;color:var(--navy);background:white;min-width:150px;}
+  .filter-input:focus{border-color:var(--violet2);}
+  .filter-select{padding:.38rem .55rem;border:1.5px solid var(--border);border-radius:8px;font-size:.8rem;font-family:'DM Sans',sans-serif;outline:none;color:var(--navy);background:white;}
+  .filter-select:focus{border-color:var(--violet2);}
+  .filter-pills{display:flex;gap:.3rem;}
+  .fpill{padding:.3rem .65rem;border-radius:7px;border:1.5px solid var(--border);background:white;color:var(--gray);font-size:.75rem;font-weight:600;cursor:pointer;transition:all .15s;font-family:'DM Sans',sans-serif;}
+  .fpill:hover{border-color:var(--violet2);color:var(--violet);}
+  .fpill.active{background:var(--violet);color:white;border-color:var(--violet);}
+  .fpill.fp-t1.active{background:#f59e0b;border-color:#f59e0b;color:white;}
+  .fpill.fp-t2.active{background:#f97316;border-color:#f97316;color:white;}
+  .fpill.fp-t3.active{background:#dc2626;border-color:#dc2626;color:white;}
+  .filter-sep{width:1px;height:20px;background:var(--border);flex-shrink:0;}
+  .filter-count{font-size:.76rem;font-weight:700;color:var(--gray);white-space:nowrap;}
+
+  /* ── ATT TABS ── */
+  .att-tabs{display:flex;gap:.35rem;margin-bottom:1.2rem;border-bottom:1.5px solid var(--border);padding-bottom:0;}
+  .att-tab{padding:.58rem 1.05rem;border:none;background:none;color:var(--gray);font-size:.84rem;font-weight:600;cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-2px;transition:all .15s;font-family:'DM Sans',sans-serif;}
+  .att-tab:hover{color:var(--navy);}
+  .att-tab.active{color:var(--violet);border-bottom-color:var(--violet);}
+  .att-tab-content{display:none;}
+  .att-tab-content.active{display:block;animation:fadeIn .18s ease;}
+
+  /* ── RISK TABLE ── */
+  .risk-table{width:100%;border-collapse:collapse;font-size:.82rem;}
+  .risk-table th{text-align:left;padding:.4rem .6rem;border-bottom:1.5px solid var(--border);font-size:.72rem;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.03em;}
+  .risk-table td{padding:.45rem .6rem;border-bottom:1px solid var(--border);}
+  .risk-table tr:last-child td{border-bottom:none;}
+  .risk-table tr:hover td{background:var(--light);}
+  .risk-table tr{cursor:pointer;}
+  .risk-badge{display:inline-block;font-size:.68rem;font-weight:700;padding:.12rem .45rem;border-radius:5px;}
+  .rb-alto{background:#fee2e2;color:#991b1b;}
+  .rb-medio{background:#fef3c7;color:#92400e;}
+  .rb-bajo{background:#fef9c3;color:#a16207;}
+
+  /* ── GRADE TABLE ── */
+  .grade-table{width:100%;border-collapse:collapse;font-size:.82rem;}
+  .grade-table th{text-align:left;padding:.4rem .7rem;border-bottom:1.5px solid var(--border);font-size:.72rem;font-weight:700;color:var(--gray);text-transform:uppercase;}
+  .grade-table td{padding:.45rem .7rem;border-bottom:1px solid var(--border);}
+  .grade-table tr:last-child td{border-bottom:none;}
+  .pct-bar-wrap{width:100%;height:7px;background:#f1f5f9;border-radius:99px;overflow:hidden;min-width:80px;display:block;}
+
+  /* ── THRESHOLD SLIDER ── */
+  .threshold-row{display:flex;align-items:center;gap:.85rem;margin-bottom:1rem;flex-wrap:wrap;}
+  .threshold-row label{font-size:.8rem;font-weight:600;color:var(--navy);}
+  input[type=range]{accent-color:var(--violet);cursor:pointer;}
+  .threshold-val{font-family:'Fraunces',serif;font-weight:700;font-size:1.1rem;color:var(--violet);min-width:38px;}
+
+  /* ── EMPTY ── */
+  .empty{text-align:center;padding:1.6rem 1rem;color:var(--gray);font-size:.84rem;}
+  .empty .ei{font-size:1.6rem;margin-bottom:.35rem;}
+  .empty-state{text-align:center;padding:1.8rem 1rem;color:var(--gray);font-size:.86rem;}
+
+  /* ── SPIN ── */
+  .spin{display:inline-block;width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--violet2);border-radius:50%;animation:sp .7s linear infinite;}
+  @keyframes sp{to{transform:rotate(360deg);}}
+
+  /* ── TOAST ── */
+  .t-wrap{position:fixed;bottom:1.5rem;right:1.5rem;z-index:9999;display:flex;flex-direction:column;gap:.45rem;}
+  .toast{padding:.6rem 1rem;border-radius:11px;font-size:.81rem;font-weight:600;color:white;box-shadow:0 4px 14px rgba(0,0,0,.2);animation:fu .22s ease;max-width:300px;}
+  .toast.info{background:#0ea5e9;}.toast.error{background:#dc2626;}.toast.warning{background:#f59e0b;}
+  @keyframes fu{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+  /* ── FICHA MODAL ── */
+  .modal-ov{display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.5);backdrop-filter:blur(2px);align-items:center;justify-content:center;padding:1rem;}
+  .modal-ov.open{display:flex;}
+  .modal{background:white;border-radius:20px;overflow:hidden;width:100%;max-width:720px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,.25);}
+  .modal-hd{padding:.95rem 1.3rem;border-bottom:1.5px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;flex-shrink:0;}
+  .modal-hd h3{font-family:'Fraunces',serif;font-size:1.02rem;font-weight:700;color:var(--navy);}
+  .modal-sub{font-size:.76rem;color:var(--gray);margin-top:.12rem;}
+  .m-close{background:none;border:none;font-size:1.1rem;cursor:pointer;color:var(--gray);padding:.2rem;border-radius:8px;}
+  .m-close:hover{background:var(--light);}
+  .modal-bd{padding:0;overflow-y:auto;flex:1;}
+  .modal-ft{padding:.8rem 1.3rem;border-top:1.5px solid var(--border);display:flex;justify-content:flex-end;flex-shrink:0;}
+  .btn-g{background:var(--light);border:1.5px solid var(--border);color:var(--navy);border-radius:10px;padding:.45rem 1.05rem;font-size:.82rem;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;}
+  .btn-g:hover{background:var(--border);}
+
+  /* Ficha body styles */
+  #modal-ficha .ficha-body{font-family:'DM Sans',sans-serif;}
+  #modal-ficha .student-card{background:var(--navy);color:#fff;padding:1.1rem 1.25rem;display:flex;align-items:center;gap:1rem;}
+  #modal-ficha .student-avatar{width:48px;height:48px;border-radius:50%;background:var(--gold);color:var(--navy);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.1rem;flex-shrink:0;}
+  #modal-ficha .student-name{font-family:'Fraunces',serif;font-size:1.08rem;font-weight:700;}
+  #modal-ficha .student-meta{font-size:.78rem;color:rgba(255,255,255,.7);margin-top:.18rem;}
+  #modal-ficha .student-grade{background:var(--violet2);color:#fff;padding:.18rem .58rem;border-radius:6px;font-size:.76rem;font-weight:700;margin-left:.5rem;}
+  #modal-ficha .tabs{display:flex;gap:.35rem;margin-bottom:1.2rem;overflow-x:auto;padding-bottom:.2rem;}
+  #modal-ficha .tab{padding:.48rem .95rem;border-radius:9px;border:1.5px solid var(--border);background:#fff;color:var(--gray);font-size:.82rem;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit;transition:all .15s;}
+  #modal-ficha .tab.active{background:var(--violet);color:#fff;border-color:var(--violet);}
+  #modal-ficha .tab-content{display:none;}
+  #modal-ficha .tab-content.active{display:block;}
+  #modal-ficha .ficha-body .card{background:#fff;border-radius:12px;margin-bottom:1rem;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06);border:none;}
+  #modal-ficha .ficha-body .card:hover{box-shadow:0 1px 4px rgba(0,0,0,.06);transform:none;}
+  #modal-ficha .card-header{padding:.82rem 1.05rem;border-bottom:1px solid var(--border);font-weight:700;font-size:.88rem;color:var(--navy);}
+  #modal-ficha .card-body{padding:.95rem 1.05rem;}
+  #modal-ficha .stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem;margin-bottom:1.05rem;}
+  #modal-ficha .stat-box{background:var(--light);border-radius:10px;padding:.7rem .5rem;text-align:center;}
+  #modal-ficha .stat-val{font-size:1.4rem;font-weight:700;color:var(--navy);}
+  #modal-ficha .stat-lbl{font-size:.71rem;color:var(--gray);margin-top:.12rem;}
+  #modal-ficha .att-list{display:flex;flex-direction:column;gap:.38rem;}
+  #modal-ficha .att-row{display:flex;align-items:center;gap:.7rem;padding:.48rem .6rem;border-radius:8px;background:var(--light);font-size:.83rem;}
+  #modal-ficha .att-badge{width:27px;height:27px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0;}
+  #modal-ficha .att-P{background:#dcfce7;color:#15803d;}
+  #modal-ficha .att-A{background:#fee2e2;color:#dc2626;}
+  #modal-ficha .att-PE{background:#fef9c3;color:#854d0e;}
+  #modal-ficha .att-T{background:#fef3c7;color:#b45309;}
+  #modal-ficha .mini-cal{display:grid;grid-template-columns:repeat(5,1fr);gap:2px;margin-bottom:.6rem;}
+  #modal-ficha .cal-hdr{font-size:.6rem;font-weight:700;text-align:center;color:var(--gray);padding:.12rem 0;}
+  #modal-ficha .cal-month-lbl{grid-column:1/-1;font-size:.64rem;font-weight:700;color:var(--violet);text-transform:uppercase;letter-spacing:.04em;padding:.3rem 0 .08rem;}
+  #modal-ficha .cal-day{height:24px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:.61rem;font-weight:500;}
+  #modal-ficha .cal-empty{background:transparent;}
+  #modal-ficha .cal-P{background:#dcfce7;color:#15803d;}
+  #modal-ficha .cal-A{background:#fee2e2;color:#dc2626;}
+  #modal-ficha .cal-PE{background:#fef9c3;color:#854d0e;}
+  #modal-ficha .cal-T{background:#fef3c7;color:#b45309;}
+  #modal-ficha .cal-nodata{background:var(--light);color:var(--gray);}
+  #modal-ficha .subj-table{width:100%;border-collapse:separate;border-spacing:0;font-size:.81rem;}
+  #modal-ficha .subj-table th{text-align:left;font-weight:600;color:var(--gray);font-size:.71rem;text-transform:uppercase;padding:.38rem .5rem;border-bottom:1.5px solid var(--border);}
+  #modal-ficha .subj-table td{padding:.52rem .5rem;border-bottom:1px solid var(--border);}
+  #modal-ficha .subj-table tr:last-child td{border-bottom:none;}
+  #modal-ficha .subj-pct{font-weight:700;font-size:.87rem;}
+  #modal-ficha .case-item{border-left:4px solid var(--border);padding:.72rem .95rem;margin-bottom:.6rem;background:var(--light);border-radius:0 8px 8px 0;}
+  #modal-ficha .case-t1{border-color:#f59e0b;}
+  #modal-ficha .case-t2{border-color:#f97316;}
+  #modal-ficha .case-t3{border-color:#dc2626;}
+  #modal-ficha .case-badge{display:inline-block;font-size:.7rem;font-weight:700;padding:.13rem .52rem;border-radius:5px;margin-bottom:.38rem;}
+  #modal-ficha .badge-t1{background:#fef3c7;color:#92400e;}
+  #modal-ficha .badge-t2{background:#ffedd5;color:#9a3412;}
+  #modal-ficha .badge-t3{background:#fee2e2;color:#991b1b;}
+  #modal-ficha .badge-closed{background:#f0fdf4;color:#15803d;font-size:.68rem;margin-left:.4rem;}
+  #modal-ficha .case-desc{font-size:.84rem;color:var(--navy);line-height:1.44;}
+  #modal-ficha .case-date{font-size:.73rem;color:var(--gray);margin-top:.32rem;}
+  #modal-ficha .obs-item{display:flex;gap:.72rem;margin-bottom:.62rem;}
+  #modal-ficha .obs-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:.32rem;}
+  #modal-ficha .obs-pos{background:#22c55e;}
+  #modal-ficha .obs-neu{background:#94a3b8;}
+  #modal-ficha .obs-neg{background:#dc2626;}
+  #modal-ficha .obs-text{font-size:.84rem;color:var(--navy);line-height:1.44;}
+  #modal-ficha .obs-date{font-size:.73rem;color:var(--gray);margin-top:.18rem;}
+  #modal-ficha .sanc-item{background:var(--light);border-radius:8px;padding:.72rem .95rem;margin-bottom:.6rem;}
+  #modal-ficha .sanc-badge{display:inline-block;font-size:.7rem;font-weight:700;padding:.13rem .52rem;border-radius:5px;margin-bottom:.38rem;}
+  #modal-ficha .sanc-susp{background:#fee2e2;color:#991b1b;}
+  #modal-ficha .sanc-rem{background:#fef3c7;color:#92400e;}
+  #modal-ficha .sanc-text{font-size:.84rem;color:var(--navy);}
+  #modal-ficha .sanc-date{font-size:.73rem;color:var(--gray);margin-top:.28rem;}
+  #modal-ficha .commit-item{border-left:4px solid var(--border);padding:.62rem .95rem;margin-bottom:.52rem;background:var(--light);border-radius:0 8px 8px 0;}
+  #modal-ficha .commit-pending{border-color:#f59e0b;}
+  #modal-ficha .commit-done{border-color:#22c55e;}
+  #modal-ficha .commit-overdue{border-color:#dc2626;}
+  #modal-ficha .director-card{display:flex;align-items:center;gap:.72rem;padding:.72rem .95rem;background:var(--light);border-radius:10px;margin-bottom:1.05rem;}
+  #modal-ficha .director-ico{width:36px;height:36px;border-radius:50%;background:var(--violet);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0;}
+  #modal-ficha .acud-item{display:flex;gap:.72rem;align-items:flex-start;padding:.52rem 0;border-bottom:1px solid var(--border);}
+  #modal-ficha .acud-item:last-child{border-bottom:none;}
+  #modal-ficha .acud-ico{width:31px;height:31px;border-radius:50%;background:var(--violet3);color:var(--violet);display:flex;align-items:center;justify-content:center;font-size:.82rem;flex-shrink:0;margin-top:.08rem;}
+  #modal-ficha .empty-state{text-align:center;padding:1.8rem 1rem;color:var(--gray);font-size:.86rem;}
+  #modal-ficha .sched-table{width:100%;border-collapse:collapse;font-size:.75rem;}
+  #modal-ficha .sched-table th{background:var(--navy);color:white;padding:.4rem .5rem;font-weight:600;font-size:.68rem;text-transform:uppercase;letter-spacing:.03em;}
+  #modal-ficha .sched-table td{padding:.35rem .45rem;border:1px solid var(--border);vertical-align:top;min-width:90px;}
+  #modal-ficha .sched-cell{font-size:.72rem;line-height:1.3;}
+  #modal-ficha .sched-subj{font-weight:600;color:var(--navy);}
+  #modal-ficha .sched-teacher{color:var(--gray);font-size:.67rem;}
+
+  /* ── PERFIL SECTION ── */
+  .perfil-card{background:white;border-radius:var(--radius);box-shadow:var(--shadow);max-width:480px;}
+  .perfil-header{padding:1.4rem 1.5rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:1rem;}
+  .perfil-av-big{width:54px;height:54px;border-radius:50%;background:var(--violet);color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.2rem;flex-shrink:0;}
+  .form-group{display:flex;flex-direction:column;gap:.28rem;margin-bottom:.8rem;}
+  .form-group label{font-size:.77rem;font-weight:600;color:var(--navy);}
+  .form-group input{border:1.5px solid var(--border);border-radius:9px;padding:.48rem .72rem;font-size:.84rem;font-family:'DM Sans',sans-serif;outline:none;transition:border-color .15s;color:var(--navy);}
+  .form-group input:focus{border-color:var(--violet2);}
+
+  /* ── MOBILE ── */
+  @media(max-width:880px){
+    :root{--sidebar:0px;}
+    .sidebar{transform:translateX(-100%);transition:transform .3s ease;z-index:200;width:260px;}
+    .sidebar.open{transform:translateX(0);}
+    .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:199;}
+    .sidebar-overlay.open{display:block;}
+    #menu-btn{display:block;}
+    .kpi-grid{grid-template-columns:repeat(2,1fr);}
+    .dash-grid{grid-template-columns:1fr;}
+    .two-col{grid-template-columns:1fr;}
+    .content{padding:1rem;}
+    .topbar{padding:.65rem 1rem;}
+  }
+  @media(max-width:520px){
+    .kpi-grid{grid-template-columns:repeat(2,1fr);}
+    .topbar-search{max-width:none;flex:1;}
+  }
+</style>
+<script src="/shared/constants/index.js"></script>
+<script src="/shared/utils/index.js"></script>
+<script src="/shared/data/apiClient.js"></script>
+<script src="/shared/domain/index.js"></script>
+<script src="/shared/utils/printObservador.js"></script>
+<script src="/shared/utils/pwa.js"></script>
+<script src="/shared/data/realtime.js"></script>
+<script src="/shared/data/repositories.js"></script>
+</head>
+<body>
+
+<!-- Mobile overlay -->
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+<!-- ── SIDEBAR ── -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <div class="sb-mark" id="sb-mark-wrap">R</div>
+    <img class="sb-logo" id="sb-logo" alt="">
+    <div class="sb-text">
+      <div class="sb-name">RAICE</div>
+      <div class="sb-role">Orientador Escolar</div>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-group-title">Principal</div>
+    <button class="nav-item active" onclick="showSection('dashboard',this,'Dashboard')">
+      <span class="nav-ico">📊</span> Dashboard
+    </button>
+    <button class="nav-item" onclick="showSection('casos',this,'Casos RAICE')">
+      <span class="nav-ico">📋</span> Casos RAICE
+      <span class="nav-badge" id="nav-cases-badge" style="display:none;"></span>
+    </button>
+
+    <div class="nav-group-title">Análisis</div>
+    <button class="nav-item" onclick="showSection('riesgo',this,'Estudiantes en riesgo')">
+      <span class="nav-ico">⚠️</span> Riesgo convivencia
+    </button>
+    <button class="nav-item" onclick="showSection('asistencia',this,'Consultar asistencia')">
+      <span class="nav-ico">📅</span> Consultar asistencia
+    </button>
+    <button class="nav-item" onclick="showSection('horarios',this,'Horarios')">
+      <span class="nav-ico">🗓️</span> Horarios
+    </button>
+
+    <div class="nav-group-title">Cuenta</div>
+    <button class="nav-item" onclick="showSection('perfil',this,'Mi perfil')">
+      <span class="nav-ico">👤</span> Mi perfil
+    </button>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="user-chip">
+      <div class="user-avatar" id="o-av">OR</div>
+      <div class="user-info">
+        <div class="user-name" id="o-name">Orientador</div>
+        <div class="user-role-label">🧠 Orientador Escolar</div>
+      </div>
+    </div>
+    <button class="btn-logout-sb" onclick="logout()">Cerrar sesión</button>
+  </div>
+</aside>
+
+<!-- ── MAIN ── -->
+<div class="main">
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:.65rem;flex-shrink:0;">
+      <button id="menu-btn" onclick="openSidebar()">☰</button>
+      <div class="page-title" id="page-title">Dashboard</div>
+    </div>
+    <div class="topbar-search">
+      <span class="ts-ico">🔍</span>
+      <input type="text" id="s-input" placeholder="Buscar estudiante…"
+             oninput="onSearch(this.value)" autocomplete="off" spellcheck="false">
+      <button class="ts-clear" id="s-clear" onclick="clearSearch()">✕</button>
+      <div class="s-results" id="s-results"></div>
+    </div>
+    <div class="topbar-right" style="display:flex;align-items:center;gap:.5rem;flex-shrink:0;">
+      <button class="tb-bell" id="tb-bell-btn" onclick="showSection('casos',document.querySelector('[onclick*=\'casos\']'),\'Casos RAICE\')" title="Casos abiertos">
+        🔔
+        <span class="tb-bell-badge" id="tb-bell-badge"></span>
+      </button>
+      <div class="tb-datetime">
+        <span class="tb-time" id="tb-clock"></span>
+        <span class="tb-date" id="tb-date-label"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div class="content">
+
+    <!-- ── DASHBOARD ── -->
+    <section class="section active" id="section-dashboard">
+      <div class="kpi-grid" id="stat-grid">
+        <div class="kpi-card" style="--kpi-color:#6366f1;"><div class="kpi-bg-ico">⏳</div><div class="kpi-ico-row">⏳</div><div class="kpi-val">—</div><div class="kpi-lbl">Cargando</div></div>
+        <div class="kpi-card" style="--kpi-color:#6366f1;"><div class="kpi-bg-ico">⏳</div><div class="kpi-ico-row">⏳</div><div class="kpi-val">—</div><div class="kpi-lbl">Cargando</div></div>
+        <div class="kpi-card" style="--kpi-color:#6366f1;"><div class="kpi-bg-ico">⏳</div><div class="kpi-ico-row">⏳</div><div class="kpi-val">—</div><div class="kpi-lbl">Cargando</div></div>
+        <div class="kpi-card" style="--kpi-color:#6366f1;"><div class="kpi-bg-ico">⏳</div><div class="kpi-ico-row">⏳</div><div class="kpi-val">—</div><div class="kpi-lbl">Cargando</div></div>
+      </div>
+      <div class="dash-grid">
+        <div class="card">
+          <div class="card-header">
+            <h3>⚠️ Alertas activas</h3>
+            <span id="alerts-badge" style="font-size:.75rem;font-weight:700;color:var(--gray);"></span>
+          </div>
+          <div class="card-body" id="alerts-bd" style="max-height:420px;overflow-y:auto;">
+            <div class="empty"><div class="spin"></div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3>🤒 Excusas recientes</h3></div>
+          <div class="card-body" id="excusas-recent-bd" style="max-height:420px;overflow-y:auto;">
+            <div class="empty"><div class="spin"></div></div>
+          </div>
+        </div>
+        <div class="card dash-risk-col">
+          <div class="card-header">
+            <h3>🚨 Top riesgo</h3>
+            <button onclick="showSection('riesgo',document.querySelector('.nav-item:nth-child(4)'),\'Estudiantes en riesgo\')" style="font-size:.72rem;color:var(--violet);background:none;border:none;cursor:pointer;font-weight:600;">Ver todos ›</button>
+          </div>
+          <div class="card-body" id="dash-risk-bd" style="max-height:420px;overflow-y:auto;">
+            <div class="empty"><div class="spin"></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── CASOS ── -->
+    <section class="section" id="section-casos">
+      <div class="card">
+        <div class="card-header">
+          <h3>📋 Casos disciplinares</h3>
+          <span style="font-size:.78rem;font-weight:700;color:var(--gray);" id="cases-badge"></span>
+        </div>
+        <!-- Filter bar -->
+        <div class="filter-bar">
+          <input class="filter-input" id="cf-student" placeholder="🔍 Buscar estudiante…" oninput="filterCases()" style="min-width:170px;">
+          <div class="filter-sep"></div>
+          <div class="filter-pills">
+            <button class="fpill active"      id="fp-all" onclick="setCaseTypePill('all')">Todos</button>
+            <button class="fpill fp-t1" id="fp-t1"  onclick="setCaseTypePill('1')">T1</button>
+            <button class="fpill fp-t2" id="fp-t2"  onclick="setCaseTypePill('2')">T2</button>
+            <button class="fpill fp-t3" id="fp-t3"  onclick="setCaseTypePill('3')">T3</button>
+          </div>
+          <div class="filter-sep"></div>
+          <select class="filter-select" id="cf-grade" onchange="updateCourseFilter();filterCases()">
+            <option value="">Todos los grados</option>
+          </select>
+          <select class="filter-select" id="cf-course" onchange="filterCases()">
+            <option value="">Todos los cursos</option>
+          </select>
+          <select class="filter-select" id="cf-status" onchange="filterCases()">
+            <option value="open">Abiertos</option>
+            <option value="all">Todos</option>
+            <option value="closed">Cerrados</option>
+          </select>
+          <button class="btn-sm" onclick="clearCaseFilters()" style="flex-shrink:0;">✕ Limpiar</button>
+        </div>
+        <div class="card-body" id="cases-bd" style="padding:0;">
+          <div class="empty"><div class="spin"></div></div>
+        </div>
+        <div id="cases-pagination" style="padding:.55rem 1.35rem;border-top:1px solid var(--border);display:none;justify-content:space-between;align-items:center;font-size:.77rem;color:var(--gray);">
+          <span id="cases-page-info"></span>
+          <div style="display:flex;gap:.4rem;">
+            <button class="btn-sm" onclick="changeCasePage(-1)">‹ Ant.</button>
+            <button class="btn-sm" onclick="changeCasePage(1)">Sig. ›</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── RIESGO ── -->
+    <section class="section" id="section-riesgo">
+      <div class="two-col">
+        <div class="card">
+          <div class="card-header"><h3>🚨 Riesgo de convivencia</h3></div>
+          <div class="card-body" id="risk-bd">
+            <div class="empty"><div class="spin"></div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3>📊 Asistencia por grado</h3></div>
+          <div class="card-body" id="grade-bd">
+            <div class="empty"><div class="spin"></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── ASISTENCIA ── -->
+    <section class="section" id="section-asistencia">
+      <div class="card">
+        <div class="card-header"><h3>📊 Asistencia institucional</h3></div>
+        <div class="card-body">
+          <div class="att-tabs">
+            <button class="att-tab active" onclick="switchAttTab('por-grado',this)">📊 Por grado</button>
+            <button class="att-tab" onclick="switchAttTab('umbral',this)">⚠️ Umbral de riesgo</button>
+            <button class="att-tab" onclick="switchAttTab('por-fecha',this)">📅 Por rango de fechas</button>
+          </div>
+
+          <!-- TAB 1: Por grado -->
+          <div class="att-tab-content active" id="atab-por-grado">
+            <div style="display:flex;gap:.6rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap;">
+              <select class="filter-select" id="ag-sort" onchange="renderAttByGrade()">
+                <option value="pct-asc">% Asistencia ↑</option>
+                <option value="pct-desc">% Asistencia ↓</option>
+                <option value="name">Grado A→Z</option>
+              </select>
+              <span style="font-size:.78rem;color:var(--gray);">Datos del periodo activo</span>
+            </div>
+            <div id="att-grade-bd"><div class="empty"><div class="spin"></div></div></div>
+          </div>
+
+          <!-- TAB 2: Umbral de riesgo -->
+          <div class="att-tab-content" id="atab-umbral">
+            <div class="threshold-row">
+              <label style="flex-shrink:0;">Puntaje de riesgo mínimo:</label>
+              <span class="threshold-val" id="threshold-display">40</span>
+              <input type="range" id="att-threshold" min="0" max="90" value="40" step="10"
+                     oninput="document.getElementById('threshold-display').textContent=this.value;renderAttThreshold()">
+              <select class="filter-select" id="threshold-grade" onchange="renderAttThreshold()">
+                <option value="">Todos los grados</option>
+              </select>
+              <span style="font-size:.72rem;color:var(--gray);margin-left:.2rem;">Mayor puntaje = más crítico</span>
+            </div>
+            <div id="att-threshold-bd"><div class="empty"><div class="ei">⚠️</div>Los datos cargarán automáticamente.</div></div>
+          </div>
+
+          <!-- TAB 3: Por rango de fechas -->
+          <div class="att-tab-content" id="atab-por-fecha">
+            <div class="att-controls">
+              <div><label>Desde</label><input type="date" id="att-from"></div>
+              <div><label>Hasta</label><input type="date" id="att-to"></div>
+              <select class="filter-select" id="att-grade-filter" style="align-self:flex-end;">
+                <option value="">Todos los grados</option>
+              </select>
+              <button onclick="loadAttRange()" class="btn-primary" style="align-self:flex-end;">Consultar</button>
+            </div>
+            <div id="att-range-bd">
+              <div class="empty"><div class="ei">📅</div>Selecciona un rango de fechas.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── HORARIOS ── -->
+    <section class="section" id="section-horarios">
+      <div class="card">
+        <div class="card-header"><h3>🗓️ Horario por grado</h3></div>
+        <div class="card-body">
+          <select id="sched-grade-select" class="sched-select" onchange="renderGradeSchedule()">
+            <option value="">— Seleccionar grado —</option>
+          </select>
+          <div style="overflow-x:auto;">
+            <div id="sched-grade-table"><div class="empty">Selecciona un grado.</div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── PERFIL ── -->
+    <section class="section" id="section-perfil">
+      <div class="perfil-card">
+        <div class="perfil-header">
+          <div class="perfil-av-big" id="p-avatar">OR</div>
+          <div>
+            <div style="font-weight:700;font-size:.98rem;color:var(--navy);" id="p-fullname">Orientador</div>
+            <div style="font-size:.78rem;color:var(--gray);" id="p-username">@orientador</div>
+            <div style="font-size:.72rem;color:var(--violet);font-weight:600;margin-top:.15rem;">🧠 Orientador Escolar</div>
+          </div>
+        </div>
+        <div style="padding:1.35rem 1.5rem;">
+          <div style="font-weight:700;font-size:.84rem;margin-bottom:.85rem;color:var(--navy);">Cambiar contraseña</div>
+          <div class="form-group">
+            <label>Contraseña actual</label>
+            <input type="password" id="p-pwd-current" placeholder="••••••">
+          </div>
+          <div class="form-group">
+            <label>Nueva contraseña</label>
+            <input type="password" id="p-pwd-new" placeholder="••••••">
+          </div>
+          <div class="form-group">
+            <label>Confirmar nueva contraseña</label>
+            <input type="password" id="p-pwd-confirm" placeholder="••••••">
+          </div>
+          <button class="btn-primary" id="p-pwd-btn" onclick="changeMyPassword()">Actualizar contraseña</button>
+        </div>
+      </div>
+    </section>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<!-- ── MODAL FICHA ESTUDIANTE ── -->
+<div class="modal-ov" id="modal-ficha" onclick="if(event.target===this)closeFicha()">
+  <div class="modal">
+    <div class="modal-hd">
+      <div>
+        <h3 id="ficha-title">Ficha del estudiante</h3>
+        <div class="modal-sub" id="ficha-sub"></div>
+      </div>
+      <button class="m-close" onclick="closeFicha()">✕</button>
+    </div>
+    <div class="modal-bd" id="ficha-bd">
+      <div class="empty"><div class="spin"></div></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-g" onclick="closeFicha()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="t-wrap" id="t-wrap"></div>
+
+<script>
+var { CLASS_HOUR_ORDINALS, DAYS_OF_WEEK, OBSERVATION_TYPE_LABELS, OBSERVATION_TYPE_COLORS,
+      CASE_STATUS_LABELS, CASE_TYPE_PILL_CLASS, CASE_STATUS_PILL_CLASS, ESCALON_LABELS,
+      ALERT_SEVERITY_DOT_CLASS, ATTENDANCE_STATUS_LABELS } = window.RAICE;
+var { daysAgo, toast, startClock, getInitials, formatDateCO, getGreeting, isoWeekday, attendanceColor } = window.RAICE;
+var esc = window.RAICE.escapeHtml;
+var { createApiClient } = window.RAICE;
+var { calcAttendancePct, classifyRisk } = window.RAICE;
+var { logout } = window.RAICE;
+
+let _students = [];
+let _schoolConfig = null;
+let _insights = null;
+let _schedData = null;
+let _casesPage = 0;
+const CASES_PER_PAGE = 15;
+
+const api = createApiClient({ getActiveSede: () => null });
+
+// ── SIDEBAR NAV ──
+function showSection(id, btn, title) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  const sec = document.getElementById('section-' + id);
+  if (sec) sec.classList.add('active');
+  if (btn) btn.classList.add('active');
+  if (title) document.getElementById('page-title').textContent = title;
+  closeSidebar();
+  // Trigger lazy renders on section enter
+  if (id === 'asistencia' && _insights) renderAttByGrade();
+  if (id === 'casos' && !_allCases.length) loadCases();
+}
+function openSidebar()  { document.getElementById('sidebar').classList.add('open'); document.getElementById('sidebar-overlay').classList.add('open'); }
+function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebar-overlay').classList.remove('open'); }
+
+// ── AUTH ──
+async function initSession() {
+  const user = window.RAICE.checkAuth('counselor');
+  if (!user) return;
+  loadSchoolConfig();
+  startClock('tb-clock');
+  // Show date label
+  (function updateDate(){
+    const now = new Date();
+    const dias = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+    const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+    const lbl = document.getElementById('tb-date-label');
+    if(lbl) lbl.textContent = dias[now.getDay()]+' '+now.getDate()+' '+meses[now.getMonth()];
+  })();
+  var p = window.RAICE.deriveProfileData(user, 'Orientador');
+  document.getElementById('o-av').textContent    = p.initials;
+  document.getElementById('o-name').textContent  = p.fullName;
+  document.getElementById('p-avatar').textContent  = p.initials;
+  document.getElementById('p-fullname').textContent = p.fullName;
+  document.getElementById('p-username').textContent = p.displayUsername;
+
+  const cp = new URLSearchParams(window.location.search);
+  if (cp.get('cambiar-contrasena') === '1') { showSection('perfil', null, 'Mi perfil'); }
+}
+
+// ── SCHOOL CONFIG ──
+async function loadSchoolConfig() {
+  const data = await window.RAICE.fetchConfig(api);
+  if (!data) return;
+  _schoolConfig = data;
+  if (data.logo_url) {
+    const mark = document.getElementById('sb-mark-wrap');
+    const logo = document.getElementById('sb-logo');
+    if (mark) mark.style.display = 'none';
+    if (logo) { logo.src = data.logo_url; logo.style.display = 'block'; }
+  }
+}
+
+// ── SEARCH ──
+async function loadStudents() {
+  const data = await window.RAICE.fetchStudents(api);
+  _students = data || [];
+}
+
+function onSearch(q) {
+  const box = document.getElementById('s-results');
+  const clr = document.getElementById('s-clear');
+  clr.style.display = q ? 'block' : 'none';
+  if (!q || q.length < 2) { box.style.display = 'none'; return; }
+  const lq = q.toLowerCase();
+  const hits = _students.filter(s =>
+    (s.first_name + ' ' + s.last_name).toLowerCase().includes(lq) ||
+    (s.last_name + ' ' + s.first_name).toLowerCase().includes(lq) ||
+    (s.doc_number || '').includes(q)
+  ).slice(0, 8);
+  if (!hits.length) { box.style.display = 'none'; return; }
+  box.innerHTML = hits.map(s => {
+    const ini  = getInitials(s.first_name, s.last_name);
+    const grade = s.grade ? s.grade + '°' + (s.course || '') : '—';
+    return `<div class="s-item" onclick="openFicha('${s.id}','${esc(s.first_name)} ${esc(s.last_name)}','${grade}')">
+      <div class="s-av">${ini}</div>
+      <div><div class="s-name">${esc(s.last_name)}, ${esc(s.first_name)}</div>
+           <div class="s-sub">${grade} &middot; ${esc(s.doc_number||'')}</div></div>
+    </div>`;
+  }).join('');
+  box.style.display = 'block';
+}
+
+function clearSearch() {
+  document.getElementById('s-input').value = '';
+  document.getElementById('s-clear').style.display = 'none';
+  document.getElementById('s-results').style.display = 'none';
+}
+
+document.addEventListener('click', e => {
+  const box = document.getElementById('s-results');
+  if (box && !box.contains(e.target) && e.target !== document.getElementById('s-input')) {
+    box.style.display = 'none';
+  }
+});
+
+// ── FICHA ESTUDIANTE ──
+var _fichaStudentId = null;
+
+async function openFicha(id, name, grade) {
+  _fichaStudentId = id;
+  clearSearch();
+  const ov = document.getElementById('modal-ficha');
+  document.getElementById('ficha-title').textContent = name;
+  document.getElementById('ficha-sub').textContent   = grade;
+  document.getElementById('ficha-bd').innerHTML = '<div class="empty"><div class="spin"></div></div>';
+  ov.classList.add('open');
+  const data = await window.RAICE.fetchStudentFicha(api, id);
+  if (!data) { document.getElementById('ficha-bd').innerHTML = '<div class="empty">No se pudo cargar la ficha.</div>'; return; }
+  document.getElementById('ficha-bd').innerHTML = renderFichaHTML(data);
+}
+
+function closeFicha() { document.getElementById('modal-ficha').classList.remove('open'); }
+
+async function reloadFichaWithPeriod(studentId, periodId) {
+  document.getElementById('ficha-bd').innerHTML = '<div class="empty"><div class="spin"></div></div>';
+  const data = await window.RAICE.fetchStudentFicha(api, studentId, false, periodId);
+  if (!data) { document.getElementById('ficha-bd').innerHTML = '<div class="empty">No se pudo cargar la ficha.</div>'; return; }
+  document.getElementById('ficha-bd').innerHTML = renderFichaHTML(data);
+}
+
+function renderFichaHTML(d) {
+  const s = d.student || {};
+  const ini   = getInitials(s.first_name, s.last_name);
+  const grade = s.grade ? s.grade + '°' + (s.course || '') : '—';
+
+  // ── ASISTENCIA ──
+  const att = d.att_records || [];
+  const cntP  = att.filter(a=>a.status==='P').length;
+  const cntA  = att.filter(a=>a.status==='A').length;
+  const cntT  = att.filter(a=>a.status==='T').length;
+  const cntPE = att.filter(a=>a.status==='PE').length;
+  const cntS  = att.filter(a=>a.status==='S').length;
+  const totalH    = att.length;
+  const countable = totalH - cntS - cntPE;
+  const pct = countable > 0 ? Math.round(((cntP+cntT)/countable)*100) : (totalH-cntS>0?100:0);
+  const pctColor = pct >= 80 ? '#16a34a' : '#dc2626';
+
+  // Calendario 5 semanas
+  const sp = {A:4,T:3,PE:2,P:1,S:1};
+  const dm = {};
+  for (const r of att) { const c=dm[r.date]; if(!c||(sp[r.status]||0)>(sp[c.status]||0)) dm[r.date]=r; }
+  const MO=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const DH=['Lu','Ma','Mi','Ju','Vi'];
+  const today=new Date(), dow=(today.getDay()+6)%7;
+  const mon=new Date(today); mon.setDate(today.getDate()-dow);
+  const start=new Date(mon); start.setDate(mon.getDate()-28);
+  let calHtml='<div class="mini-cal">'+DH.map(x=>`<div class="cal-hdr">${x}</div>`).join('');
+  let pm=-1;
+  for(let w=0;w<5;w++){
+    const mo=new Date(start); mo.setDate(start.getDate()+w*7);
+    const m=mo.getMonth();
+    if(m!==pm){calHtml+=`<div class="cal-month-lbl">${MO[m]} ${mo.getFullYear()}</div>`;pm=m;}
+    for(let dd=0;dd<5;dd++){
+      const dt=new Date(mo); dt.setDate(mo.getDate()+dd);
+      const k=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+      const iF=dt>today; const r=dm[k]; const st=r&&r.status;
+      calHtml+=`<div class="cal-day ${iF?'cal-empty':!st?'cal-nodata':st==='S'?'cal-P':'cal-'+st}" title="${k}">${dt.getDate()}</div>`;
+    }
+  }
+  calHtml+='</div>';
+
+  const ORD=CLASS_HOUR_ORDINALS||[];
+  const det=att.filter(a=>a.status==='A'||a.status==='T').sort((a,b)=>b.date.localeCompare(a.date)||(a.class_hour||0)-(b.class_hour||0)).slice(0,30);
+  const attDetailHtml=det.length
+    ?`<div class="att-list">${det.map(r=>`<div class="att-row"><div class="att-badge att-${r.status}">${r.status}</div>
+        <div><div style="font-size:.83rem;font-weight:500;">${formatDateCO(r.date)}${r.class_hour?` · ${ORD[r.class_hour]||r.class_hour+'ª'} hora`:''}${r.subject?` · ${esc(r.subject)}`:''}</div>
+        <div style="font-size:.73rem;color:var(--gray);">${r.status==='A'?'Ausente':'Tardanza'}${r.teacher_name?` · 👤 ${esc(r.teacher_name)}`:''}</div></div></div>`).join('')}</div>`
+    :'<div class="empty-state">✅ Sin inasistencias ni tardanzas registradas</div>';
+
+  const subjects=d.att_by_subject||[];
+  const subjHtml=subjects.length?`<div class="card" style="margin-top:.7rem;"><div class="card-header">Asistencia por asignatura</div>
+    <div class="card-body"><table class="subj-table"><thead><tr><th>Asignatura</th><th style="text-align:center;">✅</th><th style="text-align:center;">❌</th><th style="text-align:center;">⏰</th><th style="text-align:center;">🤒</th><th style="text-align:center;">%</th></tr></thead><tbody>
+    ${subjects.map(sub=>{const pc=sub.pct===null?'var(--gray)':sub.pct>=80?'#16a34a':sub.pct>=60?'#d97706':'#dc2626';
+      return `<tr><td style="font-weight:600;">${esc(sub.subject)}</td><td style="text-align:center;">${sub.present}</td>
+        <td style="text-align:center;color:${sub.absent>0?'#dc2626':'inherit'}">${sub.absent}</td>
+        <td style="text-align:center;">${sub.late}</td><td style="text-align:center;">${sub.permit}</td>
+        <td style="text-align:center;"><span class="subj-pct" style="color:${pc}">${sub.pct!==null?sub.pct+'%':'—'}</span></td></tr>`;
+    }).join('')}</tbody></table></div></div>`:'';
+
+  const excusas=d.excusas||[];
+  const excusasHtml=excusas.length?`<div class="card" style="margin-top:.7rem;"><div class="card-header">Excusas registradas</div>
+    <div class="card-body"><div class="att-list">${excusas.map(e=>{const ht=e.horas&&e.horas.length?`Horas: ${e.horas.join(', ')}`:'Día completo';
+      return `<div class="att-row"><div class="att-badge att-PE">🤒</div>
+        <div><div style="font-size:.83rem;font-weight:500;">${formatDateCO(e.date)} · <span style="color:var(--gray);font-weight:400;">${ht}</span></div>
+        <div style="font-size:.78rem;color:var(--navy);margin-top:.12rem;">${esc(e.motivo||'')}</div></div></div>`;
+    }).join('')}</div></div>`:'';
+
+  const obs=d.observations||[];
+  const obsHtml=obs.length
+    ?obs.map(o=>`<div class="obs-item"><div class="obs-dot obs-${o.type==='positive'?'pos':o.type==='negative'?'neg':'neu'}"></div>
+      <div><div class="obs-text">${esc(o.text||o.description||'')}</div>
+      <div class="obs-date">${o.type==='positive'?'Positiva':o.type==='negative'?'Negativa':'Neutral'} · ${formatDateCO((o.created_at||'').slice(0,10))}${o.teacher_name?` · 👤 ${esc(o.teacher_name)}`:''}</div></div></div>`).join('')
+    :'<div class="empty-state">Sin observaciones registradas.</div>';
+
+  const cases=d.cases||[];
+  const tl={1:'Tipo 1 · Situación de Aula',2:'Tipo 2 · Situación Escolar',3:'Tipo 3 · Situación Grave'};
+  const casesHtml=cases.length
+    ?cases.map(c=>`<div class="case-item case-t${c.type}">
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:.35rem;margin-bottom:.38rem;">
+        <span class="case-badge badge-t${c.type}" style="margin-bottom:0;">${tl[c.type]||'Tipo '+c.type}</span>
+        ${c.status==='closed'?'<span class="case-badge badge-closed" style="margin-bottom:0;">Cerrado</span>':'<span class="case-badge" style="background:#fef9c3;color:#854d0e;margin-bottom:0;">Abierto</span>'}
+      </div>
+      <div class="case-desc">${esc(c.description||'')}</div>
+      ${c.actions_taken?`<div style="font-size:.77rem;color:var(--navy);margin-top:.38rem;">🔧 <em>${esc(c.actions_taken)}</em></div>`:''}
+      ${c.falta_numeral?`<div style="font-size:.77rem;color:var(--gray);margin-top:.28rem;">📌 ${esc(c.falta_numeral)}${c.falta_descripcion?' — '+esc(c.falta_descripcion):''}</div>`:''}
+      <div class="case-date">📅 ${formatDateCO((c.created_at||'').slice(0,10))}${c.teacher_name?` · 👤 ${esc(c.teacher_name)}`:''}</div>
+    </div>`).join('')
+    :'<div class="empty-state">✅ Sin casos RAICE registrados.</div>';
+
+  const commitments=d.commitments||[];
+  const _n=new Date();
+  const todayStr=`${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}`;
+  const commitsHtml=commitments.length
+    ?commitments.map(c=>{
+        const ov=!c.fulfilled&&c.due_date&&c.due_date<todayStr;
+        const badge=c.fulfilled?'<span style="font-size:.7rem;font-weight:700;padding:.13rem .5rem;border-radius:5px;background:#f0fdf4;color:#15803d;">✅ Cumplido</span>'
+          :ov?'<span style="font-size:.7rem;font-weight:700;padding:.13rem .5rem;border-radius:5px;background:#fee2e2;color:#991b1b;">⚠️ Vencido</span>'
+          :'<span style="font-size:.7rem;font-weight:700;padding:.13rem .5rem;border-radius:5px;background:#fef9c3;color:#854d0e;">⏳ Pendiente</span>';
+        const cls=c.fulfilled?'commit-done':ov?'commit-overdue':'commit-pending';
+        return `<div class="commit-item ${cls}"><div style="margin-bottom:.32rem;">${badge}</div>
+          <div style="font-size:.84rem;color:var(--navy);line-height:1.44;">${esc(c.description||'')}</div>
+          ${c.due_date?`<div style="font-size:.73rem;color:var(--gray);margin-top:.28rem;">📅 Fecha límite: ${formatDateCO(c.due_date)}</div>`:''}
+          ${c.signed_by?`<div style="font-size:.73rem;color:var(--gray);margin-top:.14rem;">✍️ Firmado por: ${esc(c.signed_by)}</div>`:''}
+        </div>`;
+      }).join('')
+    :'<div class="empty-state">✅ Sin compromisos registrados.</div>';
+
+  const suspensions=d.suspensions||[], removals=d.removals||[];
+  const suspHtml=suspensions.length
+    ?suspensions.map(sus=>`<div class="sanc-item"><div><span class="sanc-badge sanc-susp">Suspensión</span></div>
+      <div class="sanc-text">${esc(sus.reason||'')}</div>
+      <div class="sanc-date">Del ${formatDateCO(sus.start_date)} al ${formatDateCO(sus.end_date)}</div></div>`).join('')
+    :'<div class="empty-state">✅ Sin suspensiones registradas.</div>';
+  const remHtml=removals.length
+    ?removals.map(r=>`<div class="sanc-item"><div><span class="sanc-badge sanc-rem">Retiro de clase</span></div>
+      <div class="sanc-text">${esc(r.reason||'')}</div>
+      <div class="sanc-date">${formatDateCO(r.date)}${r.class_hour?` · Hora ${r.class_hour}`:''}</div></div>`).join('')
+    :'<div class="empty-state">Sin retiros de clase registrados.</div>';
+
+  const sched=d.schedule||[];
+  const DMAP={1:'Lunes',2:'Martes',3:'Miércoles',4:'Jueves',5:'Viernes'};
+  let schedHtml='';
+  if(sched.length){
+    const byDay={};
+    sched.forEach(sl=>{if(!byDay[sl.day_of_week])byDay[sl.day_of_week]=[];byDay[sl.day_of_week].push(sl);});
+    const hours=[...new Set(sched.map(sl=>sl.class_hour))].sort((a,b)=>a-b);
+    schedHtml='<div style="overflow-x:auto;"><table class="sched-table"><thead><tr><th>Hora</th>';
+    [1,2,3,4,5].forEach(x=>{schedHtml+=`<th>${DMAP[x]||x}</th>`;});
+    schedHtml+='</tr></thead><tbody>';
+    hours.forEach(h=>{
+      schedHtml+=`<tr><td style="font-weight:700;text-align:center;background:var(--light);">${CLASS_HOUR_ORDINALS[h]||h+'ª'}</td>`;
+      [1,2,3,4,5].forEach(dw=>{
+        const slot=(byDay[dw]||[]).find(sl=>sl.class_hour===h);
+        schedHtml+=slot?`<td><div class="sched-cell"><div class="sched-subj">${esc(slot.subject||'—')}</div><div class="sched-teacher">${esc(slot.teacher_name||'')}</div></div></td>`:'<td></td>';
+      });
+      schedHtml+='</tr>';
+    });
+    schedHtml+='</tbody></table></div>';
+  } else { schedHtml='<div class="empty-state">Sin horario registrado.</div>'; }
+
+  const guardians=d.acudientes||[];
+  const acudHtml=guardians.length
+    ?guardians.map(g=>`<div class="acud-item"><div class="acud-ico">👤</div>
+      <div><div style="font-size:.87rem;font-weight:600;color:var(--navy);">${esc(g.name||'—')}</div>
+      <div style="font-size:.76rem;color:var(--gray);margin-top:.08rem;">${esc(g.relationship||'Acudiente')}</div>
+      ${g.phone?`<div style="font-size:.8rem;color:var(--navy);margin-top:.2rem;">📞 ${esc(g.phone)}</div>`:''}
+      ${g.email?`<div style="font-size:.8rem;color:var(--navy);margin-top:.08rem;">✉️ ${esc(g.email)}</div>`:''}
+    </div></div>`).join('')
+    :'<div class="empty-state">Sin datos de acudiente registrados.</div>';
+
+  const dirHtml=(d.director&&d.director.name)?`<div class="director-card">
+    <div class="director-ico">👨‍🏫</div>
+    <div><div style="font-size:.87rem;font-weight:700;color:var(--navy);">${esc(d.director.name)}</div>
+    <div style="font-size:.73rem;color:var(--gray);">Director(a) de grado</div></div></div>`:'';
+
+  const periodSel=(d.periods&&d.periods.length)?`<div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.8rem;">
+    <span style="font-size:.8rem;color:var(--gray);font-weight:600;">📅 Periodo:</span>
+    <select onchange="reloadFichaWithPeriod(_fichaStudentId,this.value)"
+            style="padding:.42rem .62rem;border:1.5px solid #e5e7eb;border-radius:8px;font-size:.83rem;background:#fff;">
+      ${d.periods.map(p=>`<option value="${p.id}" ${d.selected_period_id===p.id?'selected':''}>${esc(p.name)}${p.active?' (activo)':''}</option>`).join('')}
+      <option value="all" ${d.selected_period_id==='all'?'selected':''}>Todo el año</option>
+    </select></div>`:'';
+
+  return `<div class="ficha-body">
+    <div class="student-card">
+      <div class="student-avatar">${ini}</div>
+      <div style="flex:1;">
+        <div class="student-name">${esc(s.last_name||'')}, ${esc(s.first_name||'')}
+          <span class="student-grade">${grade}</span></div>
+        <div class="student-meta">
+          ${s.doc_type?esc(s.doc_type)+' ':''}${esc(s.doc_number||'—')}
+          ${s.birth_date?' · '+formatDateCO(s.birth_date):''}
+          ${s.phone?' · '+esc(s.phone):''}
+        </div>
+      </div>
+    </div>
+    <div style="padding:.95rem 1.1rem;">
+      ${dirHtml}${periodSel}
+      <div class="tabs">
+        <button class="tab active" onclick="switchFichaTab('tab-att',this)">📋 Asistencia</button>
+        <button class="tab" onclick="switchFichaTab('tab-obs',this)">👁️ Observador</button>
+        <button class="tab" onclick="switchFichaTab('tab-cases',this)">🚨 Casos</button>
+        <button class="tab" onclick="switchFichaTab('tab-commits',this)">📝 Compromisos</button>
+        <button class="tab" onclick="switchFichaTab('tab-disc',this)">⚖️ Disciplina</button>
+        <button class="tab" onclick="switchFichaTab('tab-sched',this)">🗓️ Horario</button>
+        <button class="tab" onclick="switchFichaTab('tab-acud',this)">👨‍👩‍👦 Acudiente</button>
+      </div>
+      <div class="tab-content active" id="tab-att">
+        <div class="stats-row">
+          <div class="stat-box"><div class="stat-val" style="color:${pctColor}">${pct}%</div><div class="stat-lbl">Asistencia</div>
+            <div style="font-size:.65rem;color:var(--gray);margin-top:.2rem;">${totalH} hora${totalH!==1?'s':''}</div></div>
+          <div class="stat-box"><div class="stat-val" style="color:${cntA>0?'#dc2626':'var(--navy)'}">${cntA}</div><div class="stat-lbl">Ausencias</div></div>
+          <div class="stat-box"><div class="stat-val" style="color:${cntT>0?'#d97706':'var(--navy)'}">${cntT}</div><div class="stat-lbl">Tardanzas</div></div>
+        </div>
+        <div class="card"><div class="card-header">Calendario reciente</div>
+          <div class="card-body">${calHtml}
+            <div style="display:flex;gap:.65rem;flex-wrap:wrap;font-size:.71rem;color:var(--gray);margin-top:.22rem;">
+              <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#dcfce7;margin-right:3px;"></span>Presente</span>
+              <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#fee2e2;margin-right:3px;"></span>Ausente</span>
+              <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#fef3c7;margin-right:3px;"></span>Tardanza</span>
+              <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#f3f4f6;border:1px solid #e5e7eb;margin-right:3px;"></span>Sin datos</span>
+            </div>
+          </div>
+        </div>
+        ${subjHtml}
+        <div class="card" style="margin-top:.7rem;"><div class="card-header">Detalle de inasistencias</div>
+          <div class="card-body">${attDetailHtml}</div>
+        </div>
+        ${excusasHtml}
+      </div>
+      <div class="tab-content" id="tab-obs">
+        <div class="card"><div class="card-header">Observador del estudiante</div><div class="card-body">${obsHtml}</div></div>
+      </div>
+      <div class="tab-content" id="tab-cases">
+        <div class="card"><div class="card-header">Anotaciones y casos de convivencia</div><div class="card-body">${casesHtml}</div></div>
+      </div>
+      <div class="tab-content" id="tab-commits">
+        <div class="card"><div class="card-header">Compromisos adquiridos</div><div class="card-body">${commitsHtml}</div></div>
+      </div>
+      <div class="tab-content" id="tab-disc">
+        <div class="card"><div class="card-header">Suspensiones</div><div class="card-body">${suspHtml}</div></div>
+        <div class="card" style="margin-top:.7rem;"><div class="card-header">Retiros de clase</div><div class="card-body">${remHtml}</div></div>
+      </div>
+      <div class="tab-content" id="tab-sched">${schedHtml}</div>
+      <div class="tab-content" id="tab-acud">
+        <div class="card"><div class="card-header">Datos del acudiente</div><div class="card-body">${acudHtml}</div></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function switchFichaTab(tabId, btn) {
+  document.querySelectorAll('#modal-ficha .tab-content').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('#modal-ficha .tab').forEach(b=>b.classList.remove('active'));
+  const el=document.getElementById(tabId);
+  if(el)el.classList.add('active');
+  if(btn)btn.classList.add('active');
+}
+
+// ── DASHBOARD ──
+async function loadDashboard() {
+  const R = window.RAICE;
+  const [dash, alerts] = await Promise.all([R.fetchDashboard(api), R.fetchAlerts(api)]);
+  if (dash) renderKPIs(dash);
+  renderAlerts(alerts || []);
+}
+
+function renderKPIs(d) {
+  const pct = d.attendance_today;
+  const pc  = pct===null?'#64748b':pct>=90?'#16a34a':pct>=75?'#ca8a04':'#dc2626';
+  const kpis = [
+    {ico:'👨‍🎓', val:d.students||0,              lbl:'Estudiantes activos',     color:'#6366f1', bg:'#eef2ff', col:'#4338ca', badge:'Matrícula'},
+    {ico:'📋',  val:d.open_cases||0,             lbl:'Casos abiertos',          color:d.open_cases>0?'#f59e0b':'#16a34a', bg:d.open_cases>0?'#fffbeb':'#f0fdf4', col:d.open_cases>0?'#b45309':'#15803d', badge:'RAICE'},
+    {ico:'📊',  val:pct!==null?pct+'%':'—',      lbl:'Asistencia hoy',          color:pc, bg:'transparent', col:pc, badge:pct!==null?(pct>=90?'✓ Meta':pct>=75?'Regular':'Crítica'):''},
+    {ico:'⚠️',  val:d.students_at_risk||0,       lbl:'En riesgo convivencia',   color:'#f97316', bg:'#fff7ed', col:'#c2410c', badge:'Seguimiento'},
+  ];
+  document.getElementById('stat-grid').innerHTML = kpis.map(c=>`
+    <div class="kpi-card" style="--kpi-color:${c.color};">
+      <div class="kpi-bg-ico">${c.ico}</div>
+      <div class="kpi-ico-row">${c.ico}${c.badge?`<span class="kpi-badge-sm" style="background:${c.bg};color:${c.col};">${c.badge}</span>`:''}</div>
+      <div class="kpi-val">${c.val}</div>
+      <div class="kpi-lbl">${c.lbl}</div>
+    </div>`).join('');
+  // update cases nav badge
+  if (d.open_cases > 0) {
+    const nb = document.getElementById('nav-cases-badge');
+    nb.textContent = d.open_cases;
+    nb.style.display = 'inline-block';
+  }
+}
+
+function renderAlerts(alerts) {
+  const filtered = alerts.filter(a => a.type !== 'attendance_omission');
+  document.getElementById('alerts-badge').textContent = filtered.length ? filtered.length + ' activas' : '';
+  document.getElementById('alerts-bd').innerHTML = filtered.length
+    ? filtered.map(a=>{
+        const dc = ALERT_SEVERITY_DOT_CLASS[a.severity]||'d-blue';
+        return `<div class="a-row"><div class="a-dot ${dc}"></div>
+          <div><div class="a-title">${esc(a.title)}</div>
+          <div class="a-desc">${esc(a.description||'')}</div></div></div>`;
+      }).join('')
+    : '<div class="empty"><div class="ei">✓</div>Sin alertas relevantes.</div>';
+}
+
+// ── CASES ──
+let _allCases = [], _cases = [];
+let _caseTypePill = 'all';
+
+async function loadCases() {
+  _casesPage = 0;
+  document.getElementById('cases-bd').innerHTML = '<div class="empty" style="padding:1.5rem;"><div class="spin"></div></div>';
+  if (!_allCases.length) {
+    const data = await window.RAICE.fetchCases(api);
+    _allCases = data || [];
+    _buildCaseGradeSelect();
+    _updateBellBadge();
+  }
+  filterCases();
+}
+
+function _buildCaseGradeSelect() {
+  const grades = [...new Set(_allCases.map(c=>c.grade).filter(Boolean))].sort((a,b)=>a-b);
+  const sel = document.getElementById('cf-grade');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Todos los grados</option>'
+    + grades.map(g=>`<option value="${g}">${g}°</option>`).join('');
+}
+
+function updateCourseFilter() {
+  const grade = document.getElementById('cf-grade').value;
+  const courses = grade
+    ? [...new Set(_allCases.filter(c=>String(c.grade)===String(grade)).map(c=>c.course).filter(Boolean))].sort()
+    : [];
+  const sel = document.getElementById('cf-course');
+  sel.innerHTML = '<option value="">Todos los cursos</option>'
+    + courses.map(c=>`<option value="${c}">${grade}°${c}</option>`).join('');
+}
+
+function setCaseTypePill(type) {
+  _caseTypePill = type;
+  ['all','t1','t2','t3'].forEach(id => {
+    const el = document.getElementById('fp-'+id);
+    if (el) el.classList.toggle('active', id === (type==='1'?'t1':type==='2'?'t2':type==='3'?'t3':'all'));
+  });
+  filterCases();
+}
+
+function clearCaseFilters() {
+  document.getElementById('cf-student').value = '';
+  document.getElementById('cf-grade').value   = '';
+  document.getElementById('cf-course').value  = '';
+  document.getElementById('cf-status').value  = 'open';
+  _caseTypePill = 'all';
+  setCaseTypePill('all');
+  updateCourseFilter();
+  filterCases();
+}
+
+function filterCases() {
+  _casesPage = 0;
+  const q       = (document.getElementById('cf-student')?.value||'').toLowerCase().trim();
+  const status  = document.getElementById('cf-status')?.value || 'open';
+  const grade   = document.getElementById('cf-grade')?.value  || '';
+  const course  = document.getElementById('cf-course')?.value || '';
+
+  _cases = _allCases.filter(c => {
+    if (status === 'open'   && c.status !== 'open')   return false;
+    if (status === 'closed' && c.status !== 'closed') return false;
+    if (_caseTypePill !== 'all' && String(c.type) !== _caseTypePill) return false;
+    if (grade  && String(c.grade)  !== String(grade))  return false;
+    if (course && String(c.course) !== String(course)) return false;
+    if (q && !(c.student_name||'').toLowerCase().includes(q)) return false;
+    return true;
+  });
+  renderCasesPage();
+}
+
+function _updateBellBadge() {
+  const openCount = _allCases.filter(c => c.status === 'open').length;
+  const badge = document.getElementById('tb-bell-badge');
+  const navBadge = document.getElementById('nav-cases-badge');
+  if (badge) {
+    badge.textContent = openCount > 99 ? '99+' : openCount;
+    badge.style.display = openCount > 0 ? 'flex' : 'none';
+  }
+  if (navBadge) {
+    navBadge.textContent = openCount > 99 ? '99+' : openCount;
+    navBadge.style.display = openCount > 0 ? '' : 'none';
+  }
+}
+
+function renderCasesPage() {
+  const total = _cases.length;
+  const start = _casesPage * CASES_PER_PAGE;
+  const page  = _cases.slice(start, start + CASES_PER_PAGE);
+  document.getElementById('cases-badge').textContent = total + ' caso' + (total!==1?'s':'');
+  if (!page.length) {
+    document.getElementById('cases-bd').innerHTML='<div class="empty" style="padding:1.5rem;"><div class="ei">📋</div>Sin casos con estos filtros.</div>';
+    document.getElementById('cases-pagination').style.display='none';
+    return;
+  }
+  const TYPE_LABEL={1:'Tipo 1',2:'Tipo 2',3:'Tipo 3'};
+  const TYPE_COLOR={1:'#f59e0b',2:'#f97316',3:'#dc2626'};
+  document.getElementById('cases-bd').innerHTML = `<div style="padding:.2rem 0;">` + page.map(c=>{
+    const tc = TYPE_COLOR[c.type]||'#94a3b8';
+    const statusPill = c.status==='open'?'<span class="pill-open">Abierto</span>':'<span class="pill-closed">Cerrado</span>';
+    const gradeCourse = c.grade ? `${c.grade}°${c.course||''}` : '';
+    return `<div class="c-row" style="padding:.5rem 1.35rem;gap:.6rem;">
+      <span style="display:inline-flex;align-items:center;gap:.25rem;font-size:.7rem;font-weight:700;padding:.14rem .5rem;border-radius:6px;background:${tc}22;color:${tc};flex-shrink:0;">${TYPE_LABEL[c.type]||'T?'}</span>
+      ${statusPill}
+      <span style="font-weight:600;font-size:.82rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+            title="${esc(c.student_name||'')} — ${esc(c.description||'')}">
+        ${esc(c.student_name||'—')}
+        ${gradeCourse?`<span style="font-weight:400;color:var(--gray);font-size:.75rem;"> · ${esc(gradeCourse)}</span>`:''}
+      </span>
+      <span style="font-size:.72rem;color:var(--gray);white-space:nowrap;flex-shrink:0;">${formatDateCO(c.created_at)}</span>
+      <button class="btn-sm" onclick="openFichaByName('${esc(c.student_name||'')}')">Ver ficha</button>
+    </div>`;
+  }).join('') + `</div>`;
+  const totalPages=Math.ceil(total/CASES_PER_PAGE);
+  const pag=document.getElementById('cases-pagination');
+  if(totalPages>1){
+    pag.style.display='flex';
+    document.getElementById('cases-page-info').textContent=`Página ${_casesPage+1} de ${totalPages} · ${total} casos`;
+    document.querySelectorAll('#cases-pagination .btn-sm')[0].disabled=_casesPage===0;
+    document.querySelectorAll('#cases-pagination .btn-sm')[1].disabled=_casesPage>=totalPages-1;
+  } else { pag.style.display='none'; }
+}
+
+function changeCasePage(dir){
+  const totalPages=Math.ceil(_cases.length/CASES_PER_PAGE);
+  _casesPage=Math.max(0,Math.min(totalPages-1,_casesPage+dir));
+  renderCasesPage();
+  document.getElementById('section-casos').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function openFichaByName(name) {
+  const lname = name.toLowerCase();
+  const s = _students.find(st=>
+    (st.first_name+' '+st.last_name).toLowerCase()===lname ||
+    (st.last_name+' '+st.first_name).toLowerCase()===lname ||
+    (st.last_name+', '+st.first_name).toLowerCase()===lname
+  );
+  if(s){openFicha(s.id,name,s.grade?s.grade+'°'+(s.course||''):'');}
+  else{toast('Busca al estudiante por nombre para ver su ficha','warning');}
+}
+
+// ── INSIGHTS (Riesgo + Asistencia por grado) ──
+async function loadInsights() {
+  const data = await window.RAICE.fetchRectorInsights(api);
+  if (!data) return;
+  _insights = data;
+  renderRisk(data.students_at_risk || []);
+  renderGrades(data.grade_ranking   || []);
+  renderExcusasRecientes(data.excusas_summary || {});
+  _populateAttGradeSelects(data.grade_ranking || [], data.students_at_risk || []);
+  renderAttByGrade();
+}
+
+function _populateAttGradeSelects(ranking, riskList) {
+  const gradesFromRanking = ranking.map(g => g.name || (g.grade ? g.grade+'°' : null)).filter(Boolean);
+  const gradesFromRisk    = [...new Set(riskList.map(s => s.course).filter(Boolean))];
+  const all = [...new Set([...gradesFromRanking, ...gradesFromRisk])].sort();
+  ['threshold-grade','att-grade-filter'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Todos los grados</option>'
+      + all.map(g=>`<option value="${g}">${g}</option>`).join('');
+  });
+}
+
+function renderRisk(list) {
+  const sorted = list.slice().sort((a,b)=>(b.risk_score||0)-(a.risk_score||0));
+
+  // Full list in riesgo section
+  const el = document.getElementById('risk-bd');
+  if (el) {
+    if (!sorted.length) { el.innerHTML='<div class="empty"><div class="ei">✓</div>Sin estudiantes en riesgo.</div>'; }
+    else {
+      el.innerHTML = sorted.slice(0,30).map(s => _riskRow(s, true)).join('');
+    }
+  }
+
+  // Mini top-5 in dashboard
+  const dash = document.getElementById('dash-risk-bd');
+  if (dash) {
+    if (!sorted.length) { dash.innerHTML='<div class="empty" style="font-size:.8rem;padding:.5rem;">Sin alertas activas.</div>'; }
+    else {
+      dash.innerHTML = sorted.slice(0,5).map(s => _riskRow(s, false)).join('');
+    }
+  }
+}
+
+function _riskRow(s, showBtn) {
+  const risk   = classifyRisk ? classifyRisk(s.risk_score) : {label:'—', color:'#94a3b8'};
+  const name   = s.name || ((s.last_name||'') + ', ' + (s.first_name||''));
+  const course = s.course || (s.grade ? s.grade+'°'+(s.course_num||'') : '');
+  return `<div class="c-row" style="cursor:pointer;padding:.4rem .9rem;" onclick="openFichaByName('${esc(name)}')">
+    <span style="width:8px;height:8px;border-radius:50%;background:${risk.color||'#94a3b8'};flex-shrink:0;display:inline-block;"></span>
+    <span style="font-weight:600;flex:1;font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(name)}</span>
+    <span style="font-size:.7rem;color:var(--gray);flex-shrink:0;">${esc(course)}</span>
+    <span style="font-size:.68rem;font-weight:700;padding:.1rem .35rem;border-radius:5px;background:#fee2e2;color:#991b1b;flex-shrink:0;">${risk.label||'—'}</span>
+  </div>`;
+}
+
+function renderGrades(ranking) {
+  const el = document.getElementById('grade-bd');
+  if (!el) return;
+  if (!ranking.length) { el.innerHTML='<div class="empty"><div class="ei">📊</div>Sin datos.</div>'; return; }
+  el.innerHTML = ranking.slice(0,8).map(g => {
+    const pct   = g.pct !== undefined ? g.pct : (g.attendance_pct || 0);
+    const label = g.name || (g.grade ? g.grade+'°' : '—');
+    const color = pct>=90?'#16a34a':pct>=75?'#ca8a04':'#dc2626';
+    return `<div class="g-row">
+      <span class="g-lbl">${esc(label)}</span>
+      <div class="g-track"><div class="g-fill" style="width:${pct}%;background:${color};"></div></div>
+      <span class="g-pct" style="color:${color};">${pct}%</span>
+    </div>`;
+  }).join('');
+}
+
+// ── ATTENDANCE TABS ──
+function switchAttTab(tabId, btn) {
+  document.querySelectorAll('.att-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.att-tab-content').forEach(t => t.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const content = document.getElementById('atab-' + tabId);
+  if (content) content.classList.add('active');
+  if (tabId === 'por-grado') renderAttByGrade();
+  if (tabId === 'umbral')    renderAttThreshold();
+}
+
+function renderAttByGrade() {
+  const el = document.getElementById('att-grade-bd');
+  if (!el || !_insights) return;
+  const ranking = (_insights.grade_ranking || []).slice();
+  const sort = document.getElementById('ag-sort')?.value || 'pct-asc';
+  if (sort === 'pct-asc')  ranking.sort((a,b)=>(a.pct??100)-(b.pct??100));
+  if (sort === 'pct-desc') ranking.sort((a,b)=>(b.pct??0)-(a.pct??0));
+  if (sort === 'name')     ranking.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+
+  if (!ranking.length) { el.innerHTML='<div class="empty"><div class="ei">📊</div>Sin datos de asistencia.</div>'; return; }
+
+  el.innerHTML = `<div style="overflow-x:auto;"><table class="grade-table" style="width:100%;">
+    <thead><tr>
+      <th>Grado / Curso</th>
+      <th style="text-align:center;">% Asist.</th>
+      <th>Barra</th>
+      <th style="text-align:center;">Total reg.</th>
+    </tr></thead><tbody>
+    ${ranking.map(g => {
+      const pct   = g.pct !== undefined ? g.pct : (g.attendance_pct || 0);
+      const label = g.name || (g.grade ? g.grade+'°' : '—');
+      const color = pct>=90?'#16a34a':pct>=75?'#ca8a04':'#dc2626';
+      return `<tr>
+        <td style="font-weight:600;padding:.4rem .8rem;">${esc(label)}</td>
+        <td style="text-align:center;font-weight:700;color:${color};padding:.4rem .6rem;">${pct}%</td>
+        <td style="padding:.4rem .8rem;min-width:120px;">
+          <div class="pct-bar-wrap"><div style="width:${pct}%;height:100%;background:${color};border-radius:4px;transition:width .3s;"></div></div>
+        </td>
+        <td style="text-align:center;color:var(--gray);font-size:.8rem;padding:.4rem .6rem;">${g.total||'—'}</td>
+      </tr>`;
+    }).join('')}
+    </tbody></table></div>`;
+}
+
+function renderAttThreshold() {
+  const el = document.getElementById('att-threshold-bd');
+  if (!el || !_insights) return;
+  const threshold   = parseInt(document.getElementById('att-threshold')?.value || '40');
+  const gradeFilter = document.getElementById('threshold-grade')?.value || '';
+
+  let list = (_insights.students_at_risk || []).filter(s => (s.risk_score || 0) >= threshold);
+  if (gradeFilter) list = list.filter(s => (s.course||'') === gradeFilter);
+  list.sort((a,b) => (b.risk_score||0) - (a.risk_score||0));
+
+  if (!list.length) {
+    el.innerHTML = `<div class="empty"><div class="ei">✓</div>Sin estudiantes con puntaje ≥ ${threshold}${gradeFilter?' en '+gradeFilter:''}.</div>`;
+    return;
+  }
+
+  el.innerHTML = `
+  <div style="font-size:.78rem;color:var(--gray);margin-bottom:.75rem;padding:.1rem 0;">
+    <strong style="color:var(--navy);">${list.length}</strong> estudiante${list.length!==1?'s':''} con puntaje de riesgo ≥ ${threshold}${gradeFilter?' · '+gradeFilter:''}
+  </div>
+  <div style="overflow-x:auto;width:100%;"><table class="grade-table" style="width:100%;min-width:480px;">
+    <thead><tr>
+      <th>Estudiante</th>
+      <th style="text-align:center;">Grado</th>
+      <th style="text-align:center;">% Asist.</th>
+      <th style="text-align:center;">Casos</th>
+      <th style="text-align:center;">Puntaje riesgo</th>
+      <th></th>
+    </tr></thead><tbody>
+    ${list.map(s => {
+      const name   = s.name || ((s.last_name||'') + ', ' + (s.first_name||''));
+      const course = s.course || '—';
+      const attPct = s.att_pct != null ? s.att_pct : '—';
+      const attColor = s.att_pct != null ? (s.att_pct>=90?'#16a34a':s.att_pct>=75?'#ca8a04':'#dc2626') : 'var(--gray)';
+      const score  = s.risk_score || 0;
+      const scoreColor = score>=70?'#dc2626':score>=40?'#f59e0b':'#64748b';
+      const scoreBg    = score>=70?'#fee2e2':score>=40?'#fef3c7':'#f1f5f9';
+      return `<tr>
+        <td style="font-weight:600;padding:.42rem .8rem;font-size:.83rem;">${esc(name)}</td>
+        <td style="text-align:center;color:var(--gray);font-size:.8rem;padding:.42rem .6rem;">${esc(course)}</td>
+        <td style="text-align:center;font-weight:700;color:${attColor};padding:.42rem .6rem;">${attPct !== '—' ? attPct+'%' : '—'}</td>
+        <td style="text-align:center;padding:.42rem .6rem;">${s.open_cases||0}</td>
+        <td style="text-align:center;padding:.42rem .6rem;">
+          <span style="display:inline-block;font-size:.75rem;font-weight:700;padding:.14rem .5rem;border-radius:6px;background:${scoreBg};color:${scoreColor};">${score}</span>
+        </td>
+        <td style="padding:.42rem .8rem;">
+          <button class="btn-sm" onclick="openFichaByName('${esc(name)}')">Ver ficha</button>
+        </td>
+      </tr>`;
+    }).join('')}
+    </tbody></table></div>`;
+}
+
+function renderExcusasRecientes(summary) {
+  const el = document.getElementById('excusas-recent-bd');
+  const recent = (summary && summary.recent) || [];
+  if (!recent.length) { el.innerHTML='<div class="empty"><div class="ei">✓</div>Sin excusas esta semana.</div>'; return; }
+  el.innerHTML = recent.map(e=>`<div class="exc-item">
+    <div class="exc-name">${esc(e.student_name||'—')}</div>
+    <div class="exc-meta">${formatDateCO(e.date)} · ${esc(e.motivo||'')}${e.horas&&e.horas.length?' · Horas: '+e.horas.join(', '):''}
+    </div>
+  </div>`).join('');
+}
+
+// ── HORARIOS ──
+async function loadScheduleOverview() {
+  const data = await window.RAICE.fetchSchedulesOverview(api);
+  if (!data || !data.schedules) return;
+  _schedData = data.schedules;
+  const grades = {};
+  _schedData.filter(s=>s.type!=='subgroup').forEach(s=>{
+    const key=s.grade+'°'+(s.number||'');
+    if(!grades[key]) grades[key]={grade:s.grade,number:s.number};
+  });
+  const sorted=Object.entries(grades).sort((a,b)=>a[1].grade-b[1].grade||(a[1].number||0)-(b[1].number||0));
+  const sel=document.getElementById('sched-grade-select');
+  sel.innerHTML='<option value="">— Seleccionar grado —</option>'+sorted.map(([key])=>`<option value="${key}">${key}</option>`).join('');
+}
+
+function renderGradeSchedule() {
+  const key=document.getElementById('sched-grade-select').value;
+  const el=document.getElementById('sched-grade-table');
+  if(!key||!_schedData){el.innerHTML='<div class="empty">Selecciona un grado.</div>';return;}
+  const gradeScheds=_schedData.filter(s=>{const k=s.grade+'°'+(s.number||'');return k===key&&s.type!=='subgroup';});
+  if(!gradeScheds.length){el.innerHTML='<div class="empty">Sin horario configurado.</div>';return;}
+  const DL={1:'Lunes',2:'Martes',3:'Miércoles',4:'Jueves',5:'Viernes'};
+  const hours=[...new Set(gradeScheds.map(s=>s.class_hour))].sort((a,b)=>a-b);
+  const bydh={};
+  gradeScheds.forEach(s=>{bydh[s.day_of_week+'-'+s.class_hour]=s;});
+  let html='<div style="overflow-x:auto;"><table class="sched-table"><thead><tr><th>Hora</th>';
+  [1,2,3,4,5].forEach(d=>{html+=`<th>${DL[d]}</th>`;});
+  html+='</tr></thead><tbody>';
+  hours.forEach(h=>{
+    html+=`<tr><td style="font-weight:700;text-align:center;background:var(--light);white-space:nowrap;">${CLASS_HOUR_ORDINALS[h]||h+'ª'}</td>`;
+    [1,2,3,4,5].forEach(dow=>{
+      const s=bydh[dow+'-'+h];
+      html+=s?`<td><div class="sched-cell"><div class="sched-subj">${esc(s.subject||'—')}</div><div class="sched-teacher">${esc(s.teacher_name||'')}</div></div></td>`:'<td></td>';
+    });
+    html+='</tr>';
+  });
+  html+='</tbody></table></div>';
+  el.innerHTML=html;
+}
+
+// ── ASISTENCIA RANGO ──
+async function loadAttRange() {
+  const from = document.getElementById('att-from').value;
+  const to   = document.getElementById('att-to').value;
+  if (!from || !to) { toast('Selecciona ambas fechas','warning'); return; }
+  const gradeFilter = document.getElementById('att-grade-filter')?.value || '';
+  const el = document.getElementById('att-range-bd');
+  el.innerHTML = '<div class="empty"><div class="spin"></div></div>';
+  const data = await window.RAICE.fetchAttendance(api, {from, to});
+  if (!data || !data.length) { el.innerHTML='<div class="empty"><div class="ei">📋</div>Sin registros en ese período.</div>'; return; }
+
+  const byCourse = {};
+  data.forEach(r => {
+    const key = (r.grade||'?')+'°'+(r.course||'');
+    if (gradeFilter && key !== gradeFilter) return;
+    if (!byCourse[key]) byCourse[key] = {P:0,A:0,T:0,PE:0,total:0};
+    byCourse[key][r.status] = (byCourse[key][r.status]||0) + 1;
+    byCourse[key].total++;
+  });
+  const rows = Object.entries(byCourse).sort((a,b) => a[0].localeCompare(b[0]));
+  if (!rows.length) { el.innerHTML='<div class="empty"><div class="ei">📋</div>Sin registros para ese grado en el período.</div>'; return; }
+
+  el.innerHTML = `<div style="overflow-x:auto;"><table class="grade-table" style="width:100%;">
+    <thead><tr>
+      <th>Grado/Curso</th>
+      <th style="text-align:center;">Presentes</th>
+      <th style="text-align:center;">Ausentes</th>
+      <th style="text-align:center;">Tardanzas</th>
+      <th style="text-align:center;">Excusas</th>
+      <th style="text-align:center;">% Asist.</th>
+    </tr></thead><tbody>
+    ${rows.map(([k,v]) => {
+      const pct   = v.P+v.A+v.T > 0 ? Math.round((v.P+v.T)/(v.P+v.A+v.T)*100) : null;
+      const color = pct===null?'#64748b':pct>=90?'#16a34a':pct>=75?'#ca8a04':'#dc2626';
+      return `<tr>
+        <td style="font-weight:600;padding:.4rem .8rem;">${esc(k)}</td>
+        <td style="text-align:center;color:#16a34a;font-weight:600;padding:.4rem .6rem;">${v.P||0}</td>
+        <td style="text-align:center;color:#dc2626;font-weight:600;padding:.4rem .6rem;">${v.A||0}</td>
+        <td style="text-align:center;color:#f59e0b;font-weight:600;padding:.4rem .6rem;">${v.T||0}</td>
+        <td style="text-align:center;color:#6366f1;font-weight:600;padding:.4rem .6rem;">${v.PE||0}</td>
+        <td style="text-align:center;font-weight:700;color:${color};padding:.4rem .6rem;">${pct!==null?pct+'%':'—'}</td>
+      </tr>`;
+    }).join('')}
+    </tbody></table></div>`;
+}
+
+// ── PERFIL ──
+async function changeMyPassword() {
+  const current=document.getElementById('p-pwd-current').value;
+  const newPwd  =document.getElementById('p-pwd-new').value;
+  const confirm =document.getElementById('p-pwd-confirm').value;
+  if(!current||!newPwd){toast('Completa todos los campos','warning');return;}
+  if(newPwd!==confirm){toast('Las contraseñas no coinciden','error');return;}
+  if(newPwd.length<6){toast('Mínimo 6 caracteres','warning');return;}
+  const btn=document.getElementById('p-pwd-btn');
+  btn.disabled=true; btn.textContent='Guardando...';
+  const result=await window.RAICE.changePassword(api,current,newPwd);
+  btn.disabled=false; btn.textContent='Actualizar contraseña';
+  if(result.ok){
+    toast('Contraseña actualizada','info');
+    ['p-pwd-current','p-pwd-new','p-pwd-confirm'].forEach(id=>document.getElementById(id).value='');
+  } else { toast(result.error||'Contraseña actual incorrecta','error'); }
+}
+
+// ── REALTIME ──
+function initRealtime() {
+  var reload=function(){loadDashboard();loadCases();loadInsights();};
+  window.RAICE.initRealtime(api,[
+    {channel:'realtime:orientador-cases',table:'raice_cases',callback:reload},
+    {channel:'realtime:orientador-att',  table:'raice_attendance',callback:reload}
+  ],'Orientador');
+}
+
+// ── INIT ──
+initSession();
+loadStudents();
+loadDashboard();
+loadCases();
+loadInsights();
+loadScheduleOverview();
+window.addEventListener('load',()=>{setTimeout(initRealtime,2000);});
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      reg.addEventListener('updatefound', () => {
+        const newSW = reg.installing;
+        newSW.addEventListener('statechange', () => {
+          if (newSW.state === 'installed' && navigator.serviceWorker.controller) showUpdateBanner();
+        });
+      });
+    } catch(e) { console.warn('SW no disponible:', e); }
+  });
+  navigator.serviceWorker.addEventListener('message', e => {
+    if (e.data?.type === 'SW_UPDATED') showUpdateBanner();
+  });
+}
+var showUpdateBanner = window.RAICE.showUpdateBanner;
+</script>
+</body>
+</html>
