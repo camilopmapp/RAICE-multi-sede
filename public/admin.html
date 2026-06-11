@@ -369,6 +369,85 @@
     .att-tip-wrap:active .att-tip { display:block; }
   }
 
+  /* ═══ FICHA MODAL — diseño portal-acudiente (scoped) ═══ */
+  #modal-ficha .modal{max-width:760px;}
+  #modal-ficha .modal-body{padding:0;}
+  #modal-ficha .ficha-body{font-family:'DM Sans',sans-serif;}
+  #modal-ficha .student-card{background:var(--navy);color:#fff;padding:1.1rem 1.25rem;display:flex;align-items:center;gap:1rem;border-radius:0;}
+  #modal-ficha .student-avatar{width:48px;height:48px;border-radius:50%;background:var(--gold);color:var(--navy);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.1rem;flex-shrink:0;}
+  #modal-ficha .student-name{font-family:'Fraunces',serif;font-size:1.1rem;font-weight:700;}
+  #modal-ficha .student-meta{font-size:.8rem;color:rgba(255,255,255,.7);margin-top:.2rem;}
+  #modal-ficha .student-grade{background:var(--teal2);color:#fff;padding:.2rem .6rem;border-radius:6px;font-size:.78rem;font-weight:700;margin-left:.5rem;}
+  #modal-ficha .tabs{display:flex;gap:.4rem;margin-bottom:1.25rem;overflow-x:auto;padding-bottom:.25rem;}
+  #modal-ficha .tab{padding:.5rem 1rem;border-radius:9px;border:1.5px solid var(--border);background:#fff;color:var(--gray);font-size:.83rem;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit;transition:all .15s;}
+  #modal-ficha .tab.active{background:var(--teal);color:#fff;border-color:var(--teal);}
+  #modal-ficha .tab-content{display:none;}
+  #modal-ficha .tab-content.active{display:block;}
+  #modal-ficha .ficha-body .card{background:#fff;border-radius:12px;margin-bottom:1rem;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06);border:none;}
+  #modal-ficha .ficha-body .card:hover{box-shadow:0 1px 4px rgba(0,0,0,.06);transform:none;}
+  #modal-ficha .card-header{padding:.85rem 1.1rem;border-bottom:1px solid var(--border);font-weight:700;font-size:.9rem;color:var(--navy);}
+  #modal-ficha .card-body{padding:1rem 1.1rem;}
+  #modal-ficha .stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:.65rem;margin-bottom:1.1rem;}
+  #modal-ficha .stat-box{background:var(--light);border-radius:10px;padding:.75rem .5rem;text-align:center;}
+  #modal-ficha .stat-val{font-size:1.4rem;font-weight:700;color:var(--navy);}
+  #modal-ficha .stat-lbl{font-size:.73rem;color:var(--gray);margin-top:.15rem;}
+  #modal-ficha .att-list{display:flex;flex-direction:column;gap:.4rem;}
+  #modal-ficha .att-row{display:flex;align-items:center;gap:.75rem;padding:.5rem .65rem;border-radius:8px;background:var(--light);font-size:.84rem;}
+  #modal-ficha .att-badge{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;flex-shrink:0;}
+  #modal-ficha .att-P{background:#dcfce7;color:#15803d;}
+  #modal-ficha .att-A{background:#fee2e2;color:#dc2626;}
+  #modal-ficha .att-PE{background:#fef9c3;color:#854d0e;}
+  #modal-ficha .att-T{background:#fef3c7;color:#b45309;}
+  #modal-ficha .mini-cal{display:grid;grid-template-columns:repeat(5,1fr);gap:2px;margin-bottom:.65rem;}
+  #modal-ficha .cal-hdr{font-size:.6rem;font-weight:700;text-align:center;color:var(--gray);padding:.15rem 0;}
+  #modal-ficha .cal-month-lbl{grid-column:1/-1;font-size:.65rem;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.04em;padding:.35rem 0 .1rem;}
+  #modal-ficha .cal-day{height:24px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:.62rem;font-weight:500;}
+  #modal-ficha .cal-empty{background:transparent;}
+  #modal-ficha .cal-P{background:#dcfce7;color:#15803d;}
+  #modal-ficha .cal-A{background:#fee2e2;color:#dc2626;}
+  #modal-ficha .cal-PE{background:#fef9c3;color:#854d0e;}
+  #modal-ficha .cal-T{background:#fef3c7;color:#b45309;}
+  #modal-ficha .cal-nodata{background:var(--light);color:var(--gray);}
+  #modal-ficha .subj-table{width:100%;border-collapse:separate;border-spacing:0;font-size:.82rem;}
+  #modal-ficha .subj-table th{text-align:left;font-weight:600;color:var(--gray);font-size:.72rem;text-transform:uppercase;padding:.4rem .5rem;border-bottom:1.5px solid var(--border);}
+  #modal-ficha .subj-table td{padding:.55rem .5rem;border-bottom:1px solid var(--border);}
+  #modal-ficha .subj-table tr:last-child td{border-bottom:none;}
+  #modal-ficha .subj-pct{font-weight:700;font-size:.88rem;}
+  #modal-ficha .case-item{border-left:4px solid var(--border);padding:.75rem 1rem;margin-bottom:.65rem;background:var(--light);border-radius:0 8px 8px 0;}
+  #modal-ficha .case-t1{border-color:#f59e0b;}
+  #modal-ficha .case-t2{border-color:#f97316;}
+  #modal-ficha .case-t3{border-color:#dc2626;}
+  #modal-ficha .case-badge{display:inline-block;font-size:.72rem;font-weight:700;padding:.15rem .55rem;border-radius:5px;margin-bottom:.4rem;}
+  #modal-ficha .badge-t1{background:#fef3c7;color:#92400e;}
+  #modal-ficha .badge-t2{background:#ffedd5;color:#9a3412;}
+  #modal-ficha .badge-t3{background:#fee2e2;color:#991b1b;}
+  #modal-ficha .badge-closed{background:#f0fdf4;color:#15803d;font-size:.7rem;margin-left:.4rem;}
+  #modal-ficha .case-desc{font-size:.85rem;color:var(--navy);line-height:1.45;}
+  #modal-ficha .case-date{font-size:.75rem;color:var(--gray);margin-top:.35rem;}
+  #modal-ficha .obs-item{display:flex;gap:.75rem;margin-bottom:.65rem;}
+  #modal-ficha .obs-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:.35rem;}
+  #modal-ficha .obs-pos{background:#22c55e;}
+  #modal-ficha .obs-neu{background:#94a3b8;}
+  #modal-ficha .obs-neg{background:#dc2626;}
+  #modal-ficha .obs-text{font-size:.85rem;color:var(--navy);line-height:1.45;}
+  #modal-ficha .obs-date{font-size:.75rem;color:var(--gray);margin-top:.2rem;}
+  #modal-ficha .sanc-item{background:var(--light);border-radius:8px;padding:.75rem 1rem;margin-bottom:.65rem;}
+  #modal-ficha .sanc-badge{display:inline-block;font-size:.72rem;font-weight:700;padding:.15rem .55rem;border-radius:5px;margin-bottom:.4rem;}
+  #modal-ficha .sanc-susp{background:#fee2e2;color:#991b1b;}
+  #modal-ficha .sanc-rem{background:#fef3c7;color:#92400e;}
+  #modal-ficha .sanc-text{font-size:.85rem;color:var(--navy);}
+  #modal-ficha .sanc-date{font-size:.75rem;color:var(--gray);margin-top:.3rem;}
+  #modal-ficha .commit-item{border-left:4px solid var(--border);padding:.65rem 1rem;margin-bottom:.55rem;background:var(--light);border-radius:0 8px 8px 0;}
+  #modal-ficha .commit-pending{border-color:#f59e0b;}
+  #modal-ficha .commit-done{border-color:#22c55e;}
+  #modal-ficha .commit-overdue{border-color:#dc2626;}
+  #modal-ficha .director-card{display:flex;align-items:center;gap:.75rem;padding:.75rem 1rem;background:var(--light);border-radius:10px;margin-bottom:1.1rem;}
+  #modal-ficha .director-ico{width:38px;height:38px;border-radius:50%;background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;}
+  #modal-ficha .acud-item{display:flex;gap:.75rem;align-items:flex-start;padding:.55rem 0;border-bottom:1px solid var(--border);}
+  #modal-ficha .acud-item:last-child{border-bottom:none;}
+  #modal-ficha .acud-ico{width:32px;height:32px;border-radius:50%;background:#ede9fe;color:#7c3aed;display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0;margin-top:.1rem;}
+  #modal-ficha .empty-state{text-align:center;padding:2rem 1rem;color:var(--gray);font-size:.88rem;}
+
   </style>
 </head>
 <script src="/js/chart.umd.min.js"></script>
@@ -639,7 +718,7 @@
             <div style="font-weight:600;color:var(--navy);margin-bottom:.2rem;">Arrastra tu archivo Excel aquí o haz clic para seleccionarlo</div>
             <div style="font-size:.8rem;color:var(--gray);margin-top:.3rem;">
               <strong>Obligatorias:</strong> Nombres · Apellidos · Grado &nbsp;|&nbsp;
-              <strong>Opcionales:</strong> Curso · Tipo Doc · Documento · Fecha Nacimiento · Teléfono
+              <strong>Opcionales:</strong> Curso · Tipo Doc · Documento · Fecha Nacimiento · Teléfono · Acudiente · Parentesco · Teléfono Acudiente
             </div>
             <div style="font-size:.75rem;color:var(--gray);margin-top:.3rem;">Solo archivos .xlsx / .xls · Máx. 1000 filas</div>
           </div>
@@ -730,6 +809,7 @@
                 <tr>
                   <th>Estudiante</th>
                   <th>Grado · Curso</th>
+                  <th>Contacto</th>
                   <th>Asistencia mes</th>
                   <th>Casos</th>
                   <th>Estado</th>
@@ -2640,7 +2720,7 @@ function resetStudentFilters() {
 function renderStudents(list) {
   const tbody = document.getElementById('students-tbody');
   if (!list.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--gray);">Sin estudiantes</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--gray);">Sin estudiantes</td></tr>';
     return;
   }
   tbody.innerHTML = list.map(s => {
@@ -2648,6 +2728,12 @@ function renderStudents(list) {
     const attPct = s.att_pct ?? '—';
     const attColor = s.att_pct >= 90 ? 'var(--teal2)' : s.att_pct >= 75 ? 'var(--gold)' : 'var(--rose)';
     const statusPillHtml = s.status==='active'?'<span class="pill pill-green">Activo</span>':s.status==='desertor'?'<span class="pill pill-orange">🏃 Desertor</span>':s.status==='transferred'?'<span class="pill pill-yellow">Trasladado</span>':'<span class="pill pill-red">Retirado</span>';
+    // Contacto: teléfono del estudiante + acudientes (si existen)
+    let contacto = s.phone ? `<div style="font-size:.78rem;">📞 ${escHtml(s.phone)}</div>` : '';
+    (s.acudientes||[]).forEach(a => {
+      contacto += `<div style="font-size:.74rem;color:var(--gray);">👤 ${a.phone?escHtml(a.phone)+' · ':''}${escHtml(a.name)}${a.relationship?' ('+escHtml(a.relationship)+')':''}</div>`;
+    });
+    if (!contacto) contacto = '<span style="color:var(--gray);">—</span>';
     return `<tr>
       <td>
         <div style="display:flex;align-items:center;gap:.65rem;">
@@ -2656,6 +2742,7 @@ function renderStudents(list) {
         </div>
       </td>
       <td><strong>${gradeLbl(s.grade)}${s.course}</strong></td>
+      <td>${contacto}</td>
       <td>
         <div style="font-size:.82rem;font-weight:700;color:${attColor};">${attPct !== '—' ? attPct+'%' : '—'}</div>
         ${attPct !== '—' ? `<div class="att-bar" style="width:80px;"><div class="att-bar-fill" style="width:${attPct}%;background:${attColor};"></div></div>` : ''}
@@ -2850,10 +2937,31 @@ async function saveStudentAdmin() {
     notes:       document.getElementById('asa-notes').value.trim(),
   };
   const isNew = !id;
-  const { ok, data } = await fetchAPI('/raice/students', {
-    method: isNew ? 'POST' : 'PUT',
-    body: JSON.stringify(isNew ? payload : { id, ...payload })
-  });
+
+  // Enviar; maneja duplicado por documento (bloquea) y por nombre (advierte)
+  async function enviar(force) {
+    const body = isNew ? { ...payload, force } : { id, ...payload };
+    return await fetchAPI('/raice/students', {
+      method: isNew ? 'POST' : 'PUT',
+      body: JSON.stringify(body)
+    });
+  }
+
+  let { ok, data } = await enviar(false);
+
+  // Duplicado por documento → bloquear
+  if (!ok && data?.code === 'DUPLICATE_DOC') {
+    showToast(data.error, 'error');
+    return;
+  }
+  // Duplicado por nombre → confirmar si es la misma persona
+  if (ok && data?.warning === 'DUPLICATE_NAME') {
+    if (!confirm('⚠️ ' + data.message + '\n\nAceptar = crear de todas formas (es otra persona)\nCancelar = no crear')) {
+      return;
+    }
+    ({ ok, data } = await enviar(true));
+  }
+
   if (ok) {
     // Save acudientes
     const studentId = isNew ? data?.student?.id : id;
@@ -5295,130 +5403,314 @@ function handleSearchResult(type, id) {
 // =====================================================
 // STUDENT FICHA COMPLETA
 // =====================================================
-async function openStudentFicha(studentId) {
-  // Ensure modal exists
+let _fichaAdminStudentId = null;
+
+function aFmt(d) {
+  if (!d) return '—';
+  const dt = new Date(d + 'T12:00:00');
+  const m = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  return `${dt.getDate()} ${m[dt.getMonth()]} ${dt.getFullYear()}`;
+}
+
+const FICHA_MODAL_HTML = `
+  <div class="modal">
+    <div class="modal-header">
+      <div><h3>Ficha del Estudiante</h3></div>
+      <div style="margin-left:auto;display:flex;gap:.5rem;align-items:center;">
+        <button class="btn btn-ghost btn-sm no-print" id="ficha-acud-btn">👨‍👩‍👦 Acudientes</button>
+        <button class="btn btn-ghost btn-sm no-print" id="ficha-print-btn">🖨️ Imprimir</button>
+        <button class="modal-close" onclick="document.getElementById('modal-ficha').style.display='none'">✕</button>
+      </div>
+    </div>
+    <div class="modal-body" style="padding:0;">
+      <div class="ficha-body">
+        <div class="student-card">
+          <div class="student-avatar" id="fa-avatar">?</div>
+          <div>
+            <div class="student-name" id="fa-nombre">Cargando...</div>
+            <div class="student-meta" id="fa-meta"></div>
+          </div>
+        </div>
+        <div style="padding:1rem 1.1rem;">
+          <div id="fa-director-wrap" style="display:none;"></div>
+          <div id="fa-period-wrap" style="margin-bottom:.85rem;"></div>
+          <div class="tabs">
+            <button class="tab active" onclick="fichaAdminTab('asistencia',this)">📋 Asistencia</button>
+            <button class="tab" onclick="fichaAdminTab('casos',this)">🚨 Casos</button>
+            <button class="tab" onclick="fichaAdminTab('compromisos',this)">📝 Compromisos</button>
+            <button class="tab" onclick="fichaAdminTab('observaciones',this)">👁️ Observador</button>
+            <button class="tab" onclick="fichaAdminTab('sanciones',this)">⚖️ Disciplina</button>
+            <button class="tab" onclick="fichaAdminTab('acudientes',this)">👨‍👩‍👦 Datos</button>
+          </div>
+          <div class="tab-content active" id="fa-tab-asistencia">
+            <div class="stats-row" id="fa-stats-row"></div>
+            <div class="card">
+              <div class="card-header">Calendario reciente</div>
+              <div class="card-body">
+                <div class="mini-cal" id="fa-mini-cal"></div>
+                <div style="display:flex;gap:.75rem;flex-wrap:wrap;font-size:.73rem;color:var(--gray);margin-top:.25rem;">
+                  <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#dcfce7;margin-right:3px;"></span>Presente</span>
+                  <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#fee2e2;margin-right:3px;"></span>Ausente</span>
+                  <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#fef9c3;margin-right:3px;"></span>Excusa</span>
+                  <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#fef3c7;margin-right:3px;"></span>Tardanza</span>
+                  <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#f3f4f6;border:1px solid #e5e7eb;margin-right:3px;"></span>Sin datos</span>
+                </div>
+              </div>
+            </div>
+            <div class="card" id="fa-subj-card" style="display:none;">
+              <div class="card-header">Asistencia por asignatura</div>
+              <div class="card-body" id="fa-subj-body"></div>
+            </div>
+            <div class="card">
+              <div class="card-header">Detalle de inasistencias</div>
+              <div class="card-body" id="fa-att-detail"></div>
+            </div>
+            <div class="card" id="fa-excusas-card" style="display:none;">
+              <div class="card-header">Excusas registradas</div>
+              <div class="card-body" id="fa-excusas-body"></div>
+            </div>
+          </div>
+          <div class="tab-content" id="fa-tab-casos">
+            <div class="card"><div class="card-header">Anotaciones y casos de convivencia</div><div class="card-body" id="fa-casos-body"></div></div>
+          </div>
+          <div class="tab-content" id="fa-tab-compromisos">
+            <div class="card"><div class="card-header">Compromisos adquiridos</div><div class="card-body" id="fa-compromisos-body"></div></div>
+          </div>
+          <div class="tab-content" id="fa-tab-observaciones">
+            <div class="card"><div class="card-header">Observador del estudiante</div><div class="card-body" id="fa-obs-body"></div></div>
+          </div>
+          <div class="tab-content" id="fa-tab-sanciones">
+            <div class="card"><div class="card-header">Suspensiones</div><div class="card-body" id="fa-susp-body"></div></div>
+            <div class="card"><div class="card-header">Retiros de clase</div><div class="card-body" id="fa-rem-body"></div></div>
+          </div>
+          <div class="tab-content" id="fa-tab-acudientes">
+            <div class="card"><div class="card-header">Datos del acudiente registrados</div><div class="card-body" id="fa-acud-body"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+
+function fichaAdminTab(name, btn) {
+  document.querySelectorAll('#modal-ficha .tab-content').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('#modal-ficha .tab').forEach(b=>b.classList.remove('active'));
+  const el = document.getElementById('fa-tab-'+name);
+  if (el) el.classList.add('active');
+  if (btn) btn.classList.add('active');
+}
+
+async function openStudentFicha(studentId, periodId) {
+  _fichaAdminStudentId = studentId;
   let modal = document.getElementById('modal-ficha');
   if (!modal) {
     modal = document.createElement('div');
     modal.id = 'modal-ficha';
     modal.className = 'modal-overlay';
-    modal.style.display = 'none';
-    modal.innerHTML = `
-      <div class="modal" style="max-width:720px;max-height:90vh;overflow-y:auto;">
-        <div class="modal-header">
-          <h3 id="ficha-title">Ficha del estudiante</h3>
-          <button class="modal-close" onclick="document.getElementById('modal-ficha').style.display='none'">✕</button>
-        </div>
-        <div id="ficha-body" style="padding:1.25rem;">
-          <div style="text-align:center;padding:2rem;color:var(--gray);">Cargando…</div>
-        </div>
-      </div>`;
+    modal.innerHTML = FICHA_MODAL_HTML;
     document.body.appendChild(modal);
   }
   modal.style.display = 'flex';
-  document.getElementById('ficha-body').innerHTML = '<div style="text-align:center;padding:2rem;color:var(--gray);">Cargando…</div>';
 
-  const { ok, data } = await fetchAPI(`/raice/student-ficha?id=${studentId}`);
-  if (!ok) { document.getElementById('ficha-body').innerHTML = '<div style="color:var(--rose);text-align:center;padding:2rem;">Error al cargar la ficha</div>'; return; }
+  // Reset
+  document.getElementById('fa-nombre').textContent = 'Cargando...';
+  document.getElementById('fa-meta').textContent = '';
+  document.getElementById('fa-avatar').textContent = '?';
+  document.querySelectorAll('#modal-ficha .tab-content').forEach(t=>t.classList.remove('active'));
+  document.getElementById('fa-tab-asistencia').classList.add('active');
+  document.querySelectorAll('#modal-ficha .tab').forEach((b,i)=>b.classList.toggle('active',i===0));
+  ['fa-stats-row','fa-mini-cal','fa-att-detail','fa-subj-body','fa-casos-body','fa-obs-body',
+   'fa-susp-body','fa-rem-body','fa-compromisos-body','fa-acud-body'].forEach(id=>{
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--gray);">Cargando…</div>';
+  });
 
-  const s    = data.student;
-  const att  = data.attendance;
-  const ordinals = ['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª'];
+  const { ok, data } = await fetchAPI(`/raice/student-ficha?id=${studentId}${periodId?'&period_id='+encodeURIComponent(periodId):''}`);
+  if (!ok) { showToast('Error al cargar la ficha','error'); modal.style.display='none'; return; }
 
-  // Build attendance mini-calendar (last 30 days)
-  const recentAtt = {};
-  (att.recent||[]).forEach(a => { if (!recentAtt[a.date]) recentAtt[a.date] = a.status; });
-  const attDates = Object.keys(recentAtt).sort().reverse().slice(0,20);
-  const attCells = attDates.map(d => {
-    const st = recentAtt[d];
-    const bg = st==='P'?'#dcfce7':st==='A'?'#fee2e2':st==='T'?'#fff7ed':'#fef9c3';
-    const col = st==='P'?'#16a34a':st==='A'?'#dc2626':st==='T'?'#c2410c':'#a16207';
-    const label = new Date(d+'T12:00:00').toLocaleDateString('es-CO',{day:'2-digit',month:'short'});
-    return `<div title="${label}" style="background:${bg};color:${col};border-radius:5px;padding:.2rem .4rem;font-size:.68rem;font-weight:700;">${label.split(' ')[0]}</div>`;
+  const s = data.student;
+
+  // Botones del header
+  const acudBtn = document.getElementById('ficha-acud-btn');
+  if (acudBtn) acudBtn.onclick = () => openAcudientesModal(s.id, s.first_name+' '+s.last_name);
+  const printBtn = document.getElementById('ficha-print-btn');
+  if (printBtn) printBtn.onclick = () => printFicha(s.id);
+
+  // Student card
+  document.getElementById('fa-avatar').textContent = ((s.first_name||'?')[0]+(s.last_name||'?')[0]).toUpperCase();
+  document.getElementById('fa-nombre').textContent = s.first_name+' '+s.last_name;
+  const courseNum = s.number || s.course || '';
+  document.getElementById('fa-meta').innerHTML =
+    `${s.doc_type||'CC'} ${s.doc_number||''} &nbsp;·&nbsp; Grado ${s.grade}°${courseNum}` +
+    (s.status!=='active'?` &nbsp;<span class="student-grade">${s.status==='graduated'?'Egresado':'Trasladado'}</span>`:'');
+
+  // Director
+  const dirWrap = document.getElementById('fa-director-wrap');
+  if (data.director && data.director.name) {
+    dirWrap.style.display = 'block';
+    dirWrap.innerHTML = `<div class="director-card"><div class="director-ico">👨‍🏫</div><div>
+      <div style="font-size:.88rem;font-weight:700;color:var(--navy);">${escHtml(data.director.name)}</div>
+      <div style="font-size:.75rem;color:var(--gray);">Director(a) de grado</div>
+    </div></div>`;
+  } else { dirWrap.style.display = 'none'; }
+
+  // Period selector
+  document.getElementById('fa-period-wrap').innerHTML = (data.periods && data.periods.length) ? `
+    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
+      <span style="font-size:.82rem;color:var(--gray);font-weight:600;">📅 Periodo:</span>
+      <select onchange="openStudentFicha('${s.id}',this.value)" style="padding:.45rem .65rem;border:1.5px solid #e5e7eb;border-radius:8px;font-size:.85rem;background:#fff;">
+        ${data.periods.map(p=>`<option value="${p.id}" ${data.selected_period_id===p.id?'selected':''}>${escHtml(p.name)}${p.active?' (activo)':''}</option>`).join('')}
+        <option value="all" ${data.selected_period_id==='all'?'selected':''}>Todo el año</option>
+      </select>
+    </div>` : '';
+
+  const att = data.att_records || data.attendance || [];
+  fichaAdminAtt(att);
+  fichaAdminSubj(data.att_by_subject || []);
+  fichaAdminExcusas(data.excusas || []);
+  fichaAdminCasos(data.cases || []);
+  fichaAdminCompromisos(data.commitments || []);
+  fichaAdminObs(data.observations || []);
+  fichaAdminSanciones(data.suspensions || [], data.removals || []);
+  fichaAdminAcud(data.acudientes || []);
+}
+
+function fichaAdminAtt(att) {
+  const cntP=att.filter(a=>a.status==='P').length, cntA=att.filter(a=>a.status==='A').length,
+        cntT=att.filter(a=>a.status==='T').length, cntPE=att.filter(a=>a.status==='PE').length,
+        cntS=att.filter(a=>a.status==='S').length, totalH=att.length;
+  const countable=totalH-cntS-cntPE;
+  const pct=countable>0?Math.round(((cntP+cntT)/countable)*100):(totalH-cntS>0?100:0);
+  document.getElementById('fa-stats-row').innerHTML=`
+    <div class="stat-box"><div class="stat-val" style="color:${pct>=80?'#16a34a':'#dc2626'}">${pct}%</div><div class="stat-lbl">Asistencia</div>
+      <div style="font-size:.67rem;color:var(--gray);margin-top:.25rem;">${totalH} hora${totalH!==1?'s':''} de clase</div></div>
+    <div class="stat-box"><div class="stat-val" style="color:${cntA>0?'#dc2626':'var(--navy)'}">${cntA}</div><div class="stat-lbl">Ausencias</div></div>
+    <div class="stat-box"><div class="stat-val" style="color:${cntT>0?'#d97706':'var(--navy)'}">${cntT}</div><div class="stat-lbl">Tardanzas</div></div>`;
+  // Calendario
+  const sp={A:4,T:3,PE:2,P:1,S:1}; const dm={};
+  for(const r of att){const c=dm[r.date];if(!c||(sp[r.status]||0)>(sp[c.status]||0))dm[r.date]=r;}
+  const MO=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const DH=['Lu','Ma','Mi','Ju','Vi'];
+  const today=new Date(), dow=(today.getDay()+6)%7;
+  const mon=new Date(today); mon.setDate(today.getDate()-dow);
+  const start=new Date(mon); start.setDate(mon.getDate()-28);
+  let ch=DH.map(d=>`<div class="cal-hdr">${d}</div>`).join(''), pm=-1;
+  for(let w=0;w<5;w++){
+    const mo=new Date(start); mo.setDate(start.getDate()+w*7);
+    const m=mo.getMonth();
+    if(m!==pm){ch+=`<div class="cal-month-lbl">${MO[m]} ${mo.getFullYear()}</div>`;pm=m;}
+    for(let d=0;d<5;d++){
+      const dt=new Date(mo); dt.setDate(mo.getDate()+d);
+      const k=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+      const iF=dt>today; const r=dm[k]; const st=r&&r.status;
+      ch+=`<div class="cal-day ${iF?'cal-empty':!st?'cal-nodata':st==='S'?'cal-P':'cal-'+st}" title="${k}">${dt.getDate()}</div>`;
+    }
+  }
+  document.getElementById('fa-mini-cal').innerHTML=ch;
+  // Detalle
+  const ORD=(window.RAICE&&window.RAICE.CLASS_HOUR_ORDINALS)||[];
+  const det=att.filter(a=>a.status==='A'||a.status==='T')
+    .sort((a,b)=>b.date.localeCompare(a.date)||(a.class_hour||0)-(b.class_hour||0)).slice(0,30);
+  if(!det.length){document.getElementById('fa-att-detail').innerHTML=`<div class="empty-state">✅ Sin inasistencias ni tardanzas registradas</div>`;return;}
+  const sl={A:'Ausente',T:'Tardanza'};
+  document.getElementById('fa-att-detail').innerHTML=`<div class="att-list">`+det.map(r=>`
+    <div class="att-row"><div class="att-badge att-${r.status}">${r.status}</div>
+      <div><div style="font-size:.84rem;font-weight:500;">${aFmt(r.date)}${r.class_hour?` · ${ORD[r.class_hour]||r.class_hour+'ª'} hora`:''}${r.subject?` · ${escHtml(r.subject)}`:''}</div>
+      <div style="font-size:.75rem;color:var(--gray);">${sl[r.status]||r.status}${r.teacher_name?` · 👤 ${escHtml(r.teacher_name)}`:''}</div></div>
+    </div>`).join('')+`</div>`;
+}
+
+function fichaAdminSubj(subjects) {
+  const card=document.getElementById('fa-subj-card'), el=document.getElementById('fa-subj-body');
+  if(!subjects.length){card.style.display='none';return;}
+  card.style.display='block';
+  el.innerHTML=`<table class="subj-table"><thead><tr><th>Asignatura</th><th style="text-align:center;">✅</th><th style="text-align:center;">❌</th><th style="text-align:center;">⏰</th><th style="text-align:center;">🤒</th><th style="text-align:center;">%</th></tr></thead><tbody>${
+    subjects.map(s=>{const pc=s.pct===null?'var(--gray)':s.pct>=80?'#16a34a':s.pct>=60?'#d97706':'#dc2626';
+      return `<tr><td style="font-weight:600;">${escHtml(s.subject)}</td><td style="text-align:center;">${s.present}</td>
+        <td style="text-align:center;color:${s.absent>0?'#dc2626':'inherit'}">${s.absent}</td>
+        <td style="text-align:center;">${s.late}</td><td style="text-align:center;">${s.permit}</td>
+        <td style="text-align:center;"><span class="subj-pct" style="color:${pc}">${s.pct!==null?s.pct+'%':'—'}</span></td></tr>`;
+    }).join('')}</tbody></table>`;
+}
+
+function fichaAdminExcusas(excusas) {
+  const card=document.getElementById('fa-excusas-card'), el=document.getElementById('fa-excusas-body');
+  if(!excusas.length){card.style.display='none';return;}
+  card.style.display='block';
+  el.innerHTML=`<div class="att-list">${excusas.map(e=>{
+    const ht=e.horas&&e.horas.length?`Horas: ${e.horas.join(', ')}`:'Día completo';
+    return `<div class="att-row"><div class="att-badge att-PE">🤒</div>
+      <div><div style="font-size:.84rem;font-weight:500;">${aFmt(e.date)} · <span style="color:var(--gray);font-weight:400;">${ht}</span></div>
+      <div style="font-size:.8rem;color:var(--navy);margin-top:.15rem;">${escHtml(e.motivo||'')}</div></div></div>`;
+  }).join('')}</div>`;
+}
+
+function fichaAdminCasos(cases) {
+  const el=document.getElementById('fa-casos-body');
+  if(!cases.length){el.innerHTML=`<div class="empty-state">✅ Sin casos RAICE registrados</div>`;return;}
+  const tl={1:'Tipo 1 · Situación de Aula',2:'Tipo 2 · Situación Escolar',3:'Tipo 3 · Situación Grave'};
+  el.innerHTML=cases.map(c=>`<div class="case-item case-t${c.type}">
+    <div style="display:flex;align-items:center;flex-wrap:wrap;gap:.35rem;margin-bottom:.4rem;">
+      <span class="case-badge badge-t${c.type}" style="margin-bottom:0;">${tl[c.type]||'Tipo '+c.type}</span>
+      ${c.status==='closed'?`<span class="case-badge badge-closed" style="margin-bottom:0;">Cerrado</span>`:'<span class="case-badge" style="background:#fef9c3;color:#854d0e;margin-bottom:0;">Abierto</span>'}
+    </div>
+    <div class="case-desc">${escHtml(c.description||'')}</div>
+    ${c.actions_taken?`<div style="font-size:.78rem;color:var(--navy);margin-top:.4rem;">🔧 <em>${escHtml(c.actions_taken)}</em></div>`:''}
+    ${c.falta_numeral?`<div style="font-size:.78rem;color:var(--gray);margin-top:.3rem;">📌 ${escHtml(c.falta_numeral)}${c.falta_descripcion?' — '+escHtml(c.falta_descripcion):''}</div>`:''}
+    <div class="case-date">📅 ${aFmt(c.created_at&&c.created_at.slice(0,10))}${c.teacher_name?` · 👤 ${escHtml(c.teacher_name)}`:''}</div>
+  </div>`).join('');
+}
+
+function fichaAdminObs(obs) {
+  const el=document.getElementById('fa-obs-body');
+  if(!obs.length){el.innerHTML=`<div class="empty-state">Sin observaciones registradas</div>`;return;}
+  const tl={positive:'Positiva',neutral:'Neutral',negative:'Negativa'};
+  el.innerHTML=`<div>`+obs.map(o=>`<div class="obs-item">
+    <div class="obs-dot obs-${o.type==='positive'?'pos':o.type==='negative'?'neg':'neu'}"></div>
+    <div><div class="obs-text">${escHtml(o.text||'')}</div>
+    <div class="obs-date">${tl[o.type]||o.type} · ${aFmt(o.created_at&&o.created_at.slice(0,10))}${o.teacher_name?` · 👤 ${escHtml(o.teacher_name)}`:''}</div></div>
+  </div>`).join('')+`</div>`;
+}
+
+function fichaAdminSanciones(suspensions, removals) {
+  document.getElementById('fa-susp-body').innerHTML=!suspensions.length
+    ?`<div class="empty-state">✅ Sin suspensiones registradas</div>`
+    :suspensions.map(s=>`<div class="sanc-item"><div><span class="sanc-badge sanc-susp">Suspensión</span></div>
+      <div class="sanc-text">${escHtml(s.reason||'')}</div>
+      <div class="sanc-date">Del ${aFmt(s.start_date)} al ${aFmt(s.end_date)}</div></div>`).join('');
+  document.getElementById('fa-rem-body').innerHTML=!removals.length
+    ?`<div class="empty-state">Sin retiros de clase registrados</div>`
+    :removals.map(r=>`<div class="sanc-item"><div><span class="sanc-badge sanc-rem">Retiro de clase</span></div>
+      <div class="sanc-text">${escHtml(r.reason||'')}</div>
+      <div class="sanc-date">${aFmt(r.date)}${r.class_hour?` · Hora ${r.class_hour}`:''}</div></div>`).join('');
+}
+
+function fichaAdminCompromisos(commitments) {
+  const el=document.getElementById('fa-compromisos-body');
+  if(!commitments.length){el.innerHTML=`<div class="empty-state">✅ Sin compromisos registrados</div>`;return;}
+  const _n=new Date(), td=`${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}`;
+  el.innerHTML=commitments.map(c=>{
+    const ov=!c.fulfilled&&c.due_date&&c.due_date<td;
+    const cls=c.fulfilled?'commit-done':ov?'commit-overdue':'commit-pending';
+    const badge=c.fulfilled?'<span style="font-size:.72rem;font-weight:700;padding:.15rem .55rem;border-radius:5px;background:#f0fdf4;color:#15803d;">✅ Cumplido</span>'
+      :ov?'<span style="font-size:.72rem;font-weight:700;padding:.15rem .55rem;border-radius:5px;background:#fee2e2;color:#991b1b;">⚠️ Vencido</span>'
+      :'<span style="font-size:.72rem;font-weight:700;padding:.15rem .55rem;border-radius:5px;background:#fef9c3;color:#854d0e;">⏳ Pendiente</span>';
+    return `<div class="commit-item ${cls}"><div style="margin-bottom:.35rem;">${badge}</div>
+      <div style="font-size:.85rem;color:var(--navy);line-height:1.45;">${escHtml(c.description||'')}</div>
+      ${c.due_date?`<div style="font-size:.75rem;color:var(--gray);margin-top:.3rem;">📅 Fecha límite: ${aFmt(c.due_date)}</div>`:''}
+      ${c.signed_by?`<div style="font-size:.75rem;color:var(--gray);margin-top:.15rem;">✍️ Firmado por: ${escHtml(c.signed_by)}</div>`:''}
+    </div>`;
   }).join('');
+}
 
-  document.getElementById('ficha-title').textContent = `${s.first_name} ${s.last_name}`;
-  document.getElementById('ficha-body').innerHTML = `
-    <!-- Header -->
-    <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem;padding-bottom:1rem;border-bottom:1px solid var(--border);">
-      <div style="width:56px;height:56px;border-radius:50%;background:var(--teal2);display:flex;align-items:center;justify-content:center;font-size:1.3rem;color:white;font-weight:700;flex-shrink:0;">
-        ${s.first_name[0]}${s.last_name[0]}
-      </div>
-      <div>
-        <div style="font-family:'Fraunces',serif;font-size:1.2rem;font-weight:700;">${s.first_name} ${s.last_name}</div>
-        <div style="font-size:.82rem;color:var(--gray);">${gradeLbl(s.grade)}${s.course} · ${s.doc_type||'Doc'}: ${s.doc_number||'—'}</div>
-      </div>
-      <div style="margin-left:auto;display:flex;gap:.5rem;">
-        <button class="btn btn-ghost btn-sm" onclick="openAcudientesModal('${s.id}','${s.first_name} ${s.last_name}')">👨‍👩‍👦 Acudientes</button>
-        <button class="btn btn-ghost btn-sm no-print" onclick="printFicha('${s.id}')">🖨️</button>
-      </div>
-    </div>
-
-    <!-- Stats row -->
-    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:.6rem;margin-bottom:.5rem;">
-      <div style="background:var(--bg);border-radius:12px;padding:.75rem;text-align:center;">
-        <div style="font-size:1.4rem;font-weight:700;color:${(att.pct||0)>=90?'var(--present)':(att.pct||0)>=75?'var(--gold)':'var(--rose)'};">${att.pct!==null?att.pct+'%':'—'}</div>
-        <div style="font-size:.7rem;color:var(--gray);">Asistencia</div>
-      </div>
-      <div style="background:#f0fdf4;border-radius:12px;padding:.75rem;text-align:center;">
-        <div style="font-size:1.4rem;font-weight:700;color:#16a34a;">${att.present||0}</div>
-        <div style="font-size:.7rem;color:var(--gray);">✅ Presentes</div>
-      </div>
-      <div style="background:#fdf4ff;border-radius:12px;padding:.75rem;text-align:center;">
-        <div style="font-size:1.4rem;font-weight:700;color:#7c3aed;">${att.permit||0}</div>
-        <div style="font-size:.7rem;color:var(--gray);">🤒 Permisos</div>
-      </div>
-      <div style="background:#fef2f2;border-radius:12px;padding:.75rem;text-align:center;">
-        <div style="font-size:1.4rem;font-weight:700;color:var(--rose);">${att.absent||0}</div>
-        <div style="font-size:.7rem;color:var(--gray);">❌ Ausencias</div>
-      </div>
-      <div style="background:#fffbeb;border-radius:12px;padding:.75rem;text-align:center;">
-        <div style="font-size:1.4rem;font-weight:700;color:var(--gold);">${att.late||0}</div>
-        <div style="font-size:.7rem;color:var(--gray);">⏰ Tardanzas</div>
-      </div>
-    </div>
-    <div style="font-size:.65rem;color:var(--gray);text-align:center;margin-bottom:1.25rem;text-transform:uppercase;letter-spacing:.02em;">
-      Estadísticas calculadas en <b>horas de clase</b> para mayor precisión
-    </div>
-
-    <!-- Attendance mini calendar -->
-    ${attCells ? `<div style="margin-bottom:1.25rem;">
-      <div style="font-size:.78rem;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.5rem;">Asistencia reciente</div>
-      <div style="display:flex;flex-wrap:wrap;gap:.25rem;">${attCells}</div>
-    </div>` : ''}
-
-    <!-- Cases -->
-    ${data.cases?.length ? `<div style="margin-bottom:1.25rem;">
-      <div style="font-size:.78rem;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.5rem;">Casos RAICE (${data.cases.length})</div>
-      ${data.cases.map(c=>`
-        <div style="display:flex;align-items:center;gap:.75rem;padding:.55rem .75rem;background:var(--bg);border-radius:10px;margin-bottom:.35rem;">
-          <span style="background:${c.type===1?'#fef9c3':c.type===2?'#fee2e2':'#ede9fe'};color:${c.type===1?'#92400e':c.type===2?'#991b1b':'#6d28d9'};padding:.15rem .5rem;border-radius:6px;font-size:.72rem;font-weight:700;">Tipo ${c.type}</span>
-          <span style="flex:1;font-size:.82rem;">${(c.description||'').substring(0,60)}${c.description?.length>60?'…':''}</span>
-          <span style="font-size:.75rem;color:var(--gray);">${formatDate(c.created_at)}</span>
-          <span class="pill ${c.status==='open'?'pill-red':'pill-green'}" style="font-size:.7rem;">${c.status==='open'?'Abierto':'Cerrado'}</span>
-        </div>`).join('')}
-    </div>` : ''}
-
-    <!-- Observations -->
-    ${data.observations?.length ? `<div style="margin-bottom:1.25rem;">
-      <div style="font-size:.78rem;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.5rem;">Observaciones (${data.observations.length})</div>
-      ${data.observations.slice(0,5).map(o=>`
-        <div style="padding:.55rem .75rem;background:var(--bg);border-radius:10px;margin-bottom:.35rem;">
-          <div style="font-size:.82rem;">${o.text}</div>
-          <div style="font-size:.72rem;color:var(--gray);margin-top:.2rem;">${o.teacher_name} · ${formatDate(o.created_at)}</div>
-        </div>`).join('')}
-    </div>` : ''}
-
-    <!-- Commitments -->
-    ${data.commitments?.length ? `<div>
-      <div style="font-size:.78rem;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.5rem;">Compromisos</div>
-      ${data.commitments.map(c=>`
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem .75rem;background:var(--bg);border-radius:10px;margin-bottom:.35rem;">
-          <span style="font-size:.82rem;flex:1;">${c.description}</span>
-          <span class="pill ${c.fulfilled?'pill-green':'pill-yellow'}" style="font-size:.7rem;margin-left:.5rem;">${c.fulfilled?'✅ Cumplido':'⏳ Pendiente'}</span>
-        </div>`).join('')}
-    </div>` : ''}
-  `;
+function fichaAdminAcud(acudientes) {
+  const el=document.getElementById('fa-acud-body');
+  if(!acudientes.length){el.innerHTML=`<div class="empty-state">No hay datos de acudiente registrados.</div>`;return;}
+  el.innerHTML=acudientes.map(a=>`<div class="acud-item"><div class="acud-ico">👤</div>
+    <div><div style="font-size:.88rem;font-weight:600;color:var(--navy);">${escHtml(a.name)}</div>
+    <div style="font-size:.78rem;color:var(--gray);margin-top:.1rem;">${a.relationship||'Acudiente'}</div>
+    ${a.phone?`<div style="font-size:.82rem;color:var(--navy);margin-top:.25rem;">📞 ${escHtml(a.phone)}</div>`:''}
+    ${a.email?`<div style="font-size:.82rem;color:var(--navy);margin-top:.1rem;">✉️ ${escHtml(a.email)}</div>`:''}
+  </div></div>`).join('');
 }
 
 async function printFicha(studentId) {
@@ -5822,14 +6114,24 @@ async function confirmDeleteCalendarEvent() {
 // =====================================================
 // MAPA ESCOLAR — Vista institucional en tiempo real
 // =====================================================
-let _mapaData  = null;
-let _mapaTab   = 'ahora';
-let _mapaTimer = null;
+let _mapaData    = null;
+let _mapaTab     = 'ahora';
+let _mapaTimer   = null;
+let _mapaHoliday = null;   // info de festivo/evento de HOY ({ blocks_attendance, event, ... })
+
+// Iconos por tipo de evento que bloquea asistencia
+const _MAPA_EVENT_ICON = {
+  holiday:'🔴', vacation:'🟢', teacher_meeting:'🔵',
+  union_day:'🟣', institutional_day:'🟤'
+};
 
 async function loadMapaEscolar() {
   document.getElementById('mapa-hora-actual').innerHTML =
     '<div class="card-body" style="padding:1rem;color:var(--gray);">⏳ Cargando…</div>';
   document.getElementById('mapa-ahora-grid').innerHTML = '';
+
+  // Saber si hoy es festivo / día no lectivo (para no mostrar clases "en curso")
+  _mapaHoliday = await window.RAICE.fetchCalendarToday(fetchAPI);
 
   const data = await window.RAICE.fetchSchedulesOverview(fetchAPI);
   if (!data.schedules.length && !data.bell_schedule.length) { showToast('Error al cargar el mapa escolar', 'error'); return; }
@@ -5878,6 +6180,23 @@ function mapaRenderAhora() {
   const gridEl   = document.getElementById('mapa-ahora-grid');
   const ORD = CLASS_HOUR_ORDINALS;
   const DAYS = DAYS_OF_WEEK;
+
+  // Día no lectivo (festivo/vacaciones/jornada): no hay clases en curso.
+  // Mostrar aviso en vez de pintar todos los cursos como "Pendiente".
+  if (_mapaHoliday?.blocks_attendance) {
+    const ev = _mapaHoliday.event || {};
+    const nm = ev.name || 'día no lectivo';
+    const ic = _MAPA_EVENT_ICON[ev.type] || '🎌';
+    headerEl.innerHTML = `<div class="card-body" style="display:flex;align-items:center;gap:1rem;padding:1.25rem;flex-wrap:wrap;">
+      <div style="font-size:2rem;flex-shrink:0;">${ic}</div>
+      <div>
+        <div style="font-family:'Fraunces',serif;font-size:1.2rem;font-weight:800;color:var(--navy);">Hoy es ${nm}</div>
+        <div style="font-size:.85rem;color:var(--gray);margin-top:.15rem;">Día no lectivo — no hay clases programadas. No se registra asistencia.</div>
+      </div>
+    </div>`;
+    gridEl.innerHTML = '';
+    return;
+  }
 
   if (today_dow >= 6) {
     headerEl.innerHTML = '<div class="card-body" style="padding:1rem;color:var(--gray);text-align:center;">📅 Hoy es fin de semana.</div>';
@@ -5993,7 +6312,22 @@ function mapaCargarCursos() {
   document.getElementById('mapa-grupo-grid').innerHTML = '';
 }
 
-function _mapaWeekGrid(slots, cellFn, bell_schedule, today_dow) {
+// Banner de "día no lectivo" para las rejillas semanales (Por grupo / Por docente).
+// Devuelve '' si hoy no es festivo.
+function _mapaHolidayBanner() {
+  if (!_mapaHoliday?.blocks_attendance) return '';
+  const ev = _mapaHoliday.event || {};
+  const nm = ev.name || 'día no lectivo';
+  const ic = _MAPA_EVENT_ICON[ev.type] || '🎌';
+  return `<div style="display:flex;align-items:center;gap:.7rem;padding:.7rem 1rem;margin-bottom:.85rem;background:#fee2e2;border:1px solid #fecaca;border-radius:12px;">
+    <span style="font-size:1.3rem;flex-shrink:0;">${ic}</span>
+    <div style="font-size:.85rem;color:#991b1b;line-height:1.35;">
+      <strong>Hoy es ${nm}</strong> — día no lectivo. El horario de abajo es la programación semanal habitual.
+    </div>
+  </div>`;
+}
+
+function _mapaWeekGrid(slots, cellFn, bell_schedule, today_dow, holidayToday) {
   if (!slots.length) return '<div style="color:var(--gray);padding:1rem 0;">Sin horario cargado.</div>';
   const slotMap = {};
   slots.forEach(s => {
@@ -6008,19 +6342,26 @@ function _mapaWeekGrid(slots, cellFn, bell_schedule, today_dow) {
     ? bell_schedule.map(b => b.class_hour)
     : [...new Set(slots.map(s => s.class_hour))].sort((a,b) => a-b);
 
-  const headCells = [1,2,3,4,5].map(d =>
-    `<th style="padding:.55rem .65rem;font-size:.73rem;font-weight:700;text-align:center;${d===today_dow?'background:rgba(20,184,176,.25);':''}">${DAYS[d]}</th>`
-  ).join('');
+  const headCells = [1,2,3,4,5].map(d => {
+    const todayHL = d === today_dow
+      ? (holidayToday ? 'background:rgba(220,38,38,.14);' : 'background:rgba(20,184,176,.25);')
+      : '';
+    return `<th style="padding:.55rem .65rem;font-size:.73rem;font-weight:700;text-align:center;${todayHL}">${DAYS[d]}${d===today_dow&&holidayToday?' 🔴':''}</th>`;
+  }).join('');
 
   const rows = hours.map((h, i) => {
     const bell    = bellMap[h];
     const timeStr = bell?.start_time ? `<div style="font-size:.65rem;color:var(--gray);margin-top:.1rem;">${bell.start_time.substring(0,5)}</div>` : '';
     const rowBg   = i%2 !== 0 ? 'background:var(--light);' : '';
     const cells   = [1,2,3,4,5].map(d => {
-      const slot   = slotMap[d]?.[h];
-      const isNow  = d === today_dow;
+      const slot    = slotMap[d]?.[h];
+      const isToday = d === today_dow;
+      // En festivo, HOY no cuenta como "en curso": sin ⏳ ni estados de asistencia.
+      const isNow  = isToday && !holidayToday;
       const isPast = d < today_dow;
-      let cellBg = isNow ? 'background:rgba(20,184,176,.06);' : '';
+      let cellBg = isToday
+        ? (holidayToday ? 'background:rgba(220,38,38,.05);' : 'background:rgba(20,184,176,.06);')
+        : '';
       let badge  = '';
       if (slot && (isNow || isPast)) {
         if (slot.attendance_taken) {
@@ -6057,14 +6398,15 @@ function mapaRenderGrupo() {
   const el = document.getElementById('mapa-grupo-grid');
   if (!courseId) { el.innerHTML = ''; return; }
   const slots = _mapaData.schedules.filter(s => s.course_id === courseId);
-  el.innerHTML = _mapaWeekGrid(
+  el.innerHTML = _mapaHolidayBanner() + _mapaWeekGrid(
     slots,
     s => {
       const lbl = s.subject || (s.type === 'subgroup' ? (s.course_name || 'Clase') : '—');
       return `<div style="font-size:.8rem;font-weight:600;color:var(--navy);">${lbl}</div><div style="font-size:.73rem;color:var(--gray);">${s.teacher_name}</div>`;
     },
     _mapaData.bell_schedule,
-    _mapaData.today_dow
+    _mapaData.today_dow,
+    !!_mapaHoliday?.blocks_attendance
   );
 }
 
@@ -6074,14 +6416,15 @@ function mapaRenderDocente() {
   const el = document.getElementById('mapa-docente-grid');
   if (!teacherId) { el.innerHTML = ''; return; }
   const slots = _mapaData.schedules.filter(s => s.teacher_id === teacherId);
-  el.innerHTML = _mapaWeekGrid(
+  el.innerHTML = _mapaHolidayBanner() + _mapaWeekGrid(
     slots,
     s => {
       const lbl = s.type === 'subgroup' ? (s.course_name||'Subgrupo') : `${gradeLbl(s.grade)}${s.section||s.number}`;
       return `<div style="font-size:.8rem;font-weight:700;color:var(--navy);">${lbl}</div><div style="font-size:.73rem;color:var(--gray);">${s.subject || ''}</div>`;
     },
     _mapaData.bell_schedule,
-    _mapaData.today_dow
+    _mapaData.today_dow,
+    !!_mapaHoliday?.blocks_attendance
   );
 }
 
@@ -6224,11 +6567,18 @@ function adminProcessExcelFile(file) {
       const norm = s => String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
       const hdr  = rows[0].map(norm);
       const ci   = (names) => { for (const n of names) { const i = hdr.findIndex(h => h.includes(n)); if (i>=0) return i; } return -1; };
+      const ciExcept = (names, except) => { for (const n of names) { const i = hdr.findIndex((h,idx) => idx!==except && h.includes(n)); if (i>=0) return i; } return -1; };
       const iN=ci(['nombres','nombre']), iA=ci(['apellidos','apellido']), iG=ci(['grado','grade','nivel']);
       const iC=ci(['curso','course','grupo']), iT=ci(['tipo doc','tipo_doc']), iD=ci(['documento','cedula','doc']);
-      const iF=ci(['fecha nac','nacimiento','birth']), iP=ci(['telefono','celular','phone']);
+      const iF=ci(['fecha nac','nacimiento','birth']);
+      const iAc=ci(['acudiente','nombre acudiente','padre','madre','responsable']), iPar=ci(['parentesco','relacion']);
+      // Teléfono del acudiente (columna separada, opcional)
+      const iAcP=ci(['telefono acudiente','tel acudiente','celular acudiente','telefono padre','telefono madre','tel padre','tel madre']);
+      // Teléfono del estudiante: 'telefono'/'celular'/'phone' pero SIN tomar la columna del acudiente
+      const iP=ciExcept(['telefono','celular','phone'], iAcP);
       if (iN<0||iA<0||iG<0) { showToast('Faltan columnas: Nombres, Apellidos, Grado', 'error'); return; }
       const parseDate = (v) => { const n=Number(v); if(!isNaN(n)&&n>1000){const d=new Date((n-25569)*86400*1000);return isNaN(d)?null:d.toISOString().split('T')[0];} const s=String(v||'').trim(); return s.match(/^\d{4}-\d{2}-\d{2}$/)?s:null; };
+      const relValid = { 'padre':'Padre','madre':'Madre','responsable':'Responsable','acudiente':'Responsable' };
       _adminImportedData = rows.slice(1)
         .map(r => ({
           first_name: String(r[iN]||'').trim(), last_name: String(r[iA]||'').trim(),
@@ -6237,6 +6587,9 @@ function adminProcessExcelFile(file) {
           doc_number: iD>=0 ? (String(r[iD]||'').trim() || null) : undefined,
           birth_date: iF>=0 ? parseDate(r[iF]) : undefined,
           phone:      iP>=0 ? parsePhones(r[iP]) : undefined,
+          acudiente_name: iAc>=0 ? (String(r[iAc]||'').trim() || null) : null,
+          acudiente_relationship: iPar>=0 ? (relValid[String(r[iPar]||'').trim().toLowerCase()] || 'Responsable') : 'Responsable',
+          acudiente_phone: iAcP>=0 ? parsePhones(r[iAcP]) : null,
         }))
         .filter(s => s.first_name && s.last_name && s.grade > 0);
       if (!_adminImportedData.length) { showToast('No se encontraron filas válidas', 'error'); return; }
@@ -6250,26 +6603,28 @@ function adminShowImportPreview() {
   const withDoc=_adminImportedData.filter(s=>s.doc_number).length;
   const withDob=_adminImportedData.filter(s=>s.birth_date).length;
   const withPhone=_adminImportedData.filter(s=>s.phone).length;
+  const withAcud=_adminImportedData.filter(s=>s.acudiente_name).length;
   document.getElementById('admin-import-count').innerHTML =
     `📊 <strong>${_adminImportedData.length} estudiantes</strong> listos para importar`
     +(withDoc?` · 📄 ${withDoc} con documento`:'')
     +(withDob?` · 🎂 ${withDob} con fecha nac.`:'')
-    +(withPhone?` · 📞 ${withPhone} con teléfono`:'');
+    +(withPhone?` · 📞 ${withPhone} con teléfono`:'')
+    +(withAcud?` · 👤 ${withAcud} con acudiente`:'');
   const rows = _adminImportedData.slice(0,8).map(s=>`<tr>
     <td style="padding:.4rem .65rem;font-size:.82rem;">${s.first_name}</td>
     <td style="padding:.4rem .65rem;font-size:.82rem;">${s.last_name}</td>
     <td style="padding:.4rem .65rem;font-size:.82rem;"><strong>${gradeLbl(s.grade)}${s.course}</strong></td>
     <td style="padding:.4rem .65rem;font-size:.79rem;color:var(--gray);">${s.doc_type} ${s.doc_number||'—'}</td>
-    <td style="padding:.4rem .65rem;font-size:.79rem;color:var(--gray);">${s.birth_date||'—'}</td>
     <td style="padding:.4rem .65rem;font-size:.79rem;color:var(--gray);">${s.phone||'—'}</td>
+    <td style="padding:.4rem .65rem;font-size:.79rem;color:var(--gray);">${s.acudiente_name?escHtml(s.acudiente_name)+' ('+s.acudiente_relationship+')'+(s.acudiente_phone?' · 📞 '+escHtml(s.acudiente_phone):''):'—'}</td>
   </tr>`).join('');
   document.getElementById('admin-import-table-wrap').innerHTML = `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;min-width:460px;"><thead><tr style="background:var(--light);">
     <th style="text-align:left;padding:.4rem .65rem;font-size:.72rem;color:var(--gray);">Nombres</th>
     <th style="text-align:left;padding:.4rem .65rem;font-size:.72rem;color:var(--gray);">Apellidos</th>
     <th style="text-align:left;padding:.4rem .65rem;font-size:.72rem;color:var(--gray);">Grado·Curso</th>
     <th style="text-align:left;padding:.4rem .65rem;font-size:.72rem;color:var(--gray);">Documento</th>
-    <th style="text-align:left;padding:.4rem .65rem;font-size:.72rem;color:var(--gray);">Fecha Nac.</th>
     <th style="text-align:left;padding:.4rem .65rem;font-size:.72rem;color:var(--gray);">Teléfono</th>
+    <th style="text-align:left;padding:.4rem .65rem;font-size:.72rem;color:var(--gray);">Acudiente</th>
   </tr></thead><tbody>${rows}</tbody></table></div>`
   +(_adminImportedData.length>8?`<div style="font-size:.78rem;color:var(--gray);text-align:center;margin:.3rem 0;">…y ${_adminImportedData.length-8} más</div>`:'');
   document.getElementById('admin-import-preview').style.display='';
@@ -6376,14 +6731,14 @@ function adminCancelImport() {
 }
 
 function adminDownloadImportTemplate() {
-  const headers=['Nombres','Apellidos','Grado','Curso','Tipo Doc','Documento','Fecha Nacimiento','Telefono'];
+  const headers=['Nombres','Apellidos','Grado','Curso','Tipo Doc','Documento','Fecha Nacimiento','Telefono','Acudiente','Parentesco','Telefono Acudiente'];
   const examples=[
-    ['Carlos Andrés','Parra Gómez',7,1,'TI','1061234567','2011-03-15','3217654321'],
-    ['María José','López Ruiz',6,2,'TI','1062345678','2012-07-22',''],
-    ['Juan','Rodríguez',0,1,'RC','1063456789','2019-01-10','3134567890'],
+    ['Carlos Andrés','Parra Gómez',7,1,'TI','1061234567','2011-03-15','3217654321','Pedro Parra López','Padre','3001112233'],
+    ['María José','López Ruiz',6,2,'TI','1062345678','2012-07-22','3158889900','Ana Ruiz Díaz','Madre','3004445566'],
+    ['Juan','Rodríguez',0,1,'RC','1063456789','2019-01-10','3134567890','Marta Rodríguez','Responsable',''],
   ];
   const ws=XLSX.utils.aoa_to_sheet([headers,...examples]);
-  ws['!cols']=headers.map((_,i)=>({wch:[16,16,8,8,10,14,18,14][i]}));
+  ws['!cols']=headers.map((_,i)=>({wch:[16,16,8,8,10,14,18,14,22,14,16][i]}));
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'Estudiantes');
   XLSX.writeFile(wb,'formato_importacion_estudiantes.xlsx');
@@ -9809,20 +10164,41 @@ if (!navigator.onLine) showOfflineBanner();
 </div>
 
 <script>
+  // Refresco en vivo del Mapa escolar con debounce.
+  // Registrar una clase genera muchos inserts (uno por estudiante), por eso
+  // agrupamos los eventos y refrescamos una sola vez (~800ms después del último).
+  let _mapaRtTimer = null;
+  function _mapaRealtimeRefresh() {
+    if (currentSection !== 'mapa-escolar') return;
+    clearTimeout(_mapaRtTimer);
+    _mapaRtTimer = setTimeout(async () => {
+      const r = await window.RAICE.fetchSchedulesOverview(fetchAPI);
+      if (!r.schedules.length) return;
+      _mapaData = r;
+      if (_mapaTab === 'ahora')   mapaRenderAhora();
+      else if (_mapaTab === 'semana')  mapaRenderSemana();
+      else if (_mapaTab === 'grupo')   mapaRenderGrupo();
+      else if (_mapaTab === 'docente') mapaRenderDocente();
+      const lu = document.getElementById('mapa-last-update');
+      if (lu) lu.textContent = '↻ ' + new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' });
+    }, 800);
+  }
+
   // Supabase Realtime — usa shared/data/realtime.js
   function initRealtime() {
     window.RAICE.initRealtime(fetchAPI, [
       { channel: 'realtime:excusas', table: 'raice_excusas', callback: function() {
-        if (currentSection === 'sec-excusas') loadAdminExcusasList();
+        if (currentSection === 'excusas') loadAdminExcusasList();
       }},
       { channel: 'realtime:casos', table: 'raice_cases', callback: function() {
-        if (currentSection === 'sec-casos') loadCases();
+        if (currentSection === 'casos') loadCases();
       }},
       { channel: 'realtime:alertas', table: 'raice_alerts', callback: function() {
-        if (currentSection === 'sec-dashboard') loadAlerts();
+        if (currentSection === 'dashboard') loadAlerts();
       }},
       { channel: 'realtime:asistencia', table: 'raice_attendance', callback: function() {
-        if (currentSection === 'sec-asistencia') loadAttendance();
+        if (currentSection === 'asistencia') loadAttendance();
+        _mapaRealtimeRefresh();   // ← actualiza el Mapa escolar al instante
       }}
     ], 'Admin');
   }

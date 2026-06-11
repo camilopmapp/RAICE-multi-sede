@@ -129,6 +129,27 @@ public/shared/
 Todos los modulos se cargan como scripts regulares via window.RAICE (IIFE pattern).
 NO usar type="module" porque rompe el timing con scripts secundarios (PWA, Realtime).
 
+### 10.2 Lo que sigue PENDIENTE (estado real)
+
+La app sigue siendo **mayormente monolitica**. Solo la capa shared (~876 lineas) esta extraida.
+
+- Backend `pages/api/[...path].js` ≈ **9000 lineas en UN archivo** (router por string `route`).
+  Es 100% monolito y el punto mas fragil. **Candidato natural siguiente:** trocearlo por dominio
+  (asistencia, casos, excusas, estudiantes...) de forma incremental.
+- Frontend: 1 HTML gigante por rol con JS inline (admin ~10.4k, superadmin ~6.4k, docente ~4.8k,
+  rector ~1.7k, portal ~0.7k lineas). Etapa 5 (presentation) aun pendiente.
+
+Mantener el principio: incremental, con paridad funcional validada antes de avanzar.
+
+### 10.3 Despliegue y fuente de verdad
+
+- **Fuente de verdad: GitHub** (`https://github.com/camilopmapp/raice.git`, rama `main`).
+  Vercel auto-despliega con cada push.
+- Trabajar DIRECTO en el clon Git local (`RAICE FINAL/`), validar con `node --check`,
+  y `git push origin main`. **No** subir por la web de GitHub (deja clones locales desfasados).
+- Antes de tocar nada, sincronizar el clon (`git fetch` + `git merge --ff-only origin/main`).
+  Detalle completo en RUNBOOK.md §3.
+
 ## 11. Estandar de Documentacion
 
 Cada cambio relevante debe actualizar:

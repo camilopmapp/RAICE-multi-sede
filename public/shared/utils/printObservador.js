@@ -21,6 +21,10 @@ R.printObservadorWindow = function(d, cfg) {
   var now = new Date().toLocaleDateString('es-CO', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
   var curso = s.grade ? s.grade + '°' + (s.number || '') : (s.course || '—');
 
+  var posCount = obs.filter(function(o){ return o.type === 'positive'; }).length;
+  var negCount = obs.filter(function(o){ return o.type === 'negative'; }).length;
+  var neuCount = obs.filter(function(o){ return o.type === 'neutral';  }).length;
+
   var obsRows = obs.map(function(o) {
     var fecha = new Date(o.created_at).toLocaleDateString('es-CO', { day:'numeric', month:'short', year:'numeric' });
     var tl = typeLabel[o.type] || o.type;
@@ -28,6 +32,7 @@ R.printObservadorWindow = function(d, cfg) {
     return '<tr>'
       + '<td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">' + fecha + '</td>'
       + '<td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;font-weight:600;color:' + tc + ';">' + tl + '</td>'
+      + '<td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;color:#475569;">' + (o.subject || '—') + '</td>'
       + '<td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">' + (o.text || '') + '</td>'
       + '<td style="border:1px solid #ccc;padding:4px 8px;font-size:9pt;">' + (o.teacher_name || '—') + '</td>'
       + '</tr>';
@@ -94,7 +99,12 @@ R.printObservadorWindow = function(d, cfg) {
     + '<div style="font-size:7.5pt;color:#94a3b8;text-align:center;margin-top:-.5rem;margin-bottom:.8rem;">* Estadísticas en horas de clase</div>'
     + '<div class="section-title">Observaciones (' + obs.length + ')</div>'
     + (obs.length
-        ? '<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Observación</th><th>Docente</th></tr></thead><tbody>' + obsRows + '</tbody></table>'
+        ? '<div style="display:flex;gap:1rem;margin-bottom:.6rem;font-size:8.5pt;font-weight:700;">'
+          + '<span style="color:#16a34a;">✅ Positivas: ' + posCount + '</span>'
+          + '<span style="color:#64748b;">📋 Neutras: ' + neuCount + '</span>'
+          + '<span style="color:#dc2626;">⚠️ Negativas: ' + negCount + '</span>'
+          + '</div>'
+          + '<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Asignatura</th><th>Observación</th><th>Docente</th></tr></thead><tbody>' + obsRows + '</tbody></table>'
         : '<div style="text-align:center;padding:1rem;color:#94a3b8;font-size:9pt;">Sin observaciones registradas</div>')
     + '<div class="section-title">Casos RAICE (' + cases.length + ')</div>'
     + (cases.length

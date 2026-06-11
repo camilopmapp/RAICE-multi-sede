@@ -41,9 +41,10 @@ R.fetchStudents = async function(apiFn) {
   return r.data.students || r.data || [];
 };
 
-R.fetchStudentFicha = async function(apiFn, studentId, allObs) {
+R.fetchStudentFicha = async function(apiFn, studentId, allObs, periodId) {
   var path = '/raice/student-ficha?id=' + studentId;
   if (allObs) path += '&all_obs=1';
+  if (periodId) path += '&period_id=' + encodeURIComponent(periodId);
   var r = await apiFn(path);
   return r.ok ? r.data : null;
 };
@@ -69,10 +70,15 @@ R.fetchPeriods = async function(apiFn) {
 // ── Schedules ───────────────────────────────────────────
 R.fetchSchedulesOverview = async function(apiFn) {
   var r = await apiFn('/raice/schedules/overview');
-  if (!r.ok) return { schedules: [], bell_schedule: [] };
+  if (!r.ok) return { schedules: [], bell_schedule: [], today: null, today_dow: null };
   return {
     schedules: r.data.schedules || [],
-    bell_schedule: r.data.bell_schedule || []
+    bell_schedule: r.data.bell_schedule || [],
+    // El mapa escolar necesita today_dow (1=Lun..7=Dom) para saber qué cursos
+    // están en clase HOY. Si no se reenvía, today_dow llega undefined y la vista
+    // "Ahora mismo" muestra "undefined" y "No hay cursos con horario cargado".
+    today:     r.data.today || null,
+    today_dow: r.data.today_dow != null ? r.data.today_dow : null
   };
 };
 

@@ -479,6 +479,9 @@
     <button class="nav-item" onclick="showSection('historial',this)">
       <span class="nav-ico">📖</span> Historial de casos
     </button>
+    <button class="nav-item" onclick="showSection('mis-estudiantes',this)">
+      <span class="nav-ico">👥</span> Mis estudiantes
+    </button>
 
     <div class="nav-group-title director-only" id="nav-group-mi-grado" style="display:none;">Director de grado</div>
     <button class="nav-item director-only" id="nav-btn-mi-grado" style="display:none;" onclick="showSection('mi-grado',this)">
@@ -1092,6 +1095,35 @@
       </div>
     </section>
 
+    <!-- ===== MIS ESTUDIANTES ===== -->
+    <section class="section" id="sec-mis-estudiantes">
+      <div class="card">
+        <div class="card-header" style="flex-wrap:wrap;gap:.6rem;">
+          <h3>👥 Mis estudiantes</h3>
+          <div style="display:flex;gap:.5rem;flex:1;min-width:0;flex-wrap:wrap;">
+            <select id="me-course-sel" onchange="loadMisEstudiantesByCourse(this.value)"
+              style="flex:1;min-width:160px;padding:.45rem .75rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.83rem;background:var(--white);color:var(--navy);">
+              <option value="">— Selecciona un curso —</option>
+            </select>
+            <div style="position:relative;flex:1;min-width:160px;">
+              <span style="position:absolute;left:.65rem;top:50%;transform:translateY(-50%);font-size:.85rem;pointer-events:none;">🔍</span>
+              <input id="me-search" type="text" oninput="renderMisEstudiantes()"
+                placeholder="Buscar por nombre…"
+                style="width:100%;padding:.45rem .75rem .45rem 2rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.83rem;box-sizing:border-box;background:var(--white);">
+            </div>
+          </div>
+        </div>
+        <div class="card-body" style="padding:0;">
+          <div id="me-list" style="min-height:120px;">
+            <div style="text-align:center;padding:2.5rem;color:var(--gray);">
+              <div style="font-size:2rem;margin-bottom:.5rem;">👥</div>
+              Selecciona un curso para ver los estudiantes.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
   </div><!-- /content -->
 </main>
 
@@ -1108,13 +1140,23 @@
         <div style="font-weight:700;color:var(--navy);flex:1;" id="obs-student-name">Estudiante</div>
         <button class="btn btn-ghost btn-sm" onclick="printObservador(document.getElementById('obs-student-id').value)" title="Imprimir observador" style="font-size:.8rem;">🖨️ Observador</button>
       </div>
+      <input type="hidden" id="obs-type" value="neutral">
+      <input type="hidden" id="obs-course-id" value="">
       <div class="form-group">
         <label>Tipo de observación</label>
-        <select id="obs-type">
-          <option value="positive">✅ Positiva (reconocimiento)</option>
-          <option value="neutral">📋 Neutra (informativa)</option>
-          <option value="negative">⚠️ Negativa (indisciplina leve)</option>
-        </select>
+        <div style="display:flex;gap:.5rem;margin-top:.25rem;">
+          <button type="button" class="obs-type-btn" data-val="positive" onclick="setObsType('positive',this)"
+            style="flex:1;padding:.5rem .25rem;border-radius:8px;border:2px solid #bbf7d0;background:#f0fdf4;color:#16a34a;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:.82rem;transition:all .15s;">✅ Positiva</button>
+          <button type="button" class="obs-type-btn obs-type-active" data-val="neutral" onclick="setObsType('neutral',this)"
+            style="flex:1;padding:.5rem .25rem;border-radius:8px;border:2px solid #94a3b8;background:#f1f5f9;color:#475569;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:.82rem;transition:all .15s;">📋 Neutra</button>
+          <button type="button" class="obs-type-btn" data-val="negative" onclick="setObsType('negative',this)"
+            style="flex:1;padding:.5rem .25rem;border-radius:8px;border:2px solid #fecaca;background:#fff5f5;color:#dc2626;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:.82rem;transition:all .15s;">⚠️ Negativa</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Asignatura</label>
+        <input type="text" id="obs-subject" placeholder="Ej: Matemáticas, Inglés…"
+          style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.85rem;box-sizing:border-box;background:var(--white);">
       </div>
       <div class="form-group">
         <label>Observación</label>
@@ -1234,6 +1276,11 @@
   let _todayHolidayInfo = null; // resultado de /raice/calendar/today
   let studentsAtt     = [];   // [{id,name,status:'P'|'A'|'PE'|'T'}]
   let _attDirty       = false; // true when teacher has unsaved changes — prevents auto-refresh from overwriting
+  // Bandera de "modo corrección": guarda la clave (curso_fecha_hora) de la hora
+  // que el docente acaba de desbloquear con "Corregir lista". Mientras esté activa,
+  // el auto-refresco y el Realtime NO recargan esa hora (si no, el servidor sigue
+  // reportando saved=true y la lista se volvería a bloquear sola).
+  let _correctionMode = null;
   let activeHour      = 1;    // Current class hour selected
   let _actividadEspecial = false; // true = todos marcados como S (sin lista)
   let _actividadNote    = '';    // texto descriptivo de la actividad especial
@@ -1241,6 +1288,12 @@
   // Cache: key = "courseId_date_hour" → {students, saved}
   const _hourCache    = {};
   function _cacheKey(courseId, date, hour) { return courseId + '_' + date + '_' + hour; }
+  // ¿La hora activa está en modo corrección (recién desbloqueada)?
+  function _activeHourInCorrection() {
+    if (!_correctionMode || !activeCourse) return false;
+    const date = document.getElementById('att-date-picker')?.value;
+    return _correctionMode === _cacheKey(activeCourse.id, date, activeHour);
+  }
   function _invalidateCourseCache(courseId) {
     Object.keys(_hourCache).forEach(k => { if (k.startsWith(courseId)) delete _hourCache[k]; });
   }
@@ -1307,7 +1360,7 @@
       'reportar':'Reportar caso', 'historial':'Historial de casos',
       'perfil':'Mi perfil', 'mi-horario':'Mi horario',
       'mi-grado':'Casos de mi grado', 'historial-att':'Historial de asistencia',
-      'excusas-grado':'Excusas de mi grado'
+      'excusas-grado':'Excusas de mi grado', 'mis-estudiantes':'Mis estudiantes'
     };
     document.getElementById('page-title').textContent = titles[name] || name;
     if (name === 'mis-cursos')    loadMyCourses();
@@ -1318,6 +1371,7 @@
     if (name === 'mi-grado')      loadGradeCases();
     if (name === 'excusas-grado') initExcusas();
     if (name === 'historial-att') initAttHistory();
+    if (name === 'mis-estudiantes') initMisEstudiantes();
   }
 
   // ---- MODAL ----
@@ -1738,6 +1792,7 @@
   async function openCourseAttendance(course) {
     activeCourse = course;
     _attDirty = false; // fresh course, no unsaved changes
+    _correctionMode = null; // curso nuevo → fuera modo corrección
     _evasionHours.clear();
     clearEvasionPanel();
     document.getElementById('att-no-course').style.display = 'none';
@@ -1932,6 +1987,7 @@
 
   function selectHour(h) {
     activeHour = h;
+    _correctionMode = null; // cambió de hora → fuera modo corrección
     clearEvasionPanel();
     _actividadEspecial = false;
     _actividadNote = '';
@@ -2219,6 +2275,7 @@
     document.getElementById('att-date-info').textContent =
       new Date(date + 'T12:00:00').toLocaleDateString('es-CO', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
     _attDirty = false;
+    _correctionMode = null; // cambió de fecha → fuera modo corrección
     if (activeCourse) _invalidateCourseCache(activeCourse.id);
     if (isHistoryMode()) activeHour = 1;
     buildHourSelector();
@@ -2227,11 +2284,36 @@
   }
 
   // ---- OBSERVATION ----
-  function openObsModal(studentId, name) {
+  function setObsType(val, btn) {
+    document.getElementById('obs-type').value = val;
+    document.querySelectorAll('.obs-type-btn').forEach(b => {
+      b.classList.remove('obs-type-active');
+      b.style.fontWeight = '600';
+      b.style.opacity = '.65';
+      b.style.transform = 'scale(.97)';
+    });
+    btn.classList.add('obs-type-active');
+    btn.style.fontWeight = '700';
+    btn.style.opacity = '1';
+    btn.style.transform = 'scale(1)';
+  }
+
+  function openObsModal(studentId, name, subject, courseId) {
     document.getElementById('obs-student-id').value = studentId;
     document.getElementById('obs-student-name').textContent = name;
     document.getElementById('obs-text').value = '';
+    document.getElementById('obs-subject').value = subject || '';
+    document.getElementById('obs-course-id').value = courseId || '';
+    // Reset type to neutral
     document.getElementById('obs-type').value = 'neutral';
+    document.querySelectorAll('.obs-type-btn').forEach(b => {
+      b.classList.remove('obs-type-active');
+      b.style.fontWeight = '600';
+      b.style.opacity = '.65';
+      b.style.transform = 'scale(.97)';
+    });
+    const neutralBtn = document.querySelector('.obs-type-btn[data-val="neutral"]');
+    if (neutralBtn) { neutralBtn.classList.add('obs-type-active'); neutralBtn.style.fontWeight = '700'; neutralBtn.style.opacity = '1'; neutralBtn.style.transform = 'scale(1)'; }
     openModal('modal-obs');
   }
 
@@ -2239,14 +2321,90 @@
     const studentId = document.getElementById('obs-student-id').value;
     const type      = document.getElementById('obs-type').value;
     const text      = document.getElementById('obs-text').value.trim();
+    const subject   = document.getElementById('obs-subject').value.trim();
+    const courseId  = document.getElementById('obs-course-id').value || activeCourse?.id;
     if (!text) { showToast('Escribe la observación', 'warning'); return; }
-    const { ok } = await window.RAICE.createObservation(fetchAPI, { student_id: studentId, type, text, course_id: activeCourse?.id });
+    const { ok } = await window.RAICE.createObservation(fetchAPI, { student_id: studentId, type, text, subject, course_id: courseId });
     if (ok) {
       showToast('Observación guardada', 'success');
       closeModal('modal-obs');
     } else {
       showToast('Error al guardar observación', 'error');
     }
+  }
+
+  // ---- MIS ESTUDIANTES ----
+  let _misEstudiantesStudents = null;
+
+  async function initMisEstudiantes() {
+    if (!myCourses.length) await loadMyCourses();
+    const sel = document.getElementById('me-course-sel');
+    if (!sel) return;
+    const courses = myCourses.filter(c => c.type !== 'subgroup');
+    sel.innerHTML = '<option value="">— Selecciona un curso —</option>' +
+      courses.map(c => {
+        const label = c.grade + '°' + (c.number || '') + (c.subject ? ' — ' + escapeHtml(c.subject) : '');
+        return `<option value="${c.id}">${label}</option>`;
+      }).join('');
+    _misEstudiantesStudents = null;
+    document.getElementById('me-search').value = '';
+    document.getElementById('me-list').innerHTML =
+      '<div style="text-align:center;padding:2.5rem;color:var(--gray);"><div style="font-size:2rem;margin-bottom:.5rem;">👥</div>Selecciona un curso para ver los estudiantes.</div>';
+  }
+
+  async function loadMisEstudiantesByCourse(courseId) {
+    _misEstudiantesStudents = null;
+    if (!courseId) {
+      document.getElementById('me-list').innerHTML =
+        '<div style="text-align:center;padding:2.5rem;color:var(--gray);"><div style="font-size:2rem;margin-bottom:.5rem;">👥</div>Selecciona un curso para ver los estudiantes.</div>';
+      return;
+    }
+    document.getElementById('me-list').innerHTML =
+      '<div style="text-align:center;padding:2.5rem;color:var(--gray);">Cargando…</div>';
+    const { ok, data } = await fetchAPI(`/raice/students?course_id=${courseId}`);
+    if (!ok) {
+      document.getElementById('me-list').innerHTML =
+        '<div style="text-align:center;padding:2rem;color:#dc2626;">Error al cargar estudiantes.</div>';
+      return;
+    }
+    _misEstudiantesStudents = data.students || data || [];
+    renderMisEstudiantes();
+  }
+
+  function renderMisEstudiantes() {
+    const search = (document.getElementById('me-search')?.value || '').trim().toLowerCase();
+    const students = (_misEstudiantesStudents || []).filter(s =>
+      !search || (s.first_name + ' ' + s.last_name).toLowerCase().includes(search)
+    );
+    const courseId = document.getElementById('me-course-sel')?.value || '';
+    const course   = myCourses.find(c => c.id === courseId);
+    const subject  = course?.subject || '';
+    const list = document.getElementById('me-list');
+    if (!students.length) {
+      list.innerHTML = '<div style="text-align:center;padding:2.5rem;color:var(--gray);">No se encontraron estudiantes.</div>';
+      return;
+    }
+    list.innerHTML = students.map((s, i) => {
+      const fullName = escapeHtml(s.first_name) + ' ' + escapeHtml(s.last_name);
+      const initials = (s.first_name[0] || '') + (s.last_name[0] || '');
+      const bg = ['#0f1f3d','#0b7a75','#14b8b0','#1d4ed8','#7c3aed','#be185d'][i % 6];
+      const safeSubject = escapeHtml(subject);
+      const safeName = escapeHtml(s.first_name + ' ' + s.last_name).replace(/'/g, '&#39;');
+      return `<div style="display:flex;align-items:center;gap:.75rem;padding:.65rem 1rem;border-bottom:1px solid var(--border);transition:background .12s;"
+                   onmouseenter="this.style.background='var(--light)'" onmouseleave="this.style.background=''">
+        <div style="width:36px;height:36px;border-radius:50%;background:${bg};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.82rem;flex-shrink:0;">${escapeHtml(initials)}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:600;font-size:.88rem;color:var(--navy);">${fullName}</div>
+          <div style="font-size:.75rem;color:var(--gray);">${s.doc_number || '—'}</div>
+        </div>
+        <div style="display:flex;gap:.4rem;flex-shrink:0;">
+          <button onclick="openObsModal('${s.id}','${safeName}','${safeSubject}','${courseId}')"
+            style="padding:.3rem .65rem;font-size:.78rem;background:var(--teal);color:#fff;border:none;border-radius:7px;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:600;">📝 Obs</button>
+          <button onclick="printObservador('${s.id}')"
+            style="padding:.3rem .65rem;font-size:.78rem;background:var(--light);color:var(--navy);border:1.5px solid var(--border);border-radius:7px;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:600;">🖨️</button>
+        </div>
+      </div>`;
+    }).join('');
   }
 
   // ---- PRINT OBSERVADOR ----
@@ -3010,6 +3168,19 @@
 
     // ── HOY ──
     if (!todayBody) return;
+    // Si hoy es un día no lectivo (festivo/vacaciones que bloquea asistencia),
+    // no tiene sentido mostrar "Ahora / Próxima" como si hubiera clase.
+    if (_todayHolidayInfo?.blocks_attendance) {
+      const ev   = _todayHolidayInfo.event || {};
+      const nm   = ev.name || 'día no lectivo';
+      const ic   = _HOLIDAY_ICONS[ev.type || 'holiday'] || '🎌';
+      todayBody.innerHTML = `<div style="text-align:center;padding:1.75rem 1rem;color:var(--gray);">
+        <div style="font-size:2.2rem;margin-bottom:.5rem;">${ic}</div>
+        <div style="font-weight:700;color:var(--navy);margin-bottom:.25rem;">Hoy es ${nm}</div>
+        <div style="font-size:.85rem;">No hay clases programadas. La rejilla de arriba es tu horario habitual.</div>
+      </div>`;
+      return;
+    }
     const todaySlots = schedules.filter(s => s.day_of_week === today).sort((a,b) => a.class_hour - b.class_hour);
     if (!todaySlots.length) {
       todayBody.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--gray);">No tienes clases hoy 🎉</div>';
@@ -3174,6 +3345,7 @@
       // Save to offline queue and mark as saved locally (read-only until sync)
       enqueueOffline(payload);
       _attDirty = false;
+      _correctionMode = null; // corrección guardada → fin del modo corrección
       const key0 = _cacheKey(activeCourse.id, date, activeHour);
       _hourCache[key0] = { students: studentsAtt.map(s => ({...s})), saved: true };
       if (activeCourse.saved_hours && !activeCourse.saved_hours.includes(activeHour)) {
@@ -3196,6 +3368,7 @@
     btn.innerHTML = `💾 Guardar lista — <span id="btn-hour-label">${hourLabel} hora</span>`;
     if (ok) {
       _attDirty = false;
+      _correctionMode = null; // corrección guardada → fin del modo corrección
       const date2 = document.getElementById('att-date-picker').value;
       const key2  = _cacheKey(activeCourse.id, date2, activeHour);
       _hourCache[key2] = { students: studentsAtt.map(s => ({...s})), saved: true };
@@ -3479,7 +3652,7 @@
       // 1. The teacher is in the attendance section
       // 2. There is an active course
       // 3. The teacher has NO unsaved changes (never overwrite dirty state)
-      if (currentDocenteSection === 'asistencia' && activeCourse && !_attDirty) {
+      if (currentDocenteSection === 'asistencia' && activeCourse && !_attDirty && !_activeHourInCorrection()) {
         // Force network fetch to get latest state from server, then update cache
         const date = document.getElementById('att-date-picker')?.value;
         if (date) {
@@ -3992,6 +4165,7 @@
       }
       const key = _cacheKey(activeCourse.id, date, activeHour);
       if (_hourCache[key]) _hourCache[key].saved = false;
+      _correctionMode = key; // proteger esta hora del auto-relock hasta que se guarde o se cambie de hora
       renderStudentList();
       showToast('✏️ Lista desbloqueada — puedes corregir', 'success');
     } else {
@@ -4045,8 +4219,15 @@
   let _hattPeriods   = [];    // all periods loaded from API
 
   async function initAttHistory() {
-    // Populate course selector from myCourses (loaded already)
-    if (!myCourses.length) await loadMyCourses();
+    // Populate course selector from myCourses.
+    // IMPORTANTE: el historial muestra registros del PASADO, así que NO debe
+    // depender de loadMyCourses() — esa función se cancela en días festivos
+    // (blocks_attendance) y dejaría la lista vacía. Cargamos los cursos
+    // directamente, sin importar si hoy es festivo.
+    if (!myCourses.length) {
+      const data = await window.RAICE.fetchMyCourses(fetchAPI);
+      myCourses = (data && data.courses) || [];
+    }
 
     const sel = document.getElementById('hatt-course');
     sel.innerHTML = '<option value="">— Selecciona un curso —</option>' +
@@ -4736,7 +4917,7 @@ var showUpdateBanner = window.RAICE.showUpdateBanner;
         if (currentDocenteSection === 'casos-grado') { loadGradeCases(); loadStudentsForCase(); }
       }},
       { channel: 'realtime:asistencia', table: 'raice_attendance', callback: function() {
-        if (currentDocenteSection === 'asistencia' && !_attDirty) {
+        if (currentDocenteSection === 'asistencia' && !_attDirty && !_activeHourInCorrection()) {
           loadCourseStudents(true);
         }
       }}

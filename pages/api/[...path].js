@@ -396,6 +396,99 @@ function dayOfWeekCO(dateStr) {
   return jsDay === 0 ? 7 : jsDay; // convert to 1=Mon, 7=Sun
 }
 
+// ── Fórmula CANÓNICA de % de asistencia (única fuente de verdad) ──────────────
+// Regla: las tardanzas (T) cuentan como ASISTENCIA; los permisos (PE) y los
+// días especiales/sin-lista (S) se EXCLUYEN del denominador; solo las ausencias
+// (A) bajan el %. countable = total − S − PE ; pct = (P + T) / countable.
+function _pctCanonical(P, T, PE, S, total) {
+  const countable = total - S - PE;
+  return countable > 0 ? Math.round(((P + T) / countable) * 100) : (total - S > 0 ? 100 : null);
+}
+// Calcula el resumen de asistencia a partir de un arreglo de registros {status}.
+function attendanceStats(records) {
+  records = records || [];
+  let P = 0, A = 0, T = 0, PE = 0, S = 0;
+  for (const r of records) {
+    switch (r.status) {
+      case 'P': P++; break; case 'A': A++; break; case 'T': T++; break;
+      case 'PE': PE++; break; case 'S': S++; break;
+    }
+  }
+  const total = records.length;
+  return {
+    total, present: P, absent: A, late: T, permit: PE, special: S,
+    countable: total - S - PE, pct: _pctCanonical(P, T, PE, S, total)
+  };
+}
+
+// Resuelve el rango de fechas según el periodo pedido. Compartido por la ficha
+// del estudiante (admin/rector) y el portal del acudiente.
+//   periodId = undefined/null → periodo ACTIVO (default)
+//   periodId = 'all'          → todo el año
+//   periodId = <uuid>         → ese periodo
+// Devuelve { from, to, periods (del año), selectedId }.
+async function resolvePeriodRange(sb, periodId) {
+  const { data: periods } = await sb.from('raice_periods')
+    .select('id, name, start_date, end_date, year, period_num, active')
+    .order('year', { ascending: false }).order('period_num', { ascending: true });
+  const list = periods || [];
+  const active = list.find(p => p.active) || null;
+  const year = active ? active.year : (list[0] ? list[0].year : null);
+  const yearPeriods = list.filter(p => p.year === year);
+  let from = null, to = null, selectedId;
+  if (periodId === 'all') {
+    selectedId = 'all';
+    if (yearPeriods.length) { from = yearPeriods[0].start_date; to = yearPeriods[yearPeriods.length - 1].end_date; }
+  } else {
+    const sel = periodId ? (yearPeriods.find(p => p.id === periodId) || active) : active;
+    if (sel) { from = sel.start_date; to = sel.end_date; selectedId = sel.id; }
+    else selectedId = 'all'; // sin periodos configurados → sin filtro
+  }
+  return { from, to, periods: yearPeriods, selectedId };
+}
+
+// Trae TODA la asistencia de un estudiante en un rango de fechas, paginando
+// (un año puede superar el tope de 1000 filas de PostgREST). Si from/to son
+// null, trae todo (sin filtro de fecha).
+async function fetchStudentAttendance(sb, studentId, from, to) {
+  const PAGE = 1000;
+  let all = [], offset = 0;
+  while (true) {
+    let q = sb.from('raice_attendance')
+      .select('date, status, class_hour, course_id, teacher_id')
+      .eq('student_id', studentId)
+      .order('date', { ascending: false })
+      .range(offset, offset + PAGE - 1);
+    if (from) q = q.gte('date', from);
+    if (to)   q = q.lte('date', to);
+    const { data, error } = await q;
+    if (error || !data || !data.length) break;
+    all = all.concat(data);
+    if (data.length < PAGE) break;
+    offset += PAGE;
+  }
+  return all;
+}
+
+// Normaliza un nombre a Title Case: "JUAN  pérez" → "Juan Pérez".
+// Recorta, colapsa espacios, y pone mayúscula inicial en cada palabra (y tras guion).
+function titleCaseName(str) {
+  if (str == null) return str;
+  return String(str)
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+    .replace(/(^|[\s\-])([a-záéíóúñü])/g, (m, sep, ch) => sep + ch.toUpperCase());
+}
+
+// Normaliza para comparar duplicados: minúsculas, sin tildes, sin espacios extra.
+function normalizeForCompare(str) {
+  return String(str || '')
+    .trim().toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
 /**
  * Always reads sede_ids from DB for admin users — never trusts stale JWT.
  * Returns an array of sede UUIDs for the given admin user,
@@ -467,11 +560,10 @@ async function getAttendanceToday(sb) {
   const today = todayCO();
   const { data } = await sb.from('raice_attendance').select('status').eq('date', today);
   if (!data || !data.length) return null;
-  // Only show % if a teacher actively took list (at least one P, A or T — not just PE from excusas)
+  // Solo mostrar % si un docente realmente tomó lista (al menos un P/A/T, no solo PE)
   const hasRealList = data.some(r => r.status === 'P' || r.status === 'A' || r.status === 'T');
   if (!hasRealList) return null;
-  const present = data.filter(r => r.status === 'P' || r.status === 'PE').length;
-  return Math.round((present / data.length) * 100);
+  return attendanceStats(data).pct;
 }
 
 async function getAlerts(sb) {
@@ -1142,14 +1234,24 @@ async function handleStudents(req, res, user) {
 
     // Fetch cases and attendance without .in() to avoid PostgREST URL length limit with many UUIDs
     const studentIdSet = new Set(studentIds);
-    const [casesRes, attRes, coursesRes, sedesRes] = await Promise.all([
+    const [casesRes, attRes, coursesRes, sedesRes, acudRes] = await Promise.all([
       sb.from('raice_cases').select('student_id'),
       sb.from('raice_attendance')
         .select('student_id, status')
         .gte('date', monthStart),
       sb.from('raice_courses').select('id, name, type, sede_id'),
-      sb.from('raice_sedes').select('id, name')
+      sb.from('raice_sedes').select('id, name'),
+      sb.from('raice_acudientes').select('student_id, name, phone, relationship')
     ]);
+
+    // Acudientes por estudiante (para columna de contacto)
+    const acudMap = {};
+    (acudRes.data || []).forEach(a => {
+      if (!studentIdSet.has(a.student_id)) return;
+      (acudMap[a.student_id] = acudMap[a.student_id] || []).push({
+        name: a.name, phone: a.phone, relationship: a.relationship
+      });
+    });
 
     // Build cases map (filter in memory by active students)
     const casesMap = {};
@@ -1158,13 +1260,11 @@ async function handleStudents(req, res, user) {
       casesMap[c.student_id] = (casesMap[c.student_id] || 0) + 1;
     });
 
-    // Build attendance map (filter in memory by active students)
-    const attMap = {};
+    // Registros de asistencia por estudiante (para % canónico)
+    const attRecordsByStudent = {};
     (attRes.data || []).forEach(a => {
       if (!studentIdSet.has(a.student_id)) return;
-      if (!attMap[a.student_id]) attMap[a.student_id] = { total: 0, present: 0 };
-      attMap[a.student_id].total++;
-      if (a.status === 'P' || a.status === 'PE') attMap[a.student_id].present++;
+      (attRecordsByStudent[a.student_id] = attRecordsByStudent[a.student_id] || []).push(a);
     });
 
     // Build courses and sedes maps
@@ -1184,10 +1284,9 @@ async function handleStudents(req, res, user) {
         ...s,
         sede_id: courseObj.sede_id || null,
         sede_name: sedeName,
+        acudientes: acudMap[s.id] || [],
         cases_count: casesMap[s.id] || 0,
-        att_pct: attMap[s.id] && attMap[s.id].total > 0
-          ? Math.round((attMap[s.id].present / attMap[s.id].total) * 100)
-          : null
+        att_pct: attendanceStats(attRecordsByStudent[s.id] || []).pct
       };
     });
 
@@ -1196,22 +1295,55 @@ async function handleStudents(req, res, user) {
 
   if (req.method === 'POST') {
     requireRole(user, 'superadmin', 'admin');
-    const { first_name, last_name, course_id, doc_type, doc_number, birth_date, phone, status, notes } = req.body || {};
+    const { first_name, last_name, course_id, doc_type, doc_number, birth_date, phone, status, notes, force } = req.body || {};
     if (!first_name || !last_name) return res.status(400).json({ error: 'Nombre y apellido son obligatorios' });
     if (!course_id) return res.status(400).json({ error: 'Debes seleccionar el curso' });
+
+    // Normalizar nombres a Title Case (forma consistente)
+    const fnClean = titleCaseName(first_name);
+    const lnClean = titleCaseName(last_name);
+    const dnClean = doc_number ? String(doc_number).trim() : null;
+
+    // ── 1. Duplicado por DOCUMENTO → bloquear (es la misma persona) ──
+    if (dnClean) {
+      const { data: dupDoc } = await sb.from('raice_students')
+        .select('first_name, last_name, grade, course')
+        .eq('doc_number', dnClean).limit(1).maybeSingle();
+      if (dupDoc) {
+        return res.status(409).json({
+          code: 'DUPLICATE_DOC',
+          error: `Ya existe un estudiante con el documento ${dnClean}: ${dupDoc.first_name} ${dupDoc.last_name} (${dupDoc.grade}°${dupDoc.course}).`
+        });
+      }
+    }
+
+    // ── 2. Duplicado por NOMBRE (insensible a mayús/tildes) → advertir ──
+    if (!force) {
+      const { data: allStu } = await sb.from('raice_students')
+        .select('first_name, last_name, grade, course, status');
+      const normNew = normalizeForCompare(fnClean + ' ' + lnClean);
+      const match = (allStu || []).find(s =>
+        normalizeForCompare(s.first_name + ' ' + s.last_name) === normNew);
+      if (match) {
+        return res.status(200).json({
+          warning: 'DUPLICATE_NAME',
+          message: `Ya existe "${match.first_name} ${match.last_name}" en ${match.grade}°${match.course}${match.status !== 'active' ? ' (' + match.status + ')' : ''}. ¿Es la misma persona?`
+        });
+      }
+    }
 
     // Get grade/course number from course
     const { data: courseData } = await sb.from('raice_courses').select('grade, number').eq('id', course_id).single();
     if (!courseData) return res.status(400).json({ error: 'Curso no encontrado' });
 
     const { data, error } = await sb.from('raice_students').insert({
-      first_name: first_name.trim(),
-      last_name: last_name.trim(),
+      first_name: fnClean,
+      last_name: lnClean,
       course_id,
       grade: courseData.grade,
       course: courseData.number,
       doc_type: doc_type || 'TI',
-      doc_number: doc_number || null,
+      doc_number: dnClean,
       birth_date: birth_date || null,
       phone: phone || null,
       status: status || 'active',
@@ -1219,7 +1351,7 @@ async function handleStudents(req, res, user) {
     }).select().single();
 
     if (error) return res.status(500).json({ error: _dbErr(error, '') });
-    await logActivity(sb, user.id, 'create_student', `Estudiante creado: ${first_name} ${last_name}`);
+    await logActivity(sb, user.id, 'create_student', `Estudiante creado: ${fnClean} ${lnClean}`);
     return res.status(200).json({ success: true, student: data });
   }
 
@@ -1228,7 +1360,10 @@ async function handleStudents(req, res, user) {
     const { id, first_name, last_name, course_id, doc_type, doc_number, birth_date, phone, status, notes, grade_change_reason, grade_change_notes } = req.body || {};
     if (!id) return res.status(400).json({ error: 'ID requerido' });
 
-    let updates = { first_name, last_name, doc_type, doc_number, birth_date, phone: phone || null, status, notes };
+    // Normalizar nombres a Title Case
+    const fnUpd = first_name != null ? titleCaseName(first_name) : first_name;
+    const lnUpd = last_name  != null ? titleCaseName(last_name)  : last_name;
+    let updates = { first_name: fnUpd, last_name: lnUpd, doc_type, doc_number: doc_number ? String(doc_number).trim() : null, birth_date, phone: phone || null, status, notes };
 
     // Detectar cambio de grado/curso y registrar historial
     if (course_id) {
@@ -1401,11 +1536,21 @@ async function importStudents(req, res, user) {
     courseCounters.set(k, (courseCounters.get(k) || 0) + 1);
   }
 
+  // Acudientes pendientes de crear/actualizar tras procesar estudiantes
+  const acudientesPending = []; // { studentId? , matchKey? , name, relationship, phone }
+
   for (const s of valid) {
     const grade  = parseInt(s.grade);
     const course = parseInt(s.course) || 1;
     const key    = `${s.first_name.trim().toLowerCase()}_${s.last_name.trim().toLowerCase()}_${grade}_${course}`;
     const found  = existingMap.get(key);
+
+    // Datos del acudiente si la fila los trae.
+    // Teléfono del acudiente: usa la columna propia si viene; si no, cae al
+    // teléfono general (compatibilidad con plantillas antiguas de una sola columna).
+    const acudName  = s.acudiente_name ? titleCaseName(s.acudiente_name) : null;
+    const acudRel   = s.acudiente_relationship || 'Responsable';
+    const acudPhone = s.acudiente_phone || s.phone || null;
 
     if (found) {
       const patch = {};
@@ -1415,13 +1560,14 @@ async function importStudents(req, res, user) {
       if ('phone'      in s) patch.phone      = s.phone      ?? null;
       if (Object.keys(patch).length) toUpdate.push({ id: found.id, patch, label: `${s.first_name} ${s.last_name}` });
       else skipped++;
+      if (acudName) acudientesPending.push({ studentId: found.id, name: acudName, relationship: acudRel, phone: acudPhone });
     } else {
       const ck  = `${grade}_${course}`;
       const seq = (courseCounters.get(ck) || 0) + 1;
       courseCounters.set(ck, seq);
       toInsert.push({
-        first_name: s.first_name.trim(),
-        last_name:  s.last_name.trim(),
+        first_name: titleCaseName(s.first_name),
+        last_name:  titleCaseName(s.last_name),
         grade, course,
         course_id:  courseMap.get(`${grade}_${course}`) || null,
         doc_type:   s.doc_type   || 'TI',
@@ -1432,15 +1578,24 @@ async function importStudents(req, res, user) {
         code: `${String(grade).padStart(2,'0')}${String(course).padStart(2,'0')}${String(seq).padStart(3,'0')}`,
         status: 'active'
       });
+      if (acudName) acudientesPending.push({ matchKey: key, name: acudName, relationship: acudRel, phone: acudPhone });
     }
   }
 
-  // ── 5. Inserción masiva en lotes de 100 ──
+  // ── 5. Inserción masiva en lotes de 100 (devuelve ids para enlazar acudientes) ──
+  const insertedKeyToId = new Map(); // matchKey -> nuevo student_id
   for (let i = 0; i < toInsert.length; i += 100) {
     const batch = toInsert.slice(i, i + 100);
-    const { error } = await sb.from('raice_students').insert(batch);
-    if (error) errors.push(`Inserción lote ${Math.floor(i / 100) + 1}: ${error.message}`);
-    else imported += batch.length;
+    const { data: ins, error } = await sb.from('raice_students')
+      .insert(batch).select('id, first_name, last_name, grade, course');
+    if (error) { errors.push(`Inserción lote ${Math.floor(i / 100) + 1}: ${error.message}`); }
+    else {
+      imported += batch.length;
+      (ins || []).forEach(e => {
+        const k = `${e.first_name.trim().toLowerCase()}_${e.last_name.trim().toLowerCase()}_${e.grade}_${e.course}`;
+        insertedKeyToId.set(k, e.id);
+      });
+    }
   }
 
   // ── 6. Actualizaciones en paralelo (20 simultáneas) ──
@@ -1459,8 +1614,62 @@ async function importStudents(req, res, user) {
     }
   }
 
-  await logActivity(sb, user.id, 'import_students', `${imported} creados, ${updated} actualizados`);
-  return res.status(200).json({ success: true, imported, updated, skipped, errors: errors.slice(0, 20) });
+  // ── 7. Acudientes: crear o actualizar (anti-duplicado por nombre) ──
+  let acudCreated = 0, acudUpdated = 0;
+  // Resolver student_id para los que venían de inserción nueva
+  const acudientesResolved = acudientesPending
+    .map(a => ({
+      student_id: a.studentId || insertedKeyToId.get(a.matchKey) || null,
+      name: a.name, relationship: a.relationship, phone: a.phone,
+    }))
+    .filter(a => a.student_id);
+
+  if (acudientesResolved.length) {
+    // Acudientes existentes de esos estudiantes (1 query)
+    const studentIds = [...new Set(acudientesResolved.map(a => a.student_id))];
+    const existingAcud = {};
+    for (let i = 0; i < studentIds.length; i += 200) {
+      const { data: ea } = await sb.from('raice_acudientes')
+        .select('id, student_id, name').in('student_id', studentIds.slice(i, i + 200));
+      (ea || []).forEach(a => {
+        (existingAcud[a.student_id] = existingAcud[a.student_id] || []).push(a);
+      });
+    }
+    const { randomBytes } = await import('crypto');
+    const expires_at = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+    const toInsertAcud = [];
+    for (const a of acudientesResolved) {
+      const existing = (existingAcud[a.student_id] || [])
+        .find(e => normalizeForCompare(e.name) === normalizeForCompare(a.name));
+      if (existing) {
+        // Actualizar acudiente existente. Solo tocar el teléfono si vino un valor:
+        // una celda vacía NO debe borrar el teléfono que ya tenía en la base.
+        const upd = { relationship: a.relationship };
+        if (a.phone) upd.phone = a.phone;
+        await sb.from('raice_acudientes').update(upd).eq('id', existing.id);
+        acudUpdated++;
+      } else {
+        toInsertAcud.push({
+          student_id: a.student_id, name: a.name, phone: a.phone || null,
+          relationship: a.relationship, access_token: randomBytes(24).toString('hex'),
+          token_expires_at: expires_at,
+        });
+      }
+    }
+    for (let i = 0; i < toInsertAcud.length; i += 100) {
+      const { error } = await sb.from('raice_acudientes').insert(toInsertAcud.slice(i, i + 100));
+      if (error) errors.push(`Acudientes lote ${Math.floor(i/100)+1}: ${error.message}`);
+      else acudCreated += toInsertAcud.slice(i, i + 100).length;
+    }
+  }
+
+  await logActivity(sb, user.id, 'import_students',
+    `${imported} creados, ${updated} actualizados, acudientes: ${acudCreated} creados/${acudUpdated} actualizados`);
+  return res.status(200).json({
+    success: true, imported, updated, skipped,
+    acudientes_created: acudCreated, acudientes_updated: acudUpdated,
+    errors: errors.slice(0, 20)
+  });
 }
 
 // =====================================================
@@ -2412,6 +2621,26 @@ async function handleAttendance(req, res, user) {
       await sb.from('raice_attendance').delete().eq('course_id', course_id).eq('date', date);
     }
 
+    // Excusas activas que cubren esta fecha+hora → forzar PE (el permiso MANDA
+    // sobre lo que marque el docente, sin importar el orden de registro). Sin
+    // esto, al guardar la lista se borraba el PE de la excusa y el estudiante
+    // volvía a quedar Presente/Ausente.
+    const _excusedSet = new Set();
+    {
+      const _stuIds = records.map(r => r.student_id);
+      if (_stuIds.length) {
+        const { data: _exc } = await sb.from('raice_excusas')
+          .select('student_id, horas')
+          .eq('date', date)
+          .in('student_id', _stuIds);
+        (_exc || []).forEach(e => {
+          const hrs = Array.isArray(e.horas) ? e.horas.map(Number) : null;
+          // horas null/vacío = toda la jornada; si trae horas, debe incluir esta hora
+          if (!hrs || hrs.length === 0 || hrs.includes(hour)) _excusedSet.add(e.student_id);
+        });
+      }
+    }
+
     // Try to insert with class_hour; if column doesn't exist, insert without it
     const isAllS = records.every(r => r.status === 'S');
     const noteValue = (isAllS && activity_note) ? String(activity_note).slice(0, 200) : null;
@@ -2421,7 +2650,9 @@ async function handleAttendance(req, res, user) {
       teacher_id: originalTeacherId, // preserve original teacher; coordinator id goes to audit log
       date,
       class_hour: hour,
-      status: ['P','A','PE','T','S'].includes(r.status) ? r.status : 'P',
+      status: _excusedSet.has(r.student_id)
+        ? 'PE'
+        : (['P','A','PE','T','S'].includes(r.status) ? r.status : 'P'),
       activity_note: noteValue
     }));
 
@@ -2439,7 +2670,9 @@ async function handleAttendance(req, res, user) {
         course_id,
         teacher_id: originalTeacherId,
         date,
-        status: r.status === 'T' ? 'PE' : (['P','A','PE'].includes(r.status) ? r.status : 'P')
+        status: _excusedSet.has(r.student_id)
+          ? 'PE'
+          : (r.status === 'T' ? 'PE' : (['P','A','PE'].includes(r.status) ? r.status : 'P'))
       }));
       const res2 = await sb.from('raice_attendance').insert(fallbackRows);
       error = res2.error;
@@ -2860,13 +3093,15 @@ async function handleAttendance(req, res, user) {
         grade:   c.grade  ?? '?',
         course:  c.number ?? c.name ?? key,   // subgroups use name instead of number
         teacher: teacherMap[(courseMap[key] || {}).director_id] || '—',
-        present: 0, absent: 0, permit: 0, late: 0, total: 0
+        present: 0, absent: 0, permit: 0, late: 0, special: 0, total: 0
       };
       byCoursemap[key].total++;
       if (r.status === 'P')       byCoursemap[key].present++;
       else if (r.status === 'A')  byCoursemap[key].absent++;
       else if (r.status === 'T')  byCoursemap[key].late++;
-      else                        byCoursemap[key].permit++;
+      else if (r.status === 'PE') byCoursemap[key].permit++;
+      else if (r.status === 'S')  byCoursemap[key].special++;
+      // NR u otros: solo cuentan en total
     });
 
     const courses = Object.values(byCoursemap).map(c => {
@@ -2876,7 +3111,7 @@ async function handleAttendance(req, res, user) {
         .map(([h, name]) => ({ hour: Number(h), name }));
       // Include type so front-end can distinguish subgroups from normal courses
       const courseType = (courseMap[c.course_id] || {}).type || 'normal';
-      return { ...c, type: courseType, teachers_by_hour, pct: c.total > 0 ? Math.round((c.present / c.total) * 100) : 0 };
+      return { ...c, type: courseType, teachers_by_hour, pct: _pctCanonical(c.present, c.late, c.permit, c.special, c.total) ?? 0 };
     }).sort((a,b) => a.grade - b.grade || a.course - b.course);
 
     return res.status(200).json({ present, absent, permit, late, courses });
@@ -2946,33 +3181,44 @@ async function getAttendanceByCourse(req, res, user) {
     (suspRows || []).forEach(s => { suspMap[s.student_id] = s; });
   }
 
-  // Fetch excusas for PE students on this date
-  const peStudentIds = (students || [])
-    .filter(s => !suspMap[s.id] && attMap[s.id] === 'PE')
-    .map(s => s.id);
-
+  // Excusas de esta fecha para TODOS los estudiantes del curso (no solo los que
+  // ya están en PE). Si una excusa cubre esta hora, el estudiante se MUESTRA como
+  // "Con permiso" (PE) aunque el registro guardado diga Presente/Ausente: el
+  // permiso manda también en la vista, sin depender de re-guardar la lista.
+  const _hourNum = Number(hour);
   let excusaMap = {};
+  let excusedHour = new Set();
   let excusaQueryOk = true;
-  if (peStudentIds.length) {
+  if (studentIds.length) {
     const { data: excusas, error: excusaErr } = await sb.from('raice_excusas')
       .select('student_id, motivo, horas, registered_by, raice_users(first_name, last_name)')
-      .in('student_id', peStudentIds)
+      .in('student_id', studentIds)
       .eq('date', date);
     if (excusaErr) {
       excusaQueryOk = false;
     } else {
-      (excusas || []).forEach(e => { excusaMap[e.student_id] = e; });
+      (excusas || []).forEach(e => {
+        excusaMap[e.student_id] = e;
+        const hrs = Array.isArray(e.horas) ? e.horas.map(Number) : null;
+        // horas null/vacío = toda la jornada; si trae horas, debe incluir esta hora
+        if (!hrs || hrs.length === 0 || hrs.includes(_hourNum)) excusedHour.add(e.student_id);
+      });
     }
   }
 
-  const studentsWithAtt = (students || []).map(s => ({
-    ...s,
-    // Suspended students → 'A'. Otherwise use saved status (PE manual is valid).
-    attendance_status: suspMap[s.id] ? 'A' : (attMap[s.id] || 'P'),
-    suspension: suspMap[s.id] || null,
-    // Excusa info for PE students (tooltip)
-    excusa: excusaMap[s.id] || null
-  }));
+  const studentsWithAtt = (students || []).map(s => {
+    let status;
+    if (suspMap[s.id])           status = 'A';                 // suspensión tiene prioridad
+    else if (excusedHour.has(s.id)) status = 'PE';            // el permiso manda en la vista
+    else                         status = (attMap[s.id] || 'P');
+    return {
+      ...s,
+      attendance_status: status,
+      suspension: suspMap[s.id] || null,
+      // Info de la excusa (para tooltip / detalle)
+      excusa: excusaMap[s.id] || null
+    };
+  });
 
   const activityNote = (attendance || []).find(a => a.activity_note)?.activity_note || null;
   
@@ -3195,11 +3441,12 @@ async function getMyCases(req, res, user) {
 async function handleObservations(req, res, user) {
   if (req.method !== 'POST') return res.status(405).end();
   const sb = getSupabase();
-  const { student_id, type, text, course_id } = req.body || {};
+  const { student_id, type, text, course_id, subject } = req.body || {};
   if (!student_id || !text) return res.status(400).json({ error: 'Datos incompletos' });
 
   const { error } = await sb.from('raice_observations').insert({
-    student_id, teacher_id: user.id, course_id, type: type || 'neutral', text
+    student_id, teacher_id: user.id, course_id, type: type || 'neutral', text,
+    subject: subject || null
   });
 
   if (error) return res.status(500).json({ error: 'Error al guardar observación' });
@@ -3607,8 +3854,7 @@ async function getStudentHistory(req, res, user) {
   }));
 
   const att = attRes.data || [];
-  const present = att.filter(a => a.status === 'P' || a.status === 'PE').length;
-  const attPct = att.length > 0 ? Math.round((present / att.length) * 100) : null;
+  const attPct = attendanceStats(att).pct; // fórmula canónica única
 
   const gradeHistory = (gradeHistRes.data || []).map(h => ({
     ...h,
@@ -4088,7 +4334,7 @@ async function getRectorInsights(req, res, user) {
   (riskAttRes.data || []).forEach(a => {
     if (a.status === 'NR' || a.status === 'S') return;
     if (!stuAttMap[a.student_id]) stuAttMap[a.student_id] = { countable: 0, present: 0 };
-    if (a.status !== 'PE') stuAttMap[a.student_id].countable++;
+    if (a.status !== 'PE' && a.status !== 'S') stuAttMap[a.student_id].countable++; // canónico: PE y S fuera del denominador
     if (a.status === 'P' || a.status === 'T') stuAttMap[a.student_id].present++;
   });
 
@@ -4653,15 +4899,18 @@ async function getStudentFicha(req, res, user) {
     if (!access || !access.length) return res.status(403).json({ error: 'No tienes acceso a este estudiante' });
   }
 
+  // Periodo seleccionado (default = activo). La asistencia se filtra por su rango.
+  const _range = await resolvePeriodRange(sb, url.searchParams.get('period_id'));
+
   // Safe wrapper — never lets one failed query kill the whole response
   const safe = async (fn) => { try { const r = await fn(); return r; } catch (_) { return { data: null, error: _ }; } };
 
   const [studentRes, casesRes, obsRes, attRes, tardanzasRes, commitmentsRes] = await Promise.all([
     safe(() => sb.from('raice_students').select('*').eq('id', studentId).single()),
     safe(() => sb.from('raice_cases').select('id, type, description, status, created_at, teacher_id, course_id, actions_taken, notes, falta_descripcion, falta_categoria, falta_numeral, otros_involucrados, closed_at, closed_by').eq('student_id', studentId).order('created_at', { ascending: false })),
-    safe(() => { let q = sb.from('raice_observations').select('id, type, text, created_at, teacher_id').eq('student_id', studentId).order('created_at', { ascending: false }); if (!allObs) q = q.limit(20); return q; }),
-    safe(() => sb.from('raice_attendance').select('status, date, class_hour').eq('student_id', studentId).order('date', { ascending: false }).limit(120)),
-    safe(() => sb.from('raice_attendance').select('date, class_hour').eq('student_id', studentId).eq('status','T').order('date', { ascending: false }).limit(20)),
+    safe(() => { let q = sb.from('raice_observations').select('id, type, text, subject, created_at, teacher_id').eq('student_id', studentId).order('created_at', { ascending: false }); if (!allObs) q = q.limit(20); return q; }),
+    safe(async () => ({ data: await fetchStudentAttendance(sb, studentId, _range.from, _range.to) })),
+    safe(() => { let q = sb.from('raice_attendance').select('date, class_hour').eq('student_id', studentId).eq('status','T').order('date', { ascending: false }).limit(20); if (_range.from) q = q.gte('date', _range.from).lte('date', _range.to); return q; }),
     safe(() => sb.from('raice_commitments').select('id, description, due_date, fulfilled, case_id').eq('student_id', studentId).order('created_at', { ascending: false }))
   ]);
 
@@ -4733,22 +4982,16 @@ async function getStudentFicha(req, res, user) {
     commitments: commitmentsMap[c.id] || []
   }));
 
-  // Attendance: deduplicate by date (last class_hour wins)
-  // Attendance: use total records (hours) to match dashboard precision
-  const attAll = attRes.data || [];
-  const cntP  = attAll.filter(a => a.status === 'P').length;
-  const cntA  = attAll.filter(a => a.status === 'A').length;
-  const cntT  = attAll.filter(a => a.status === 'T').length;
-  const cntPE = attAll.filter(a => a.status === 'PE').length;
-  const cntS  = attAll.filter(a => a.status === 'S').length;
+  // Asistencia: usa la MISMA lógica que el portal del acudiente (reconcilia
+  // excusas, enriquece con materia/docente, calcula por asignatura y el resumen
+  // canónico) para que admin y acudiente muestren cifras idénticas.
+  const insights = await buildAttendanceInsights(
+    sb, studentId, studentRes.data?.course_id, attRes.data || []);
+  const attReconciled = insights.attendance; // registros ya reconciliados a PE
 
-  const total = attAll.length;
-  const countable = total - cntS - cntPE;
-  const attPct = countable > 0 ? Math.round(((cntP + cntT) / countable) * 100) : (total - cntS > 0 ? 100 : null);
-
-  // Build recent attendance array for mini-calendar (keep last 30 distinct dates for visual)
+  // recent para el mini-calendario (último estado por día, 30 días)
   const attByDate = {};
-  attAll.forEach(a => {
+  attReconciled.forEach(a => {
     if (!attByDate[a.date] || (a.class_hour||1) > (attByDate[a.date].hour||1)) {
       attByDate[a.date] = { status: a.status, hour: a.class_hour||1 };
     }
@@ -4758,14 +5001,33 @@ async function getStudentFicha(req, res, user) {
     .slice(0, 30)
     .map(([date, v]) => ({ date, status: v.status }));
 
+  // Secciones que ya tenía el portal y faltaban en la ficha del admin
+  const [suspRes2, remRes2, excRes2] = await Promise.all([
+    safe(() => sb.from('raice_suspensions').select('start_date, end_date, reason, created_at').eq('student_id', studentId).order('created_at', { ascending: false })),
+    safe(() => sb.from('raice_classroom_removals').select('date, reason, class_hour, status, created_at').eq('student_id', studentId).order('date', { ascending: false }).limit(30)),
+    safe(() => sb.from('raice_excusas').select('date, motivo, horas, created_at').eq('student_id', studentId).order('date', { ascending: false }).limit(30))
+  ]);
+
   return res.status(200).json({
     student:      studentRes.data,
     cases:        enrichedCases,
     observations: obs,
-    attendance:   { pct: attPct, present: cntP, permit: cntPE, absent: cntA, late: cntT, special: cntS, total: total, recent: recentAtt },
+    // Retro-compatible: mismo objeto que antes, ahora con cifras reconciliadas.
+    attendance:   { ...insights.att_summary, recent: recentAtt },
+    // Nuevos campos (mismos que el portal del acudiente):
+    att_records:    attReconciled,
+    att_summary:    insights.att_summary,
+    att_by_subject: insights.att_by_subject,
+    director:       insights.director,
+    suspensions:    suspRes2.data || [],
+    removals:       remRes2.data  || [],
+    excusas:        excRes2.data  || [],
     tardanzas:    tardanzasRes.data || [],
     commitments:  commitmentsData,
-    acudientes
+    acudientes,
+    // Periodos para el selector + el seleccionado actual
+    periods:            _range.periods.map(p => ({ id: p.id, name: p.name, period_num: p.period_num, active: p.active })),
+    selected_period_id: _range.selectedId
   });
 }
 
@@ -5143,10 +5405,11 @@ async function cronWeeklyReport(req, res) {
     }
   });
   const deduped   = Object.values(attByStudentDate);
-  const present   = deduped.filter(a => a.status === 'P' || a.status === 'PE').length;
-  const absent    = deduped.filter(a => a.status === 'A').length;
-  const late      = deduped.filter(a => a.status === 'T').length;
-  const attPct    = deduped.length > 0 ? Math.round((present / deduped.length) * 100) : null;
+  const _dd       = attendanceStats(deduped); // fórmula canónica
+  const present   = _dd.present;  // P (los permisos van aparte)
+  const absent    = _dd.absent;
+  const late      = _dd.late;
+  const attPct    = _dd.pct;
 
   // Top tardanzas students
   const tardanzaCount = {};
@@ -7153,7 +7416,7 @@ async function reportAttendanceV2(req, res, user) {
 
   // Add derived fields
   Object.values(studentStats).forEach(st => {
-    st.pct_attendance = st.total > 0 ? Math.round((st.P / st.total) * 100) : null;
+    st.pct_attendance = _pctCanonical(st.P, st.T, st.PE, st.S || 0, st.total);
     st.alert = st.pct_attendance !== null && st.pct_attendance < 75;
     st.warning = st.pct_attendance !== null && st.pct_attendance >= 75 && st.pct_attendance < 85;
   });
@@ -7175,16 +7438,17 @@ async function reportAttendanceV2(req, res, user) {
     const courseStats = {};
     Object.values(studentStats).forEach(st => {
       const key = `${st.grade}-${st.course}`;
-      if (!courseStats[key]) courseStats[key] = { grade: st.grade, course: st.course, students: [], total:0, P:0, A:0, T:0, PE:0 };
+      if (!courseStats[key]) courseStats[key] = { grade: st.grade, course: st.course, students: [], total:0, P:0, A:0, T:0, PE:0, S:0 };
       courseStats[key].students.push(st);
       courseStats[key].total += st.total;
       courseStats[key].P     += st.P;
       courseStats[key].A     += st.A;
       courseStats[key].T     += st.T;
       courseStats[key].PE    += st.PE;
+      courseStats[key].S     += (st.S || 0);
     });
     Object.values(courseStats).forEach(c => {
-      c.pct_attendance = c.total > 0 ? Math.round((c.P / c.total) * 100) : null;
+      c.pct_attendance = _pctCanonical(c.P, c.T, c.PE, c.S || 0, c.total);
       c.students.sort((a,b) => (a.last_name||'').localeCompare(b.last_name||'') || (a.first_name||'').localeCompare(b.first_name||''));
     });
     const courses = Object.values(courseStats).sort((a,b) => a.grade - b.grade || String(a.course).localeCompare(String(b.course)));
@@ -7193,32 +7457,31 @@ async function reportAttendanceV2(req, res, user) {
 
   // ── LEVEL: EXECUTIVE ─────────────────────────────────
   const allStudents = Object.values(studentStats).sort((a,b) => a.grade - b.grade || String(a.course).localeCompare(String(b.course)) || (a.last_name||'').localeCompare(b.last_name||''));
-  const total   = attData.length;
-  const present = attData.filter(r => r.status === 'P' || r.status === 'PE').length;
-  const absent  = attData.filter(r => r.status === 'A').length;
-  const late    = attData.filter(r => r.status === 'T').length;
-  const permit  = attData.filter(r => r.status === 'PE').length;
+  const ex = attendanceStats(attData); // resumen canónico global
 
   // Top 10 most absent
   const topAbsent = [...allStudents].sort((a,b) => b.A - a.A).slice(0, 10);
   // Students below threshold
   const atRisk = allStudents.filter(s => s.alert).sort((a,b) => a.pct_attendance - b.pct_attendance);
-  // By week trend
+  // By week trend (canónico por semana)
   const weekTrend = {};
   attData.forEach(r => {
     const w = isoWeek(r.date);
-    if (!weekTrend[w]) weekTrend[w] = { total:0, P:0 };
+    if (!weekTrend[w]) weekTrend[w] = { total:0, P:0, T:0, PE:0, S:0 };
     weekTrend[w].total++;
-    if (r.status === 'P' || r.status === 'PE') weekTrend[w].P++;
+    if (r.status === 'P') weekTrend[w].P++;
+    else if (r.status === 'T') weekTrend[w].T++;
+    else if (r.status === 'PE') weekTrend[w].PE++;
+    else if (r.status === 'S') weekTrend[w].S++;
   });
   const trend = Object.entries(weekTrend).sort(([a],[b]) => a.localeCompare(b))
-    .map(([week, d]) => ({ week, pct: d.total ? Math.round(d.P/d.total*100) : 0 }));
+    .map(([week, d]) => ({ week, pct: _pctCanonical(d.P, d.T, d.PE, d.S, d.total) ?? 0 }));
 
   return res.status(200).json({
     level: 'executive',
     date_from, date_to,
-    summary: { total, present, absent, late, permit,
-      pct_attendance: total > 0 ? Math.round(present/total*100) : null,
+    summary: { total: ex.total, present: ex.present, absent: ex.absent, late: ex.late, permit: ex.permit,
+      pct_attendance: ex.pct,
       total_students: allStudents.length,
       at_risk_count: atRisk.length
     },
@@ -7547,41 +7810,25 @@ async function handleExcusas(req, res, user) {
       }
 
       if (targetHours && targetHours.length > 0) {
-        // Update existing A records to PE
+        // El permiso MANDA: convierte cualquier estado previo (A, P, T, S, NR)
+        // a PE en las horas de la excusa. Quien registra el permiso tiene la
+        // información autoritativa, así que sobrescribe lo que haya marcado el
+        // docente. (Los PE previos ya se borraron arriba; aquí solo quedan
+        // estados distintos de PE.)
         await sb.from('raice_attendance')
           .update({ status: 'PE' })
           .eq('student_id', student_id)
           .eq('date', d)
-          .eq('status', 'A')
+          .neq('status', 'PE')
           .in('class_hour', targetHours);
 
-        // Pre-create PE for selected hours not yet recorded
-        const { data: existingAtt } = await sb.from('raice_attendance')
-          .select('class_hour')
-          .eq('student_id', student_id)
-          .eq('date', d);
-
-        const existingHours = new Set((existingAtt || []).map(a => a.class_hour));
-
-        const scheduled = course_id ? await getScheduledHours(course_id, d) : [];
-        const teacherByHour = {};
-        scheduled.forEach(s => { teacherByHour[s.class_hour] = s.teacher_id; });
-
-        const toInsert = targetHours
-          .filter(h => !existingHours.has(h))
-          .map(h => ({
-            student_id,
-            course_id: course_id || null,
-            teacher_id: teacherByHour[h] || null,
-            date: d,
-            class_hour: h,
-            status: 'PE'
-          }));
-
-        if (toInsert.length) {
-          await sb.from('raice_attendance').upsert(toInsert,
-            { onConflict: 'student_id,date,course_id,class_hour', ignoreDuplicates: true });
-        }
+        // NOTA: ya NO se pre-crean registros PE para horas sin lista. Una excusa
+        // solo "actúa" donde realmente se llamó lista: convierte A/P/T existentes a
+        // PE (arriba) y, hacia el futuro, el guardado de lista fuerza PE a quien
+        // tenga excusa. Pre-crear PE para días/horas sin lista generaba datos
+        // fantasma (asistencia donde no hubo clase registrada) y porcentajes
+        // irreales. El permiso del rango se conserva como metadato en raice_excusas
+        // y se reconcilia en lectura (portal/docente).
       }
     }
 
@@ -8371,6 +8618,94 @@ async function handleBackupImport(req, res, user) {
   });
 }
 
+// Reconciliación + enriquecimiento de asistencia COMPARTIDO por el portal del
+// acudiente y la ficha del estudiante (admin), para que ambos muestren las
+// MISMAS cifras. Recibe los registros de asistencia ya consultados, los muta
+// para reflejar excusas (A/P/T → PE) y les agrega materia/docente; devuelve el
+// desglose por asignatura, el director de grado y el resumen canónico.
+async function buildAttendanceInsights(sb, studentId, courseId, attData) {
+  attData = attData || [];
+
+  // 1. Reconciliar con excusas (el permiso MANDA): si una excusa cubre la
+  //    fecha+hora, el registro se cuenta/muestra como PE.
+  const { data: excusas } = await sb.from('raice_excusas')
+    .select('date, horas').eq('student_id', studentId);
+  const excusaByDate = {};
+  (excusas || []).forEach(e => {
+    const hrs = Array.isArray(e.horas) ? e.horas.map(Number) : null;
+    const entry = excusaByDate[e.date] || { all: false, hours: new Set() };
+    if (!hrs || hrs.length === 0) entry.all = true;
+    else hrs.forEach(h => entry.hours.add(h));
+    excusaByDate[e.date] = entry;
+  });
+  attData.forEach(a => {
+    if (a.status === 'PE') return;
+    const ex = excusaByDate[a.date];
+    if (ex && (ex.all || ex.hours.has(Number(a.class_hour)))) a.status = 'PE';
+  });
+
+  // 2. Materia/docente por hora (cruce con horario) + asistencia por asignatura + director
+  let director = null;
+  let attBySubject = [];
+  if (courseId) {
+    const { data: courseData } = await sb.from('raice_courses')
+      .select('director_id, raice_users(first_name, last_name)')
+      .eq('id', courseId).maybeSingle();
+    if (courseData?.raice_users) {
+      director = { name: `${courseData.raice_users.first_name} ${courseData.raice_users.last_name}` };
+    }
+    const studentCourseIds = [...new Set(attData.map(a => a.course_id).filter(Boolean))];
+    if (studentCourseIds.length) {
+      const { data: tcRows } = await sb.from('raice_teacher_courses')
+        .select('id, subject, teacher_id, course_id').in('course_id', studentCourseIds);
+      const tcList = tcRows || [];
+      const tcById = {}; tcList.forEach(t => { tcById[t.id] = t; });
+      const teacherIds = [...new Set(tcList.map(t => t.teacher_id).filter(Boolean))];
+      const teacherMap = {};
+      if (teacherIds.length) {
+        const { data: us } = await sb.from('raice_users').select('id, first_name, last_name').in('id', teacherIds);
+        (us || []).forEach(u => { teacherMap[u.id] = `${u.first_name} ${u.last_name}`; });
+      }
+      const slotInfo = {};
+      if (tcList.length) {
+        const { data: schedRows } = await sb.from('raice_schedules')
+          .select('day_of_week, class_hour, teacher_course_id').in('teacher_course_id', tcList.map(t => t.id));
+        (schedRows || []).forEach(s => {
+          const tc = tcById[s.teacher_course_id];
+          if (tc?.subject) {
+            slotInfo[`${tc.course_id}_${s.day_of_week}_${s.class_hour}`] = {
+              subject: tc.subject,
+              teacher: tc.teacher_id ? (teacherMap[tc.teacher_id] || null) : null
+            };
+          }
+        });
+      }
+      attData.forEach(a => {
+        const info = slotInfo[`${a.course_id}_${dayOfWeekCO(a.date)}_${a.class_hour}`];
+        if (info) { a.subject = info.subject; a.teacher_name = info.teacher; }
+      });
+      const subjectStats = {};
+      attData.forEach(a => {
+        const subject = slotInfo[`${a.course_id}_${dayOfWeekCO(a.date)}_${a.class_hour}`]?.subject;
+        if (!subject) return;
+        if (!subjectStats[subject]) subjectStats[subject] = { P:0, A:0, T:0, PE:0, S:0, total:0 };
+        subjectStats[subject].total++;
+        if (subjectStats[subject][a.status] !== undefined) subjectStats[subject][a.status]++;
+      });
+      attBySubject = Object.entries(subjectStats).map(([subject, s]) => {
+        const countable = s.total - s.S - s.PE;
+        return { subject, present: s.P, absent: s.A, late: s.T, permit: s.PE, total: s.total,
+          pct: countable > 0 ? Math.round(((s.P + s.T) / countable) * 100) : null };
+      }).sort((a,b) => (a.pct ?? 999) - (b.pct ?? 999)); // peor % primero
+    }
+  }
+
+  // 3. Resumen canónico (helper único compartido por toda la app).
+  const att_summary = attendanceStats(attData);
+
+  return { attendance: attData, att_summary, att_by_subject: attBySubject, director };
+}
+
 // ---- PORTAL PÚBLICO DEL ACUDIENTE (acceso por número de documento) ----
 async function handlePortalAcudiente(req, res) {
   if (req.method !== 'GET') return res.status(405).end();
@@ -8387,18 +8722,25 @@ async function handlePortalAcudiente(req, res) {
   // Rate limit por IP+documento: 10 intentos por documento cada 15 min
   if (!checkRateLimitPortal(req, res, doc)) return;
 
-  // Find student by doc_number (any active/graduated status)
-  const { data: student } = await sb.from('raice_students')
+  // Find student by doc_number (any active/graduated status).
+  // Usamos limit(1) en vez de maybeSingle() porque pueden existir documentos
+  // duplicados por error de digitación; maybeSingle falla con múltiples filas.
+  const { data: studentRows } = await sb.from('raice_students')
     .select('id, first_name, last_name, grade, course, course_id, doc_type, doc_number, status')
     .eq('doc_number', doc)
     .in('status', ['active', 'graduated', 'transferred'])
-    .maybeSingle();
+    .order('created_at', { ascending: true })
+    .limit(1);
+  const student = (studentRows && studentRows[0]) || null;
 
   if (!student) {
     return res.status(404).json({ error: 'No se encontró ningún estudiante con ese número de documento.' });
   }
 
   const sid = student.id;
+
+  // Periodo seleccionado (default = activo). La asistencia se filtra por su rango.
+  const _range = await resolvePeriodRange(sb, url.searchParams.get('period_id'));
 
   // Fetch all relevant data in parallel
   const courseId = student.course_id;
@@ -8407,11 +8749,9 @@ async function handlePortalAcudiente(req, res) {
       .select('id, type, description, actions_taken, falta_numeral, falta_descripcion, status, created_at, teacher_id, raice_users!teacher_id(first_name, last_name)')
       .eq('student_id', sid)
       .order('created_at', { ascending: false }),
-    sb.from('raice_attendance')
-      .select('date, status, class_hour, teacher_id')
-      .eq('student_id', sid)
-      .order('date', { ascending: false })
-      .limit(120),
+    // Asistencia del periodo seleccionado (paginada). course_id imprescindible
+    // para cruzar con el horario (materia/docente).
+    (async () => ({ data: await fetchStudentAttendance(sb, sid, _range.from, _range.to) }))(),
     sb.from('raice_observations')
       .select('type, text, created_at, raice_users!teacher_id(first_name, last_name)')
       .eq('student_id', sid)
@@ -8444,88 +8784,10 @@ async function handlePortalAcudiente(req, res) {
       .eq('student_id', sid)
   ]);
 
-  // NEW: Director de grado + asistencia por asignatura
-  let director = null;
-  let attBySubject = [];
-  if (courseId) {
-    // Director de grado
-    const { data: courseData } = await sb.from('raice_courses')
-      .select('director_id, raice_users(first_name, last_name)')
-      .eq('id', courseId).maybeSingle();
-    if (courseData?.raice_users) {
-      director = {
-        name: `${courseData.raice_users.first_name} ${courseData.raice_users.last_name}`
-      };
-    }
-
-    // Asistencia por asignatura + materia/docente de cada registro — atribuir cada
-    // hora a la clase REAL del horario. teacher_id por sí solo es ambiguo (un docente
-    // dicta varias materias); el horario (curso + día + hora → materia) lo desambigua,
-    // funciona para asistencias tomadas por el coordinador, y cubre tanto el curso
-    // principal como los SUBGRUPOS a los que asiste el estudiante.
-    const attData = attRes.data || [];
-    const studentCourseIds = [...new Set(attData.map(a => a.course_id).filter(Boolean))];
-
-    if (studentCourseIds.length) {
-      const { data: tcRows } = await sb.from('raice_teacher_courses')
-        .select('id, subject, teacher_id, course_id')
-        .in('course_id', studentCourseIds);
-      const tcList = tcRows || [];
-      const tcById = {};
-      tcList.forEach(t => { tcById[t.id] = t; });
-
-      // Nombres de docentes
-      const teacherIds = [...new Set(tcList.map(t => t.teacher_id).filter(Boolean))];
-      const teacherMap = {};
-      if (teacherIds.length) {
-        const { data: us } = await sb.from('raice_users')
-          .select('id, first_name, last_name').in('id', teacherIds);
-        (us || []).forEach(u => { teacherMap[u.id] = `${u.first_name} ${u.last_name}`; });
-      }
-
-      // Horario → slot "curso_día_hora" → { materia, docente }
-      const slotInfo = {};
-      if (tcList.length) {
-        const { data: schedRows } = await sb.from('raice_schedules')
-          .select('day_of_week, class_hour, teacher_course_id')
-          .in('teacher_course_id', tcList.map(t => t.id));
-        (schedRows || []).forEach(s => {
-          const tc = tcById[s.teacher_course_id];
-          if (tc?.subject) {
-            slotInfo[`${tc.course_id}_${s.day_of_week}_${s.class_hour}`] = {
-              subject: tc.subject,
-              teacher: tc.teacher_id ? (teacherMap[tc.teacher_id] || null) : null
-            };
-          }
-        });
-      }
-
-      // Enriquecer cada registro con la materia y el docente de ESA clase (curso o subgrupo)
-      attData.forEach(a => {
-        const info = slotInfo[`${a.course_id}_${dayOfWeekCO(a.date)}_${a.class_hour}`];
-        if (info) { a.subject = info.subject; a.teacher_name = info.teacher; }
-      });
-
-      // Asistencia por asignatura (curso principal + subgrupos)
-      const subjectStats = {};
-      attData.forEach(a => {
-        const subject = slotInfo[`${a.course_id}_${dayOfWeekCO(a.date)}_${a.class_hour}`]?.subject;
-        if (!subject) return;
-        if (!subjectStats[subject]) subjectStats[subject] = { P:0, A:0, T:0, PE:0, S:0, total:0 };
-        subjectStats[subject].total++;
-        if (subjectStats[subject][a.status] !== undefined) subjectStats[subject][a.status]++;
-      });
-
-      attBySubject = Object.entries(subjectStats).map(([subject, s]) => {
-        const countable = s.total - s.S - s.PE;
-        return {
-          subject,
-          present: s.P, absent: s.A, late: s.T, permit: s.PE, total: s.total,
-          pct: countable > 0 ? Math.round(((s.P + s.T) / countable) * 100) : null
-        };
-      }).sort((a,b) => (a.pct ?? 999) - (b.pct ?? 999)); // peor % primero
-    }
-  }
+  // Asistencia: reconciliar con excusas, enriquecer con materia/docente y
+  // calcular resumen + por asignatura (lógica COMPARTIDA con la ficha del admin).
+  const { att_summary, att_by_subject: attBySubject, director } =
+    await buildAttendanceInsights(sb, sid, courseId, attRes.data || []);
 
   return res.status(200).json({
     student: {
@@ -8554,9 +8816,13 @@ async function handlePortalAcudiente(req, res) {
     commitments:   commitmentsRes.data || [],
     excusas:       excusasRes.data     || [],
     acudientes:    acudientesRes.data  || [],
+    att_summary,
     att_by_subject: attBySubject,
     director,
-    school:        configRes.data      || {}
+    school:        configRes.data      || {},
+    // Periodos para el selector + el seleccionado actual
+    periods:            _range.periods.map(p => ({ id: p.id, name: p.name, period_num: p.period_num, active: p.active })),
+    selected_period_id: _range.selectedId
   });
 }
 

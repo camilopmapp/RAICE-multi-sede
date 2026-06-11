@@ -26,7 +26,7 @@ superadmin, coordinador (admin), docente (teacher), rector, y portal de acudient
 ## 2. Mapa de archivos
 
 ```
-pages/api/[...path].js        ← TODO el backend (~8600 líneas). Router por `route` string.
+pages/api/[...path].js        ← TODO el backend (~9000 líneas). Router por `route` string.
 public/
   login.html                  Login (todos los roles)
   superadmin.html             Panel superadmin
@@ -56,31 +56,46 @@ Los HTML hacen `var { x } = window.RAICE;` al inicio. Detalle completo en `publi
 
 ## 3. Cómo desplegar (LEE ESTO ANTES DE EDITAR)
 
-⚠️ **Hay DOS carpetas:**
-- `RAICE MIGRACION/` → carpeta de **trabajo** (donde editas)
-- `RAICE 060626/` → carpeta del **repo Git** (lo que se despliega a Vercel)
+⚠️ **La fuente de verdad es GitHub, no las carpetas locales.** El repositorio Git conectado
+a Vercel es:
+- Remoto: `https://github.com/camilopmapp/raice.git` (rama `main`)
+- Clon local de trabajo: **`RAICE FINAL/`** (es el único con `.git` apuntando a ese remoto)
 
-**Después de editar, SIEMPRE copia el archivo a la carpeta del repo:**
-```powershell
-Copy-Item "RAICE MIGRACION\public\X.html" "RAICE 060626\public\X.html" -Force
+**Flujo correcto — trabajar DIRECTO en el clon Git y pushear:**
+```bash
+# 1. Editar archivos en RAICE FINAL/
+# 2. Validar sintaxis (ver abajo)
+# 3. Commit + push:
+git add <archivos>
+git commit -m "..."
+git push origin main
+# 4. Vercel detecta el push y despliega solo (~1-2 min).
 ```
 
-⚠️ El archivo `pages/api/[...path].js` tiene **corchetes** en el nombre. PowerShell los
-interpreta como glob. Usa SIEMPRE `-LiteralPath`:
-```powershell
-Copy-Item -LiteralPath "RAICE MIGRACION\pages\api\[...path].js" `
-          -Destination "RAICE 060626\pages\api\[...path].js" -Force
-```
+⚠️ **Flujo OBSOLETO (ya NO se usa):** antes se editaba en `RAICE MIGRACION/`, se copiaba a
+`RAICE 060626/` y se subía por la **web de GitHub** ("Add files via upload"). Eso provocó que
+el clon local llegara a estar **264 commits ATRÁS** del remoto. **Esas carpetas pueden estar
+desactualizadas — no las uses como referencia.**
 
-Luego el usuario hace `git push` desde `RAICE 060626/` y Vercel despliega solo.
-**El cambio NO está en producción hasta que se hace push y Vercel termina el build.**
-
-### Verificar sintaxis antes de desplegar
-```powershell
-# Para el API (tiene corchetes):
-Copy-Item -LiteralPath "pages\api\[...path].js" "_check.js" -Force; node --check _check.js; Remove-Item _check.js -Confirm:$false
+⚠️ **SIEMPRE sincroniza el clon antes de tocar nada** (por si alguien subió por la web):
+```bash
+git fetch origin
+git rev-list --left-right --count main...origin/main   # izq=local adelante, der=remoto adelante
+git merge --ff-only origin/main                         # si el local está solo atrás (sin divergencia)
 ```
-Para un HTML, extrae el `<script>` principal y haz `node --check`.
+**Si pusheas desde un clon viejo, sobrescribes el trabajo que esté en el remoto.**
+
+⚠️ `pages/api/[...path].js` tiene **corchetes** en el nombre. En Bash basta con comillas;
+en PowerShell usa `-LiteralPath` (los corchetes son glob).
+
+**El cambio NO está en producción hasta que el push llega a GitHub y Vercel termina el build.**
+
+### Verificar sintaxis antes de pushear
+```bash
+node --check "pages/api/[...path].js"        # API (Bash maneja los corchetes con comillas)
+```
+Para un HTML, validar los bloques `<script>` inline (regex extrae los `<script>` sin `src` y
+`new vm.Script(...)` por bloque). NUNCA pushear sin que compile.
 
 ---
 
@@ -163,6 +178,97 @@ vista en COORDINADOR (no filtra por horario) vs DOCENTE — si difieren, es el h
 **Causa:** faltaba `<script src="/shared/utils/index.js">` en el `<head>` (checkAuth no existía).
 **Solución:** confirmar que cada HTML carga los módulos shared que referencia.
 
+### 5.6 Excusas/permisos — "el permiso MANDA" (debe reflejarse en TODOS los módulos)
+Un permiso/excusa debe dejar al estudiante en `PE`, sin importar el orden de los eventos
+(excusa antes o después de tomar lista). Hay **CUATRO** puntos que deben respetarlo (ya
+implementados); si un permiso "no se ve" en algún lado, revisa el que falle:
+- **Registrar excusa** (`handleExcusas` POST): convierte cualquier estado previo
+  (A, P, T, S, NR) → PE en las horas cubiertas (`.neq('status','PE')`).
+- **Guardar lista** (`handleAttendance` POST): antes de insertar consulta las excusas de la
+  fecha y fuerza `status='PE'` a quien tenga excusa que cubra la hora (si no, el guardado
+  borraba el PE e insertaba Presente).
+- **Vista del docente** (`handleAttendance` GET): muestra PE si hay excusa que cubre la hora,
+  aunque el registro guardado diga otra cosa.
+- **Portal del acudiente** (`handlePortalAcudiente`): reconcilia asistencia con excusas ANTES
+  de calcular conteo de ausencias, %, calendario y asistencia por asignatura.
+Cobertura: `horas` null/vacío = toda la jornada; si trae horas, debe incluir la hora.
+Estas son reconciliaciones en LECTURA/escritura puntual; no reescriben registros históricos en masa.
+
+### 5.7 "Corregir lista" del docente se cierra sola / no entra a corrección
+**Causa:** desbloquear solo cambia estado LOCAL, pero el auto-refresco (60s) y el Realtime
+recargan la hora y el servidor sigue reportando `saved=true` (desbloquear NO borra registros)
+→ re-bloquea. Solo los frenaba `_attDirty`, que es false hasta editar algo.
+**Solución:** bandera `_correctionMode` (clave `curso_fecha_hora`) que el auto-refresco y el
+Realtime respetan; se limpia al cambiar curso/hora/fecha y al guardar. En `docente.html`.
+
+### 5.8 Mapa escolar muestra "undefined" / "No hay cursos con horario cargado"
+**Causa:** `fetchSchedulesOverview` (`shared/data/repositories.js`) descartaba `today_dow` del
+backend → `DAYS[undefined]` y el filtro `day_of_week === undefined` no casa con ningún horario.
+**Regresión de la migración** (el wrapper recortó campos del JSON).
+**Solución:** reenviar `today` y `today_dow` en el wrapper. **LECCIÓN:** los wrappers de
+`repositories.js` deben devolver TODOS los campos que la vista usa. Si una vista migrada muestra
+"undefined" o vacío, sospecha del wrapper recortando la respuesta del backend.
+
+### 5.9 El Realtime del admin no refresca nada
+**Causa:** los callbacks comparaban `currentSection === 'sec-asistencia'` (con prefijo `sec-`),
+pero `currentSection` guarda el nombre CORTO (`'asistencia'`, `'casos'`, `'dashboard'`…). Nunca
+casaba. (`currentSection = name`; el DOM id es `'sec-' + name`.)
+**Solución:** comparar sin el prefijo `sec-`. El Mapa escolar "Ahora mismo" además se refresca
+en vivo al registrar asistencia, con debounce (~800ms) porque una clase = muchos inserts.
+
+### 5.10 Festivos: las vistas deben respetar el día no lectivo
+El backend `/raice/calendar/today` devuelve `blocks_attendance` y `event`. Las vistas de "ahora"/
+"hoy" deben consultarlo y NO pintar clases como en curso:
+- Docente "Mi horario" → aviso de festivo en "Hoy tengo".
+- Docente "Historial de asistencia" → NO depende de `loadMyCourses()` (se cancela en festivo);
+  carga cursos directo con `fetchMyCourses`.
+- Mapa escolar → "Ahora mismo" muestra aviso; "Por grupo/Por docente" banner + columna de hoy
+  neutralizada (sin badges de pendiente).
+
+### 5.11 Portal acudiente: el detalle de asistencia no mostraba materia ni docente
+**Causa:** la consulta de asistencia del portal no seleccionaba `course_id`, así que el bloque
+que cruza cada hora con el horario (curso+día+hora → materia/docente) no corría.
+**Solución:** agregar `course_id` al `select`. El frontend ya sabía mostrar `subject`/`teacher_name`.
+
+### 5.12 Ficha del estudiante (admin/rector) y portal del acudiente deben coincidir
+El resumen del estudiante que ve el **coordinador** y el **rector** (buscador global → ficha) y el
+**portal del acudiente** salen de **una sola función backend**: `buildAttendanceInsights(sb,
+studentId, courseId, attData)`. Reconcilia excusas (el permiso MANDA), enriquece materia/docente,
+calcula asistencia por asignatura, director y el resumen canónico. **Si agregas datos al resumen,
+hazlo en ese helper** para que las tres vistas no diverjan. Endpoints: `/raice/student-ficha`
+(admin/rector, por id) y `/raice/portal-acudiente` (público, por documento).
+
+---
+
+## 5B. ⭐ CRITERIO ÚNICO de % de asistencia (NO reintroducir otra fórmula)
+
+> Históricamente había **15+ cálculos de % con 4 fórmulas distintas** → el mismo estudiante daba
+> % diferente según la pantalla. Se unificó. **No vuelvas a inventar una fórmula local.**
+
+**Fórmula canónica (única):**
+```
+countable = total − S − PE
+pct       = (P + T) / countable        // null si countable ≤ 0
+```
+- **T (tardanza) CUENTA como asistencia** (suma en el numerador).
+- **PE (permiso) y S (especial / sin lista) se EXCLUYEN del denominador** (no bajan ni suben el %).
+- **A (ausente) y NR** quedan en el denominador → bajan el %.
+
+**Helper único** (en `pages/api/[...path].js`, junto a `dayOfWeekCO`):
+- `attendanceStats(records)` → `{ total, present, absent, late, permit, special, countable, pct }`
+  a partir de un arreglo de registros `{status}`.
+- `_pctCanonical(P, T, PE, S, total)` → solo el número, cuando ya tienes los conteos agregados.
+
+**Regla:** cualquier cálculo nuevo de % de asistencia DEBE usar uno de esos dos. NO escribas
+`present / total`, ni cuentes PE como presente, ni omitas excluir S.
+
+**Única excepción legítima:** el **% por hora** del Mapa escolar (`pctByHour` con `hasRealList`)
+responde otra pregunta — *"qué % de estudiantes asistió en ESA hora"* — y usa su propio modelo.
+Eso NO es el % de un estudiante y NO se unifica.
+
+**Si reportan que dos pantallas muestran % distinto del mismo estudiante:** alguien metió una
+fórmula local. Búscala (`grep "/ total\|present /\|/ countable"`) y reemplázala por el helper.
+
 ---
 
 ## 6. Metodología de diagnóstico (¿código o datos?)
@@ -194,9 +300,20 @@ Antes de "arreglar código", determina la naturaleza del problema:
 
 ## 8. Estado de la migración (contexto)
 
-Arquitectura migrando de monolito HTML a capas limpias (AGENTS.md §10).
-Etapas 1-4 completas: `shared/constants`, `utils`, `data` (apiClient + repositories), `domain`.
-Etapa 5 (presentation: separar render del estado) pendiente — hacer **incremental**, NO big-bang.
+Arquitectura migrando de monolito a capas (AGENTS.md §10). **Sigue siendo MAYORMENTE
+monolítica** — la migración solo extrajo la capa compartida:
+
+- **Backend:** `pages/api/[...path].js` ≈ **9.000 líneas en UN solo archivo** (100% monolito,
+  router por string `route`). Es el punto más frágil: cualquier cambio toca un archivo enorme
+  compartido por todos los roles.
+- **Frontend:** 1 HTML gigante por rol con JS inline — admin ≈10.4k, superadmin ≈6.4k,
+  docente ≈4.8k, rector ≈1.7k, portal ≈0.7k líneas.
+- **Modularizado (lo migrado):** `public/shared/` = 8 archivos, **≈876 líneas** (constants,
+  utils, data: apiClient + repositories + realtime, domain).
+
+Etapas 1-4 (capa compartida) completas. Etapa 5 (presentation) y el **troceado del backend**
+pendientes — hacer **incremental**, NO big-bang. Candidato natural siguiente: partir el backend
+por dominio (asistencia, casos, excusas, estudiantes…).
 
 ---
 
@@ -207,11 +324,16 @@ Etapa 5 (presentation: separar render del estado) pendiente — hacer **incremen
 3. [ ] Determinar si es código o datos (sección 6)
 4. [ ] Revisar constraints de la tabla afectada en `RAICE_maestro.sql` (sección 4)
 5. [ ] Hacer el cambio MÍNIMO y acotado
-6. [ ] `node --check` del archivo
-7. [ ] Copiar a la carpeta del repo (`-LiteralPath` si es el API)
+6. [ ] `node --check` del archivo (y validar `<script>` inline si es HTML)
+7. [ ] `git add` + `commit` + `push origin main` desde `RAICE FINAL/`
 8. [ ] Ejecutar CHECKLIST.md del rol afectado
-9. [ ] Indicar al usuario qué archivos subir a GitHub
+9. [ ] Confirmar al usuario el commit pusheado y que Vercel desplegó
 
 ---
 
-*RUNBOOK v1 — junio 2026. Mantener actualizado al resolver problemas nuevos (sección 5).*
+*RUNBOOK v3 — junio 2026. Cambios v3: criterio ÚNICO de % de asistencia (sección 5B) y helper
+compartido `buildAttendanceInsights` (5.12) — ficha admin/rector y portal del acudiente usan la
+misma lógica y la misma fórmula canónica. Cambios v2: flujo de despliegue por Git directo en
+`RAICE FINAL` (deja de usar las 2 carpetas / subida por web); problemas 5.6–5.11 (permiso manda,
+corregir lista, mapa escolar today_dow, realtime sec-, festivos, portal materia/docente); estado
+real de la migración. Mantener actualizado al resolver problemas nuevos (sección 5).*

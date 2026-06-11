@@ -714,7 +714,7 @@
             <div class="upload-text">Arrastra tu archivo Excel aquí o haz clic para seleccionarlo</div>
             <div class="upload-hint" style="margin-top:.4rem;">
               <strong>Obligatorias:</strong> Nombres · Apellidos · Grado &nbsp;|&nbsp;
-              <strong>Opcionales:</strong> Curso · Tipo Doc · Documento · Fecha Nacimiento · Teléfono
+              <strong>Opcionales:</strong> Curso · Tipo Doc · Documento · Fecha Nacimiento · Teléfono · Acudiente · Parentesco · Teléfono Acudiente
             </div>
             <div style="margin-top:.6rem;font-size:.78rem;color:var(--gray);">Solo archivos .xlsx / .xls · Máx. 1000 filas</div>
           </div>
@@ -838,13 +838,14 @@
                   <th>Nombre completo</th>
                   <th>Grado · Curso</th>
                   <th>Sede</th>
+                  <th>Contacto</th>
                   <th>Documento</th>
                   <th>Estado</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
               <tbody id="students-tbody">
-                <tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--gray);">Cargando…</td></tr>
+                <tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--gray);">Cargando…</td></tr>
               </tbody>
             </table>
           </div>
@@ -2476,9 +2477,10 @@
   function renderStudents(list) {
     const tbody = document.getElementById('students-tbody');
     if (!list.length) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--gray);">No hay estudiantes registrados.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--gray);">No hay estudiantes registrados.</td></tr>';
       return;
     }
+    const _esc = window.RAICE.escapeHtml;
     tbody.innerHTML = list.map(s => {
       const initials = ((s.first_name||'?')[0] + (s.last_name||'?')[0]).toUpperCase();
       const statusPill = s.status === 'active'
@@ -2488,6 +2490,11 @@
         : s.status === 'transferred'
         ? '<span class="pill pill-yellow">📦 Trasladado</span>'
         : '<span class="pill pill-red">🚪 Retirado</span>';
+      let contacto = s.phone ? `<div style="font-size:.78rem;">📞 ${_esc(s.phone)}</div>` : '';
+      (s.acudientes||[]).forEach(a => {
+        contacto += `<div style="font-size:.74rem;color:var(--gray);">👤 ${a.phone?_esc(a.phone)+' · ':''}${_esc(a.name)}${a.relationship?' ('+_esc(a.relationship)+')':''}</div>`;
+      });
+      if (!contacto) contacto = '<span class="td-muted">—</span>';
       return `
         <tr>
           <td>
@@ -2501,6 +2508,7 @@
           </td>
           <td><strong>${gradeLbl(s.grade)}${s.course}</strong></td>
           <td class="td-muted">🏢 ${s.sede_name || '—'}</td>
+          <td>${contacto}</td>
           <td class="td-muted">${s.doc_number || '—'}</td>
           <td>${statusPill}</td>
           <td>
@@ -2692,10 +2700,30 @@
     }
 
     const isNew = !id;
-    const { ok, data } = await fetchAPI('/raice/students', {
-      method: isNew ? 'POST' : 'PUT',
-      body: JSON.stringify(isNew ? payload : { id, ...payload })
-    });
+
+    async function enviar(force) {
+      const body = isNew ? { ...payload, force } : { id, ...payload };
+      return await fetchAPI('/raice/students', {
+        method: isNew ? 'POST' : 'PUT',
+        body: JSON.stringify(body)
+      });
+    }
+
+    let { ok, data } = await enviar(false);
+
+    // Duplicado por documento → bloquear
+    if (!ok && data?.code === 'DUPLICATE_DOC') {
+      showToast(data.error, 'error');
+      return;
+    }
+    // Duplicado por nombre → confirmar si es la misma persona
+    if (ok && data?.warning === 'DUPLICATE_NAME') {
+      if (!confirm('⚠️ ' + data.message + '\n\nAceptar = crear de todas formas (es otra persona)\nCancelar = no crear')) {
+        return;
+      }
+      ({ ok, data } = await enviar(true));
+    }
+
     if (ok) {
       // Save acudientes
       const studentId = isNew ? data?.student?.id : id;
@@ -2931,6 +2959,13 @@
           }
           return -1;
         };
+        const colIdxExcept = (names, except) => {
+          for (const name of names) {
+            const idx = header.findIndex((h, i) => i !== except && h.includes(name));
+            if (idx >= 0) return idx;
+          }
+          return -1;
+        };
 
         const iNombre    = colIdx(['nombres', 'nombre', 'name', 'names', 'primer nombre']);
         const iApellido  = colIdx(['apellidos', 'apellido', 'lastname', 'last name']);
@@ -2939,7 +2974,12 @@
         const iTipoDoc   = colIdx(['tipo doc', 'tipo de doc', 'tipo_doc', 'tipo documento']);
         const iDoc       = colIdx(['documento', 'numero doc', 'num doc', 'cedula', 'tarjeta', 'identificacion']);
         const iFechaNac  = colIdx(['fecha nac', 'fecha de nac', 'nacimiento', 'birth', 'birth_date']);
-        const iPhone     = colIdx(['telefono', 'celular', 'phone', 'tel']);
+        const iAcud      = colIdx(['acudiente', 'nombre acudiente', 'padre', 'madre', 'responsable']);
+        const iParent    = colIdx(['parentesco', 'relacion']);
+        // Teléfono del acudiente (columna separada, opcional)
+        const iAcudPhone = colIdx(['telefono acudiente', 'tel acudiente', 'celular acudiente', 'telefono padre', 'telefono madre', 'tel padre', 'tel madre']);
+        // Teléfono del estudiante, sin tomar la columna del acudiente
+        const iPhone     = colIdxExcept(['telefono', 'celular', 'phone', 'tel'], iAcudPhone);
 
         if (iNombre < 0 || iApellido < 0 || iGrado < 0) {
           showToast('No se encontraron las columnas obligatorias: Nombres, Apellidos, Grado. Revisa el archivo.', 'error');
@@ -2957,6 +2997,7 @@
           return s.match(/^\d{4}-\d{2}-\d{2}$/) ? s : null;
         };
 
+        const relMap = { 'padre':'Padre','madre':'Madre','responsable':'Responsable','acudiente':'Responsable' };
         importedData = rows.slice(1)
           .map((row, idx) => ({
             first_name:  String(row[iNombre]   || '').trim(),
@@ -2967,6 +3008,9 @@
             doc_number:  iDoc >= 0     ? String(row[iDoc]       || '').trim() : '',
             birth_date:  iFechaNac >= 0 ? parseExcelDate(row[iFechaNac]) : null,
             phone:       iPhone >= 0   ? String(row[iPhone]     || '').trim() || null : null,
+            acudiente_name: iAcud >= 0 ? (String(row[iAcud] || '').trim() || null) : null,
+            acudiente_relationship: iParent >= 0 ? (relMap[String(row[iParent]||'').trim().toLowerCase()] || 'Responsable') : 'Responsable',
+            acudiente_phone: iAcudPhone >= 0 ? (String(row[iAcudPhone] || '').trim() || null) : null,
             _row: idx + 2
           }))
           .filter(s => s.first_name && s.last_name && s.grade > 0);
@@ -3001,11 +3045,14 @@
     const withDoc  = importedData.filter(s => s.doc_number).length;
     const withDob  = importedData.filter(s => s.birth_date).length;
     const withPhone= importedData.filter(s => s.phone).length;
+    const withAcud = importedData.filter(s => s.acudiente_name).length;
+    const _escP = window.RAICE.escapeHtml;
     document.getElementById('import-count').innerHTML =
       `📊 <strong>${importedData.length} estudiantes</strong> listos para importar`
       + (withDoc   ? ` · 📄 ${withDoc} con documento`       : '')
       + (withDob   ? ` · 🎂 ${withDob} con fecha nac.`      : '')
-      + (withPhone ? ` · 📞 ${withPhone} con teléfono`      : '');
+      + (withPhone ? ` · 📞 ${withPhone} con teléfono`      : '')
+      + (withAcud  ? ` · 👤 ${withAcud} con acudiente`      : '');
 
     const rows = importedData.slice(0, 8).map(s => `
       <tr>
@@ -3013,8 +3060,8 @@
         <td style="padding:.45rem .7rem;font-size:.82rem;">${s.last_name}</td>
         <td style="padding:.45rem .7rem;font-size:.82rem;"><strong>${gradeLbl(s.grade)}${s.course}</strong></td>
         <td style="padding:.45rem .7rem;font-size:.79rem;color:var(--gray);">${s.doc_type} ${s.doc_number || '—'}</td>
-        <td style="padding:.45rem .7rem;font-size:.79rem;color:var(--gray);">${s.birth_date || '—'}</td>
         <td style="padding:.45rem .7rem;font-size:.79rem;color:var(--gray);">${s.phone || '—'}</td>
+        <td style="padding:.45rem .7rem;font-size:.79rem;color:var(--gray);">${s.acudiente_name?_escP(s.acudiente_name)+' ('+s.acudiente_relationship+')'+(s.acudiente_phone?' · 📞 '+_escP(s.acudiente_phone):''):'—'}</td>
       </tr>`).join('');
 
     document.getElementById('import-table-wrap').innerHTML = `
@@ -3025,8 +3072,8 @@
           <th style="text-align:left;padding:.45rem .7rem;font-size:.73rem;color:var(--gray);">Apellidos</th>
           <th style="text-align:left;padding:.45rem .7rem;font-size:.73rem;color:var(--gray);">Grado·Curso</th>
           <th style="text-align:left;padding:.45rem .7rem;font-size:.73rem;color:var(--gray);">Documento</th>
-          <th style="text-align:left;padding:.45rem .7rem;font-size:.73rem;color:var(--gray);">Fecha Nac.</th>
           <th style="text-align:left;padding:.45rem .7rem;font-size:.73rem;color:var(--gray);">Teléfono</th>
+          <th style="text-align:left;padding:.45rem .7rem;font-size:.73rem;color:var(--gray);">Acudiente</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table></div>
@@ -3142,14 +3189,14 @@
   }
 
   function downloadImportTemplate() {
-    const headers = ['Nombres','Apellidos','Grado','Curso','Tipo Doc','Documento','Fecha Nacimiento','Telefono'];
+    const headers = ['Nombres','Apellidos','Grado','Curso','Tipo Doc','Documento','Fecha Nacimiento','Telefono','Acudiente','Parentesco','Telefono Acudiente'];
     const examples = [
-      ['Carlos Andrés','Parra Gómez',7,1,'TI','1061234567','2011-03-15','3217654321'],
-      ['María José','López Ruiz',6,2,'TI','1062345678','2012-07-22',''],
-      ['Juan','Rodríguez',0,1,'RC','1063456789','2019-01-10','3134567890'],
+      ['Carlos Andrés','Parra Gómez',7,1,'TI','1061234567','2011-03-15','3217654321','Pedro Parra López','Padre','3001112233'],
+      ['María José','López Ruiz',6,2,'TI','1062345678','2012-07-22','3158889900','Ana Ruiz Díaz','Madre','3004445566'],
+      ['Juan','Rodríguez',0,1,'RC','1063456789','2019-01-10','3134567890','Marta Rodríguez','Responsable',''],
     ];
     const ws = XLSX.utils.aoa_to_sheet([headers, ...examples]);
-    ws['!cols'] = headers.map((h,i) => ({ wch: [16,16,8,8,10,14,18,14][i] }));
+    ws['!cols'] = headers.map((h,i) => ({ wch: [16,16,8,8,10,14,18,14,22,14,16][i] }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Estudiantes');
     XLSX.writeFile(wb, 'formato_importacion_estudiantes.xlsx');

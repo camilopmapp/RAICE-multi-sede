@@ -34,8 +34,8 @@ cd raice
 2. Elige nombre, contraseña de base de datos y región (ej: South America)
 3. Espera ~2 minutos a que el proyecto se inicialice
 4. Ve a **SQL Editor → New query**
-5. Pega el contenido completo de `RAICE_schema_COMPLETO.sql` y ejecuta (**Run**)
-6. Verifica en **Table Editor** que se crearon las tablas (deben aparecer ~26 tablas con prefijo `raice_`)
+5. Pega el contenido completo de `RAICE_maestro.sql` y ejecuta (**Run**)
+6. Verifica en **Table Editor** que se crearon las tablas (deben aparecer ~29 tablas con prefijo `raice_`)
 
 > ⚠️ El script es idempotente: puedes ejecutarlo múltiples veces sin romper nada.
 
@@ -140,18 +140,25 @@ Desde **Estudiantes → Importar**:
 
 ---
 
-## Formato del CSV de estudiantes
+## Formato del Excel/CSV de estudiantes
+
+**Obligatorias:** `Nombres`, `Apellidos`, `Grado`
+**Opcionales:** `Curso`, `Tipo Doc`, `Documento`, `Fecha Nacimiento`, `Telefono`,
+`Acudiente`, `Parentesco`, `Telefono Acudiente`
 
 ```
-Nombres,Apellidos,Grado,Curso,Documento
-Carlos,Parra Gómez,7,1,1023456789
-Diana,Rodríguez López,7,1,1023456790
-Luis,Martínez Torres,8,2,1023456791
+Nombres,Apellidos,Grado,Curso,Tipo Doc,Documento,Fecha Nacimiento,Telefono,Acudiente,Parentesco,Telefono Acudiente
+Carlos,Parra Gómez,7,1,TI,1023456789,2011-03-15,3217654321,Pedro Parra López,Padre,3001112233
+Diana,Rodríguez López,7,1,TI,1023456790,2012-07-22,3158889900,Ana Ruiz Díaz,Madre,3004445566
 ```
 
-- **Grado**: número solo (7, no "Séptimo" ni "7°")
-- **Curso**: número solo (1, no "01" ni "Uno")
-- Guarda como `.csv` antes de importar
+- **Grado**: número solo (7, no "Séptimo" ni "7°"). Transición/Pre-jardín se mapean internamente.
+- **Curso**: número solo (1, no "01" ni "Uno").
+- **Acudiente / Parentesco / Telefono Acudiente**: opcionales. Si la celda del teléfono del
+  acudiente viene vacía, NO sobrescribe el que ya exista. La detección de columnas es flexible
+  (reconoce variantes de encabezado), y descarga la plantilla desde el panel para el formato exacto.
+- El importador empareja por **nombre + grado + curso**: actualiza si ya existe, crea si no.
+  Bloquea documentos duplicados.
 
 ---
 
@@ -205,21 +212,36 @@ git pull origin main
 
 ```
 raice-next/
-├── pages/api/[...path].js     # API monolítica (toda la lógica backend)
+├── pages/api/[...path].js     # API monolítica (toda la lógica backend, ~9000 líneas)
 ├── public/
 │   ├── login.html             # Pantalla de login
 │   ├── admin.html             # Panel coordinador
 │   ├── docente.html           # Portal docente
 │   ├── superadmin.html        # Panel superadmin
-│   ├── portal-acudiente.html  # Portal padres
+│   ├── rector.html            # Panel rector
+│   ├── portal-acudiente.html  # Portal padres (acceso por documento)
+│   ├── shared/                # Capa compartida (window.RAICE — ver public/shared/README.md)
+│   │   ├── constants/  utils/  data/  domain/
 │   └── js/
 │       └── chart.umd.min.js   # Chart.js (local, sin CDN)
 ├── next.config.js             # Configuración Next.js + headers de seguridad
 ├── vercel.json                # Configuración Vercel + cron jobs
-├── RAICE_schema_COMPLETO.sql  # ← Ejecutar en Supabase para instalar
+├── RAICE_maestro.sql          # ← Ejecutar en Supabase para instalar (fuente de verdad del esquema)
+├── RUNBOOK.md                 # Guía operativa para IA/devs (leer primero al mantener)
+├── AGENTS.md                  # Reglas de migración/arquitectura
 └── DESPLIEGUE.md              # Esta guía
 ```
 
 ---
 
-*RAICE v9 — marzo 2026*
+## Mantenimiento (para devs/IA)
+
+- **Repo Git real:** `https://github.com/camilopmapp/raice.git` (rama `main`). Vercel auto-despliega
+  con cada push.
+- El flujo correcto es editar el clon local, validar con `node --check`, y `git push origin main`.
+  **No** subir por la web de GitHub (provoca clones locales desactualizados).
+- Antes de mantener, lee **RUNBOOK.md** (§3 despliegue, §5 problemas conocidos).
+
+---
+
+*RAICE — guía de instalación. Mantenimiento: ver RUNBOOK.md. Actualizado junio 2026.*
