@@ -10912,13 +10912,15 @@ function renderBlocksTable(blocks) {
         </div>
         <div>
           <label style="font-size:.74rem;color:var(--gray);display:block;margin-bottom:.2rem;">Docente</label>
-          <select id="nb-teacher" style="width:100%;padding:.4rem .55rem;border:1.5px solid var(--border);border-radius:8px;font-size:.83rem;font-family:'DM Sans',sans-serif;">
+          <select id="nb-teacher" onchange="onBlockTeacherChange(this)" style="width:100%;padding:.4rem .55rem;border:1.5px solid var(--border);border-radius:8px;font-size:.83rem;font-family:'DM Sans',sans-serif;">
             <option value="">— Seleccionar —</option>${teacherOpts}
           </select>
         </div>
         <div>
           <label style="font-size:.74rem;color:var(--gray);display:block;margin-bottom:.2rem;">Asignatura</label>
-          <input type="text" id="nb-asignatura" placeholder="Ej. Matemáticas" style="width:100%;padding:.4rem .55rem;border:1.5px solid var(--border);border-radius:8px;font-size:.83rem;">
+          <select id="nb-asignatura" style="width:100%;padding:.4rem .55rem;border:1.5px solid var(--border);border-radius:8px;font-size:.83rem;font-family:'DM Sans',sans-serif;">
+            <option value="">— Selecciona un docente primero —</option>
+          </select>
         </div>
         <div>
           <label style="font-size:.74rem;color:var(--gray);display:block;margin-bottom:.2rem;">Duración (min)</label>
@@ -10937,10 +10939,23 @@ function renderBlocksTable(blocks) {
     </div>`;
 }
 
+function onBlockTeacherChange(sel) {
+  const teacherId = sel.value;
+  const asigSel   = document.getElementById('nb-asignatura');
+  const teacher   = _sdTeachers.find(t => t.id === teacherId);
+  const subjects  = teacher?.subjects || (teacher?.subject ? [teacher.subject] : []);
+  if (!teacherId || !subjects.length) {
+    asigSel.innerHTML = '<option value="">— Sin asignaturas registradas —</option>';
+    return;
+  }
+  asigSel.innerHTML = '<option value="">— Seleccionar asignatura —</option>'
+    + subjects.map(s => `<option value="${s}">${s}</option>`).join('');
+}
+
 async function saveBlock() {
   const hora_inicio = document.getElementById('nb-hora').value;
   const teacher_id  = document.getElementById('nb-teacher').value;
-  const asignatura  = document.getElementById('nb-asignatura').value.trim();
+  const asignatura  = document.getElementById('nb-asignatura').value;
   const duracion_min= parseInt(document.getElementById('nb-duracion').value) || 55;
   const course_id   = document.getElementById('nb-course').value || null;
 
