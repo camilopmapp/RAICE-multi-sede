@@ -1365,15 +1365,21 @@ function renderAttThreshold() {
   const casesMin      = parseInt(document.getElementById('threshold-cases')?.value || '0');
   const gradeFilter   = document.getElementById('threshold-grade')?.value || '';
 
-  // att_pct is null when no attendance records exist — treat null as 0% (worst case)
+  // att_pct null = no records this period — include them always (unknown risk)
   let list = (_insights.students_at_risk || []).filter(s => {
-    const pct = s.att_pct ?? 0;
-    if (pct >= attThreshold) return false;
+    const pct = s.att_pct; // keep null distinct from 0
+    if (pct !== null && pct >= attThreshold) return false; // known & above threshold → exclude
     if ((s.open_cases || 0) < casesMin) return false;
     if (gradeFilter && (s.course||'') !== gradeFilter) return false;
     return true;
   });
-  list.sort((a,b) => (a.att_pct ?? 0) - (b.att_pct ?? 0));
+  // Sort: null (no data) last, then ascending by att_pct (worst first)
+  list.sort((a,b) => {
+    if (a.att_pct === null && b.att_pct === null) return 0;
+    if (a.att_pct === null) return 1;
+    if (b.att_pct === null) return -1;
+    return a.att_pct - b.att_pct;
+  });
 
   if (!list.length) {
     el.innerHTML = `<div class="empty"><div class="ei">✓</div>Ningún estudiante cumple los filtros actuales.</div>`;
