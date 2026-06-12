@@ -9209,17 +9209,22 @@ async function handlePsychHistoryDetail(req, res, user) {
   const pathParts = url.pathname.replace('/api/','').split('/');
   const id = pathParts[3];
   if (req.method === 'GET') {
-    const [histRes, sessRes, instrRes, goalsRes, commRes, ratingsRes, flagsRes, logRes] = await Promise.all([
-      sb.from('psych_histories').select('*, student:raice_students(id, first_name, last_name, doc_number, grade, course, birth_date, gender)').eq('id', id).maybeSingle(),
+    // Core history + pre-existing tables (always exist)
+    const [histRes, sessRes, instrRes, goalsRes] = await Promise.all([
+      sb.from('psych_histories').select('*, student:raice_students(id, first_name, last_name, doc_number, grade, course, birth_date)').eq('id', id).maybeSingle(),
       sb.from('psych_sessions').select('*').eq('history_id', id).order('session_date', { ascending: false }),
       sb.from('psych_instruments').select('*').eq('history_id', id).order('application_date', { ascending: false }),
       sb.from('psych_goals').select('*').eq('history_id', id).order('created_at', { ascending: true }),
+    ]);
+    if (histRes.error) return res.status(500).json({ error: _dbErr(histRes.error, 'psych_histories GET detail') });
+    if (!histRes.data) return res.status(404).json({ error: 'Historia no encontrada.' });
+    // New tables — graceful: return [] if table doesn't exist yet
+    const [commRes, ratingsRes, flagsRes, logRes] = await Promise.all([
       sb.from('psych_commitments').select('*').eq('history_id', id).order('due_date', { ascending: true }),
       sb.from('psych_area_ratings').select('*').eq('history_id', id).order('rating_date', { ascending: true }),
       sb.from('psych_risk_flags').select('*').eq('history_id', id).order('flag_date', { ascending: false }),
       sb.from('psych_status_log').select('*').eq('history_id', id).order('changed_at', { ascending: false }),
     ]);
-    if (!histRes.data) return res.status(404).json({ error: 'Historia no encontrada.' });
     return res.status(200).json({
       ...histRes.data,
       sessions: sessRes.data || [],
