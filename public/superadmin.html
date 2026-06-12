@@ -625,6 +625,17 @@
           </div>
         </div>
       </div>
+
+      <!-- Días especiales próximos -->
+      <div class="card" style="margin-top:1.5rem;">
+        <div class="card-header">
+          <h3>⭐ Días especiales programados</h3>
+          <span style="font-size:.75rem;color:var(--gray);">Próximos 30 días · todas las sedes</span>
+        </div>
+        <div class="card-body" id="sa-special-days-list">
+          <div class="empty-state"><div class="empty-ico">⏳</div>Cargando…</div>
+        </div>
+      </div>
     </section>
 
     <!-- ===== USUARIOS ===== -->
@@ -2456,6 +2467,34 @@
     } else {
       activityList.innerHTML = '<div class="empty-state"><div class="empty-ico">📋</div>Sin actividad reciente</div>';
     }
+
+    loadSaSpecialDays();
+  }
+
+  async function loadSaSpecialDays() {
+    const today = new Date().toISOString().slice(0, 10);
+    const end30 = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const r = await fetchAPI('/raice/special-days?from=' + today + '&to=' + end30);
+    const el = document.getElementById('sa-special-days-list');
+    if (!el) return;
+    const list = (r.ok ? r.data : []).filter(d => d.estado === 'activo');
+    if (!list.length) {
+      el.innerHTML = '<div class="empty-state"><div class="empty-ico">⭐</div>Sin días especiales en los próximos 30 días.</div>';
+      return;
+    }
+    const tipoLabel = { jornada_especial:'Jornada especial', jornada_sindical:'Jornada sindical', dia_logros:'Día de logros', pedagogico:'Jornada pedagógica', otro:'Otro' };
+    el.innerHTML = list.slice(0, 8).map(d => {
+      const isToday = d.fecha === today;
+      const fechaFmt = new Date(d.fecha + 'T12:00:00').toLocaleDateString('es-CO', { weekday:'short', day:'numeric', month:'short' });
+      return `<div style="display:flex;align-items:center;gap:.75rem;padding:.5rem .65rem;border-bottom:1px solid var(--border);font-size:.85rem;">
+        <span style="font-size:1.1rem;">⭐</span>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${d.nombre}</div>
+          <div style="font-size:.76rem;color:var(--gray);">${tipoLabel[d.tipo]||d.tipo}</div>
+        </div>
+        <span style="font-size:.77rem;font-weight:700;color:${isToday ? '#6d28d9' : 'var(--gray)'};white-space:nowrap;background:${isToday ? '#f5f3ff' : 'transparent'};padding:.1rem .4rem;border-radius:6px;">${isToday ? 'HOY' : fechaFmt}</span>
+      </div>`;
+    }).join('');
   }
 
   // ---- STUDENTS ----
