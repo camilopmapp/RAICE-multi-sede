@@ -1931,7 +1931,7 @@ async function handleTeachers(req, res, user) {
   const [tcAll, casesAll] = await Promise.all([
     teacherIds.length
       ? sb.from('raice_teacher_courses')
-          .select('teacher_id, subject, raice_courses(grade,number,type,name)').in('teacher_id', teacherIds)
+          .select('teacher_id, course_id, subject, raice_courses(id,grade,number,type,name)').in('teacher_id', teacherIds)
       : { data: [] },
     teacherIds.length
       ? sb.from('raice_cases')
@@ -1943,6 +1943,7 @@ async function handleTeachers(req, res, user) {
   // Build lookup maps
   const tcMap = {};
   const subjectsMap = {};
+  const teacherCoursesMap = {}; // teacher_id → [{course_id, subject}]
   (tcAll.data || []).forEach(r => {
     if (!tcMap[r.teacher_id]) tcMap[r.teacher_id] = [];
     if (r.raice_courses) {
@@ -1952,6 +1953,10 @@ async function handleTeachers(req, res, user) {
     if (r.subject) {
       if (!subjectsMap[r.teacher_id]) subjectsMap[r.teacher_id] = new Set();
       subjectsMap[r.teacher_id].add(r.subject);
+    }
+    if (r.course_id || r.raice_courses) {
+      if (!teacherCoursesMap[r.teacher_id]) teacherCoursesMap[r.teacher_id] = [];
+      teacherCoursesMap[r.teacher_id].push({ course_id: r.course_id, subject: r.subject || '' });
     }
   });
   const casesMap = {};
@@ -1963,6 +1968,7 @@ async function handleTeachers(req, res, user) {
     ...t,
     courses: tcMap[t.id] || [],
     subjects: subjectsMap[t.id] ? [...subjectsMap[t.id]].sort() : (t.subject ? [t.subject] : []),
+    teacher_courses: teacherCoursesMap[t.id] || [],
     cases_this_month: casesMap[t.id] || 0
   }));
 

@@ -10905,31 +10905,31 @@ function renderBlocksTable(blocks) {
     </table>
     <div style="border-top:1.5px solid var(--border);margin-top:.9rem;padding-top:.9rem;">
       <div style="font-weight:700;font-size:.83rem;color:var(--navy);margin-bottom:.6rem;">➕ Agregar bloque</div>
-      <div style="display:grid;grid-template-columns:1fr 2fr 2fr 1fr 2fr auto;gap:.5rem;align-items:end;flex-wrap:wrap;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 2fr 2fr 2fr auto;gap:.5rem;align-items:end;flex-wrap:wrap;">
         <div>
           <label style="font-size:.74rem;color:var(--gray);display:block;margin-bottom:.2rem;">Hora inicio</label>
           <input type="time" id="nb-hora" style="width:100%;padding:.4rem .55rem;border:1.5px solid var(--border);border-radius:8px;font-size:.83rem;">
-        </div>
-        <div>
-          <label style="font-size:.74rem;color:var(--gray);display:block;margin-bottom:.2rem;">Docente</label>
-          <select id="nb-teacher" onchange="onBlockTeacherChange(this)" style="width:100%;padding:.4rem .55rem;border:1.5px solid var(--border);border-radius:8px;font-size:.83rem;font-family:'DM Sans',sans-serif;">
-            <option value="">— Seleccionar —</option>${teacherOpts}
-          </select>
-        </div>
-        <div>
-          <label style="font-size:.74rem;color:var(--gray);display:block;margin-bottom:.2rem;">Asignatura</label>
-          <select id="nb-asignatura" style="width:100%;padding:.4rem .55rem;border:1.5px solid var(--border);border-radius:8px;font-size:.83rem;font-family:'DM Sans',sans-serif;">
-            <option value="">— Selecciona un docente primero —</option>
-          </select>
         </div>
         <div>
           <label style="font-size:.74rem;color:var(--gray);display:block;margin-bottom:.2rem;">Duración (min)</label>
           <input type="number" id="nb-duracion" value="55" min="10" max="240" style="width:100%;padding:.4rem .55rem;border:1.5px solid var(--border);border-radius:8px;font-size:.83rem;">
         </div>
         <div>
-          <label style="font-size:.74rem;color:var(--gray);display:block;margin-bottom:.2rem;">Curso (opcional)</label>
-          <select id="nb-course" style="width:100%;padding:.4rem .55rem;border:1.5px solid var(--border);border-radius:8px;font-size:.83rem;font-family:'DM Sans',sans-serif;">
+          <label style="font-size:.74rem;color:var(--gray);display:block;margin-bottom:.2rem;">Curso</label>
+          <select id="nb-course" onchange="onBlockCourseChange(this)" style="width:100%;padding:.4rem .55rem;border:1.5px solid var(--border);border-radius:8px;font-size:.83rem;font-family:'DM Sans',sans-serif;">
             ${courseOpts}
+          </select>
+        </div>
+        <div>
+          <label style="font-size:.74rem;color:var(--gray);display:block;margin-bottom:.2rem;">Docente</label>
+          <select id="nb-teacher" onchange="onBlockTeacherChange(this)" style="width:100%;padding:.4rem .55rem;border:1.5px solid var(--border);border-radius:8px;font-size:.83rem;font-family:'DM Sans',sans-serif;">
+            <option value="">— Selecciona un curso primero —</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:.74rem;color:var(--gray);display:block;margin-bottom:.2rem;">Asignatura</label>
+          <select id="nb-asignatura" style="width:100%;padding:.4rem .55rem;border:1.5px solid var(--border);border-radius:8px;font-size:.83rem;font-family:'DM Sans',sans-serif;">
+            <option value="">— Selecciona un docente primero —</option>
           </select>
         </div>
         <div style="padding-bottom:.05rem;">
@@ -10939,17 +10939,48 @@ function renderBlocksTable(blocks) {
     </div>`;
 }
 
-function onBlockTeacherChange(sel) {
-  const teacherId = sel.value;
-  const asigSel   = document.getElementById('nb-asignatura');
-  const teacher   = _sdTeachers.find(t => t.id === teacherId);
-  const subjects  = teacher?.subjects || (teacher?.subject ? [teacher.subject] : []);
-  if (!teacherId || !subjects.length) {
-    asigSel.innerHTML = '<option value="">— Sin asignaturas registradas —</option>';
+function onBlockCourseChange(sel) {
+  const courseId   = sel.value;
+  const teacherSel = document.getElementById('nb-teacher');
+  const asigSel    = document.getElementById('nb-asignatura');
+  asigSel.innerHTML = '<option value="">— Selecciona un docente primero —</option>';
+  if (!courseId) {
+    teacherSel.innerHTML = '<option value="">— Selecciona un curso primero —</option>';
     return;
   }
-  asigSel.innerHTML = '<option value="">— Seleccionar asignatura —</option>'
-    + subjects.map(s => `<option value="${s}">${s}</option>`).join('');
+  const filtered = _sdTeachers.filter(t =>
+    Array.isArray(t.teacher_courses) && t.teacher_courses.some(tc => tc.course_id === courseId)
+  );
+  if (!filtered.length) {
+    teacherSel.innerHTML = '<option value="">— Sin docentes en este curso —</option>';
+    return;
+  }
+  teacherSel.innerHTML = '<option value="">— Seleccionar docente —</option>'
+    + filtered.map(t => `<option value="${t.id}">${t.name || t.full_name || t.id}</option>`).join('');
+}
+
+function onBlockTeacherChange(sel) {
+  const teacherId = sel.value;
+  const courseId  = document.getElementById('nb-course')?.value;
+  const asigSel   = document.getElementById('nb-asignatura');
+  const teacher   = _sdTeachers.find(t => t.id === teacherId);
+  if (!teacherId || !teacher) {
+    asigSel.innerHTML = '<option value="">— Selecciona un docente primero —</option>';
+    return;
+  }
+  const tc = (teacher.teacher_courses || []).find(c => c.course_id === courseId);
+  const subject = tc?.subject || '';
+  if (subject) {
+    asigSel.innerHTML = `<option value="${subject}">${subject}</option>`;
+  } else {
+    const subjects = teacher.subjects || (teacher.subject ? [teacher.subject] : []);
+    if (subjects.length) {
+      asigSel.innerHTML = '<option value="">— Seleccionar asignatura —</option>'
+        + subjects.map(s => `<option value="${s}">${s}</option>`).join('');
+    } else {
+      asigSel.innerHTML = '<option value="">— Sin asignatura registrada —</option>';
+    }
+  }
 }
 
 async function saveBlock() {
@@ -10959,8 +10990,8 @@ async function saveBlock() {
   const duracion_min= parseInt(document.getElementById('nb-duracion').value) || 55;
   const course_id   = document.getElementById('nb-course').value || null;
 
-  if (!hora_inicio || !teacher_id || !asignatura) {
-    showToast('Hora, docente y asignatura son obligatorios', 'warning'); return;
+  if (!hora_inicio || !course_id || !teacher_id || !asignatura) {
+    showToast('Hora, curso, docente y asignatura son obligatorios', 'warning'); return;
   }
   const r = await fetchAPI('/raice/special-days/' + _sdBlocksDayId + '/blocks', {
     method: 'POST',
