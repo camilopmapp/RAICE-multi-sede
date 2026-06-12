@@ -1709,7 +1709,7 @@ async function loadDashboard() {
   const [dash, alerts, psych] = await Promise.all([
     R.fetchDashboard(api),
     R.fetchAlerts(api),
-    api('/api/raice/psych/stats').then(r => r.ok ? r.data : null),
+    api('/raice/psych/stats').then(r => r.ok ? r.data : null),
   ]);
   if (dash) renderKPIs(dash);
   renderAlerts(alerts || []);
@@ -2248,9 +2248,11 @@ let _hcAll = [];          // all loaded histories
 let _hcCurrent = null;    // history detail currently open
 let _nhSelectedStudent = null; // student selected in new-history modal
 
+// Capture the raw fetch client BEFORE any replacement touches it
+const _rawApi = api;
 // Unwraps the {ok, status, data} envelope returned by the shared api client
 async function pApi(path, opts) {
-  const r = await pApi(path, opts);
+  const r = await _rawApi(path, opts);
   if (!r.ok) return { error: r.data?.error || 'Error del servidor' };
   return r.data;
 }
@@ -2263,7 +2265,7 @@ const GOAL_STATUS_LABELS = { pending:'Pendiente', in_progress:'En progreso', ach
 
 async function loadHistories() {
   const statusVal = document.getElementById('hc-status')?.value || '';
-  let url = '/api/raice/psych/histories';
+  let url = '/raice/psych/histories';
   if (statusVal) url += '?status=' + encodeURIComponent(statusVal);
   const data = await pApi(url);
   _hcAll = Array.isArray(data) ? data : [];
@@ -2319,7 +2321,7 @@ function renderHistoriesList(list) {
 }
 
 async function openHistoryDetail(id) {
-  const data = await pApi(`/api/raice/psych/histories/${id}`);
+  const data = await pApi(`/raice/psych/histories/${id}`);
   if (!data || data.error) { alert('No se pudo cargar la historia.'); return; }
   _hcCurrent = data;
   populateHcModal(data);
@@ -2478,7 +2480,7 @@ async function saveCommitment() {
     follow_up_note: document.getElementById('comm-follow_up_note')?.value||null,
     follow_up_date: document.getElementById('comm-follow_up_date')?.value||null,
   };
-  const url = editId ? `/api/raice/psych/commitments/${editId}` : '/api/raice/psych/commitments';
+  const url = editId ? `/raice/psych/commitments/${editId}` : '/raice/psych/commitments';
   const res = await pApi(url, { method: editId?'PUT':'POST', body: JSON.stringify(body) });
   if (res?.error) return showToast('Error: '+res.error,'error');
   closeCommitmentModal();
@@ -2487,7 +2489,7 @@ async function saveCommitment() {
 }
 async function deleteCommitment(id) {
   if (!confirm('¿Eliminar este compromiso?')) return;
-  await pApi(`/api/raice/psych/commitments/${id}`, { method:'DELETE' });
+  await pApi(`/raice/psych/commitments/${id}`, { method:'DELETE' });
   await reloadHcModal();
 }
 
@@ -2595,7 +2597,7 @@ async function saveRating() {
   ['cognitive','emotional','behavioral','social'].forEach(a => {
     body[a+'_score'] = +document.getElementById('rs-'+a)?.dataset.value || null;
   });
-  const url = editId ? `/api/raice/psych/area-ratings/${editId}` : '/api/raice/psych/area-ratings';
+  const url = editId ? `/raice/psych/area-ratings/${editId}` : '/raice/psych/area-ratings';
   const res = await pApi(url, { method: editId?'PUT':'POST', body: JSON.stringify(body) });
   if (res?.error) return showToast('Error: '+res.error,'error');
   closeRatingModal();
@@ -2604,7 +2606,7 @@ async function saveRating() {
 }
 async function deleteRating(id) {
   if (!confirm('¿Eliminar esta valoración?')) return;
-  await pApi(`/api/raice/psych/area-ratings/${id}`, { method:'DELETE' });
+  await pApi(`/raice/psych/area-ratings/${id}`, { method:'DELETE' });
   await reloadHcModal();
 }
 
@@ -2680,7 +2682,7 @@ async function saveRiskFlag() {
     active:       document.getElementById('flag-active')?.value === 'true',
     resolution_note: document.getElementById('flag-resolution_note')?.value||null,
   };
-  const url = editId ? `/api/raice/psych/risk-flags/${editId}` : '/api/raice/psych/risk-flags';
+  const url = editId ? `/raice/psych/risk-flags/${editId}` : '/raice/psych/risk-flags';
   const res = await pApi(url, { method: editId?'PUT':'POST', body: JSON.stringify(body) });
   if (res?.error) return showToast('Error: '+res.error,'error');
   closeRiskFlagModal();
@@ -2689,13 +2691,13 @@ async function saveRiskFlag() {
 }
 async function deleteRiskFlag(id) {
   if (!confirm('¿Eliminar esta alerta?')) return;
-  await pApi(`/api/raice/psych/risk-flags/${id}`, { method:'DELETE' });
+  await pApi(`/raice/psych/risk-flags/${id}`, { method:'DELETE' });
   await reloadHcModal();
 }
 
 async function reloadHcModal() {
   if (!_hcCurrent) return;
-  const h = await pApi(`/api/raice/psych/histories/${_hcCurrent.id}`);
+  const h = await pApi(`/raice/psych/histories/${_hcCurrent.id}`);
   if (h?.id) { _hcCurrent = h; populateHcModal(h); }
 }
 
@@ -2731,7 +2733,7 @@ async function saveHcSection(section) {
     body[f] = el.type === 'checkbox' ? el.checked : (el.value || null);
   }
   if (section === 'ingreso') body.consent_signed = document.getElementById('hcf-consent_signed')?.checked || false;
-  const res = await pApi(`/api/raice/psych/histories/${_hcCurrent.id}`, { method:'PUT', body: JSON.stringify(body) });
+  const res = await pApi(`/raice/psych/histories/${_hcCurrent.id}`, { method:'PUT', body: JSON.stringify(body) });
   if (res && !res.error) {
     Object.assign(_hcCurrent, res);
     // Update badge
@@ -2804,12 +2806,12 @@ async function saveSession() {
     notes: document.getElementById('sess-notes').value || null,
   };
   if (!body.session_date) { alert('La fecha de sesión es obligatoria.'); return; }
-  const url = id ? `/api/raice/psych/sessions/${id}` : '/api/raice/psych/sessions';
+  const url = id ? `/raice/psych/sessions/${id}` : '/raice/psych/sessions';
   const method = id ? 'PUT' : 'POST';
   const res = await pApi(url, { method, body: JSON.stringify(body) });
   if (res && !res.error) {
     closeSessionModal();
-    const detail = await pApi(`/api/raice/psych/histories/${_hcCurrent.id}`);
+    const detail = await pApi(`/raice/psych/histories/${_hcCurrent.id}`);
     if (detail && !detail.error) { _hcCurrent = detail; renderSessions(detail.sessions||[]); }
     showToast('Sesión guardada');
   } else { alert('Error: ' + (res?.error || 'desconocido')); }
@@ -2817,7 +2819,7 @@ async function saveSession() {
 
 async function deleteSession(id) {
   if (!confirm('¿Eliminar esta sesión?')) return;
-  const res = await pApi(`/api/raice/psych/sessions/${id}`, { method:'DELETE' });
+  const res = await pApi(`/raice/psych/sessions/${id}`, { method:'DELETE' });
   if (res && !res.error) {
     _hcCurrent.sessions = (_hcCurrent.sessions||[]).filter(s=>s.id!==id);
     renderSessions(_hcCurrent.sessions);
@@ -2879,12 +2881,12 @@ async function saveGoal() {
     status: document.getElementById('goal-status').value || 'pending',
   };
   if (!body.objective) { alert('El objetivo es obligatorio.'); return; }
-  const url = id ? `/api/raice/psych/goals/${id}` : '/api/raice/psych/goals';
+  const url = id ? `/raice/psych/goals/${id}` : '/raice/psych/goals';
   const method = id ? 'PUT' : 'POST';
   const res = await pApi(url, { method, body: JSON.stringify(body) });
   if (res && !res.error) {
     closeGoalModal();
-    const detail = await pApi(`/api/raice/psych/histories/${_hcCurrent.id}`);
+    const detail = await pApi(`/raice/psych/histories/${_hcCurrent.id}`);
     if (detail && !detail.error) { _hcCurrent = detail; renderGoals(detail.goals||[]); }
     showToast('Objetivo guardado');
   } else { alert('Error: ' + (res?.error || 'desconocido')); }
@@ -2892,7 +2894,7 @@ async function saveGoal() {
 
 async function deleteGoal(id) {
   if (!confirm('¿Eliminar este objetivo?')) return;
-  const res = await pApi(`/api/raice/psych/goals/${id}`, { method:'DELETE' });
+  const res = await pApi(`/raice/psych/goals/${id}`, { method:'DELETE' });
   if (res && !res.error) {
     _hcCurrent.goals = (_hcCurrent.goals||[]).filter(g=>g.id!==id);
     renderGoals(_hcCurrent.goals);
@@ -2948,12 +2950,12 @@ async function saveInstrument() {
     interpretation: document.getElementById('instr-interpretation').value || null,
   };
   if (!body.instrument_name || !body.application_date) { alert('Nombre e instrumento y fecha son obligatorios.'); return; }
-  const url = id ? `/api/raice/psych/instruments/${id}` : '/api/raice/psych/instruments';
+  const url = id ? `/raice/psych/instruments/${id}` : '/raice/psych/instruments';
   const method = id ? 'PUT' : 'POST';
   const res = await pApi(url, { method, body: JSON.stringify(body) });
   if (res && !res.error) {
     closeInstrumentModal();
-    const detail = await pApi(`/api/raice/psych/histories/${_hcCurrent.id}`);
+    const detail = await pApi(`/raice/psych/histories/${_hcCurrent.id}`);
     if (detail && !detail.error) { _hcCurrent = detail; renderInstruments(detail.instruments||[]); }
     showToast('Instrumento guardado');
   } else { alert('Error: ' + (res?.error || 'desconocido')); }
@@ -2961,7 +2963,7 @@ async function saveInstrument() {
 
 async function deleteInstrument(id) {
   if (!confirm('¿Eliminar este instrumento?')) return;
-  const res = await pApi(`/api/raice/psych/instruments/${id}`, { method:'DELETE' });
+  const res = await pApi(`/raice/psych/instruments/${id}`, { method:'DELETE' });
   if (res && !res.error) {
     _hcCurrent.instruments = (_hcCurrent.instruments||[]).filter(i=>i.id!==id);
     renderInstruments(_hcCurrent.instruments);
@@ -3140,7 +3142,7 @@ async function createNewHistory() {
   };
   const btn = document.getElementById('nh-save-btn');
   btn.disabled = true; btn.innerHTML = '<span style="opacity:.7">Creando…</span>';
-  const res = await pApi('/api/raice/psych/histories', { method:'POST', body: JSON.stringify(body) });
+  const res = await pApi('/raice/psych/histories', { method:'POST', body: JSON.stringify(body) });
   btn.disabled = false; btn.innerHTML = '<span>📋</span> Crear historia';
   if (res && !res.error) {
     closeNewHistoryModal();
