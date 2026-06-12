@@ -4336,8 +4336,11 @@ async function getRectorInsights(req, res, user) {
   // ── 5. Estudiantes en riesgo ──
   // Low attendance + open cases + unfulfilled commitments
   // Use active period start date so att_pct matches the ficha's period view
-  const activePeriodRes = await safe(() => sb.from('raice_periods').select('start_date').eq('active', true).single(), null);
-  const riskAttStart = activePeriodRes?.data?.start_date || monthStart;
+  let riskAttStart = monthStart;
+  try {
+    const { data: ap } = await sb.from('raice_periods').select('start_date').eq('active', true).maybeSingle();
+    if (ap?.start_date) riskAttStart = ap.start_date;
+  } catch (_) { /* keep monthStart fallback */ }
 
   const [riskAttRes, riskCasesRes, riskCommRes, riskStudentsRes] = await Promise.all([
     safe(() => applySedeAtt(sb.from('raice_attendance').select('student_id, status, course_id').gte('date', riskAttStart).lte('date', today)), { data: [] }),
