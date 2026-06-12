@@ -3581,8 +3581,8 @@
       return;
     }
 
-    const { ok, data, error } = await window.RAICE.saveAttendance(fetchAPI, payload);
-    const status = ok ? 200 : 0;
+    const { ok, data, error, status: httpStatus } = await window.RAICE.saveAttendance(fetchAPI, payload);
+    const status = ok ? 200 : (httpStatus || 0);
     btn.disabled = false;
     btn.innerHTML = `💾 Guardar lista — <span id="btn-hour-label">${hourLabel} hora</span>`;
     if (ok) {

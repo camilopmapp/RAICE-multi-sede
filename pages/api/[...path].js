@@ -2544,16 +2544,10 @@ async function handleAttendance(req, res, user) {
 
         if (!schedErr) {
           const scheduledHours = (schedRows || []).map(s => s.class_hour);
-          if (scheduledHours.length === 0) {
-            // No schedule for today — check if ANY schedule exists for this teacher+course at all
-            const { data: anyRows } = await sb.from('raice_schedules')
-              .select('id').in('teacher_course_id', tcIds).limit(1);
-            if (anyRows && anyRows.length > 0) {
-              // Schedules exist for other days but not today → block
-              return res.status(403).json({ error: 'Este docente no tiene clase hoy con este curso según el horario configurado.' });
-            }
-            // No schedule at all for this teacher+course → allow (school hasn't set up schedules yet)
-          } else if (!scheduledHours.includes(hour)) {
+          // Only block if schedules exist for today AND the sent hour isn't among them.
+          // If no schedules for today (regardless of other days), allow — school may not
+          // have fully configured the schedule or this is a special arrangement.
+          if (scheduledHours.length > 0 && !scheduledHours.includes(hour)) {
             return res.status(403).json({ error: `No tienes clase en la ${hour}ª hora con este curso` });
           }
         }

@@ -208,7 +208,7 @@ R.deleteAcudiente = async function(apiFn, id) {
 // ── Attendance ──────────────────────────────────────────
 R.saveAttendance = async function(apiFn, payload) {
   var r = await apiFn('/raice/attendance', { method:'POST', body: JSON.stringify(payload) });
-  return { ok: r.ok, data: r.data, error: r.data?.error };
+  return { ok: r.ok, status: r.status, data: r.data, error: r.data?.error };
 };
 
 // ── Excusas CRUD ────────────────────────────────────────
