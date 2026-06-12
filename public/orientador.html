@@ -53,10 +53,18 @@
   .main{margin-left:var(--sidebar);flex:1;display:flex;flex-direction:column;min-height:100vh;}
 
   /* ── TOPBAR ── */
-  .topbar{background:white;border-bottom:1px solid var(--border);padding:.85rem 2rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;}
-  .page-title{font-family:'Fraunces',serif;font-size:1.55rem;font-weight:900;color:var(--navy);}
-  .topbar-search{position:relative;width:280px;}
-  .topbar-right{display:flex;align-items:center;gap:.75rem;}
+  .topbar{background:white;border-bottom:1px solid var(--border);padding:.7rem 2rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;gap:1.1rem;box-shadow:0 2px 14px rgba(109,40,217,.07);}
+  .topbar::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#6d28d9 0%,#a78bfa 60%,#67e8f9 100%);pointer-events:none;}
+  .page-title{font-family:'Fraunces',serif;font-size:1.45rem;font-weight:900;color:var(--navy);line-height:1.1;}
+  .tb-subtitle{font-size:.63rem;color:var(--gray);margin-top:.05rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;}
+  .topbar-search{position:relative;flex:1;max-width:400px;}
+  .topbar-right{display:flex;align-items:center;gap:.55rem;}
+  .tb-user-chip{display:flex;align-items:center;gap:.45rem;padding:.28rem .55rem;border-radius:9px;cursor:pointer;transition:background .15s;}
+  .tb-user-chip:hover{background:var(--bg);}
+  .tb-avatar-sm{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#6d28d9,#a78bfa);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.72rem;flex-shrink:0;}
+  .tb-vdiv{width:1px;height:22px;background:var(--border);flex-shrink:0;}
+  .tb-btn-new{background:var(--violet);color:#fff;border:none;border-radius:9px;padding:.42rem .9rem;font-family:'DM Sans',sans-serif;font-size:.79rem;font-weight:700;cursor:pointer;white-space:nowrap;transition:background .15s;}
+  .tb-btn-new:hover{background:#5b21b6;}
   .tb-bell{position:relative;background:none;border:none;cursor:pointer;padding:.3rem .4rem;border-radius:8px;font-size:1.05rem;color:var(--gray);transition:background .15s;}
   .tb-bell:hover{background:var(--light);}
   .tb-bell-badge{position:absolute;top:2px;right:2px;background:#dc2626;color:white;font-size:.54rem;font-weight:700;border-radius:99px;min-width:14px;height:14px;display:flex;align-items:center;justify-content:center;padding:0 3px;display:none;}
@@ -484,22 +492,42 @@
 
   <!-- Topbar -->
   <div class="topbar">
-    <div style="display:flex;align-items:center;gap:.65rem;flex-shrink:0;">
+    <!-- Izquierda: título + subtítulo institución -->
+    <div style="display:flex;align-items:center;gap:.6rem;flex-shrink:0;">
       <button id="menu-btn" onclick="openSidebar()">☰</button>
-      <div class="page-title" id="page-title">Dashboard</div>
+      <div>
+        <div class="page-title" id="page-title">Dashboard</div>
+        <div class="tb-subtitle" id="tb-school-name"></div>
+      </div>
     </div>
+
+    <!-- Centro: búsqueda de estudiante -->
     <div class="topbar-search">
       <span class="ts-ico">🔍</span>
-      <input type="text" id="s-input" placeholder="Buscar estudiante…"
+      <input type="text" id="s-input" placeholder="Buscar estudiante por nombre o documento…"
              oninput="onSearch(this.value)" autocomplete="off" spellcheck="false">
       <button class="ts-clear" id="s-clear" onclick="clearSearch()">✕</button>
       <div class="s-results" id="s-results"></div>
     </div>
-    <div class="topbar-right" style="display:flex;align-items:center;gap:.5rem;flex-shrink:0;">
-      <button class="tb-bell" id="tb-bell-btn" onclick="showSection('casos',document.querySelector('[onclick*=\'casos\']'),\'Casos RAICE\')" title="Casos abiertos">
-        🔔
-        <span class="tb-bell-badge" id="tb-bell-badge"></span>
+
+    <!-- Derecha: CTA + campana + usuario + reloj -->
+    <div class="topbar-right">
+      <button class="tb-btn-new" onclick="openNewHistoryModal()">+ Nueva Historia</button>
+      <div class="tb-vdiv"></div>
+      <button class="tb-bell" id="tb-bell-btn"
+        onclick="showSection('casos',document.querySelector('[onclick*=\'casos\']'),\'Casos RAICE\')"
+        title="Casos abiertos">
+        🔔<span class="tb-bell-badge" id="tb-bell-badge"></span>
       </button>
+      <div class="tb-vdiv"></div>
+      <div class="tb-user-chip" onclick="showSection('perfil',null,'Mi perfil')" title="Mi perfil">
+        <div class="tb-avatar-sm" id="tb-avatar">OR</div>
+        <div style="line-height:1.2;">
+          <div style="font-size:.78rem;font-weight:700;color:var(--navy);white-space:nowrap;" id="tb-user-name">Orientador</div>
+          <div style="font-size:.62rem;color:var(--gray);">🧠 Orientador escolar</div>
+        </div>
+      </div>
+      <div class="tb-vdiv"></div>
       <div class="tb-datetime">
         <span class="tb-time" id="tb-clock"></span>
         <span class="tb-date" id="tb-date-label"></span>
@@ -1378,6 +1406,9 @@ async function initSession() {
   document.getElementById('p-avatar').textContent  = p.initials;
   document.getElementById('p-fullname').textContent = p.fullName;
   document.getElementById('p-username').textContent = p.displayUsername;
+  // Topbar user chip
+  document.getElementById('tb-avatar').textContent   = p.initials;
+  document.getElementById('tb-user-name').textContent = p.firstName || p.fullName.split(' ')[0] || 'Orientador';
 
   const cp = new URLSearchParams(window.location.search);
   if (cp.get('cambiar-contrasena') === '1') { showSection('perfil', null, 'Mi perfil'); }
@@ -1389,6 +1420,8 @@ async function loadSchoolConfig() {
   if (!data) return;
   _schoolConfig = data;
   window.RAICE.applyLogoToSidebar(data.logo_url, data.school_name);
+  const sub = document.getElementById('tb-school-name');
+  if (sub && data.school_name) sub.textContent = data.school_name;
 }
 
 // ── SEARCH ──
