@@ -1277,7 +1277,8 @@
   let activeCourse    = null;
   let _allPeriods     = [];
   let _allCalendarEvents = [];
-  let _todayHolidayInfo = null; // resultado de /raice/calendar/today
+  let _todayHolidayInfo  = null; // resultado de /raice/calendar/today
+  let _todaySpecialDay   = null; // resultado de /raice/special-days/today
   let studentsAtt     = [];   // [{id,name,status:'P'|'A'|'PE'|'T'}]
   let _attDirty       = false; // true when teacher has unsaved changes — prevents auto-refresh from overwriting
   // Bandera de "modo corrección": guarda la clave (curso_fecha_hora) de la hora
@@ -1625,9 +1626,21 @@
     }
   }
 
+  async function checkTodaySpecialDay() {
+    try {
+      const sedeId = currentUser?.sede_id;
+      if (!sedeId) return;
+      const r = await fetchAPI('/raice/special-days/today?sede_id=' + sedeId);
+      if (!r.ok || !r.data) return;
+      _todaySpecialDay = r.data; // { ...day, blocks: [...] } — blocks filtrados al docente actual
+    } catch(e) {
+      console.warn('[RAICE] checkTodaySpecialDay:', e);
+    }
+  }
+
   // ---- COURSES ----
   async function loadMyCourses() {
-    // Solo bloquear si el evento impide que haya clases
+    // Prioridad 1: festivo que bloquea asistencia
     if (_todayHolidayInfo?.blocks_attendance) {
       const grid  = document.getElementById('courses-grid');
       const event = _todayHolidayInfo.event;
@@ -1638,6 +1651,84 @@
         <div style="font-family:'Fraunces',serif;font-size:1.1rem;font-weight:700;color:var(--navy);margin-bottom:.5rem;">Cursos Ocultos</div>
         <div style="font-size:.88rem;">Hoy es <strong>${name}</strong> — no hay clases programadas.</div>
       </div>`;
+      return;
+    }
+
+    // Prioridad 2: día especial definido por el coordinador
+    if (_todaySpecialDay) {
+      const grid    = document.getElementById('courses-grid');
+      const blocks  = _todaySpecialDay.blocks || [];
+      const dayName = _todaySpecialDay.nombre || 'Día especial';
+
+      if (!blocks.length) {
+        // Docente no tiene bloques asignados → no tiene clase hoy
+        grid.innerHTML = `<div style="text-align:center;padding:3.5rem 1rem;color:var(--gray);grid-column:1/-1;">
+          <div style="font-size:2.5rem;margin-bottom:.75rem;">⭐</div>
+          <div style="font-family:'Fraunces',serif;font-size:1.1rem;font-weight:700;color:var(--navy);margin-bottom:.5rem;">${dayName}</div>
+          <div style="font-size:.88rem;">No tienes bloques asignados para este día especial.<br>Consulta con el coordinador.</div>
+        </div>`;
+        return;
+      }
+
+      // Docente tiene bloques → renderizar tarjetas especiales
+      const ordinals = ['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª'];
+      const nowMins  = new Date().getHours() * 60 + new Date().getMinutes();
+
+      function computeEndTime(hora_inicio, duracion_min) {
+        const [h, m] = hora_inicio.split(':').map(Number);
+        const total  = h * 60 + m + (duracion_min || 55);
+        return String(Math.floor(total / 60)).padStart(2,'0') + ':' + String(total % 60).padStart(2,'0');
+      }
+
+      function isBlockActive(b) {
+        if (!b.hora_inicio) return false;
+        const [sh, sm] = b.hora_inicio.split(':').map(Number);
+        const end = computeEndTime(b.hora_inicio, b.duracion_min);
+        const [eh, em] = end.split(':').map(Number);
+        return nowMins >= sh * 60 + sm && nowMins <= eh * 60 + em;
+      }
+
+      const banner = `<div style="background:linear-gradient(135deg,#7c3aed 0%,#0b7a75 100%);border-radius:12px;padding:.85rem 1.2rem;color:white;display:flex;align-items:center;gap:.75rem;margin-bottom:.25rem;grid-column:1/-1;">
+        <span style="font-size:1.6rem;">⭐</span>
+        <div>
+          <div style="font-weight:700;font-size:.95rem;">${dayName}</div>
+          <div style="font-size:.78rem;opacity:.85;">Hoy aplica un horario especial — solo aparecen tus bloques asignados</div>
+        </div>
+      </div>`;
+
+      const cards = blocks.map((b, i) => {
+        const hourIdx   = b.orden || (i + 1);
+        const hourLabel = ordinals[hourIdx - 1] || hourIdx + 'ª';
+        const endTime   = computeEndTime(b.hora_inicio, b.duracion_min);
+        const timeStr   = b.hora_inicio.slice(0,5) + ' – ' + endTime.slice(0,5);
+        const active    = isBlockActive(b);
+        const hasCourse = !!b.course_id;
+        const cName     = b.course
+          ? (b.course.name || `${b.course.grade}°${b.course.number || ''}`)
+          : null;
+        const pill = active
+          ? '<span class="cc-pill now">⚡ Ahora</span>'
+          : '<span class="cc-pill pending">⏳ Pendiente</span>';
+        const cardClass = ['course-card', active ? 'active-now' : ''].filter(Boolean).join(' ');
+        const clickAttr = hasCourse
+          ? `onclick="openSpecialBlockAttendance(${JSON.stringify(b).replace(/"/g,'&quot;')})"`
+          : `onclick="showToast('Este bloque no tiene curso asignado — contacta al coordinador','warning')" style="cursor:default;opacity:.7;"`;
+        return `<div class="${cardClass}" ${clickAttr}>
+          <div class="cc-time">
+            <div class="cc-hour">${hourIdx}</div>
+            <div class="cc-htime">${b.hora_inicio.slice(0,5)}</div>
+          </div>
+          <div class="cc-divider"></div>
+          <div class="cc-info">
+            <div class="cc-grade">${cName || '—'}</div>
+            <div class="cc-subject">${b.asignatura}</div>
+            <div class="cc-meta">${timeStr} · ${b.duracion_min} min</div>
+          </div>
+          <div class="cc-status">${pill}</div>
+        </div>`;
+      }).join('');
+
+      grid.innerHTML = banner + cards;
       return;
     }
 
@@ -1791,6 +1882,30 @@
 
     grid.innerHTML = html;
     populateCaseCourses();
+  }
+
+  function openSpecialBlockAttendance(block) {
+    // Mapea un bloque de día especial al formato que espera openCourseAttendance
+    const endTime = (() => {
+      const [h, m] = block.hora_inicio.split(':').map(Number);
+      const total  = h * 60 + m + (block.duracion_min || 55);
+      return String(Math.floor(total / 60)).padStart(2,'0') + ':' + String(total % 60).padStart(2,'0');
+    })();
+    const classHour = block.orden || 1;
+    const course = {
+      id:          block.course_id,
+      grade:       block.course?.grade,
+      number:      block.course?.number,
+      name:        block.course?.name,
+      subject:     block.asignatura,
+      type:        block.course?.type || 'normal',
+      _slotHour:   classHour,
+      _isSpecialBlock: true,
+      today_slots: [{ class_hour: classHour, start_time: block.hora_inicio, end_time: endTime }],
+      saved_hours: [],
+      week_slots:  [],
+    };
+    openCourseAttendance(course);
   }
 
   async function openCourseAttendance(course) {
@@ -3773,8 +3888,8 @@
   loadPeriods();
   loadCalendarEvents();
   handleMustChangePassword();
-  // Verificar festivo ANTES de renderizar cursos (sincronización crítica)
-  checkTodayHoliday().then(() => loadMyCourses());
+  // Verificar festivo Y día especial en paralelo ANTES de renderizar cursos
+  Promise.all([checkTodayHoliday(), checkTodaySpecialDay()]).then(() => loadMyCourses());
   // =============================================
   // DIRECTOR DE GRADO — casos de mi grado (solo lectura)
   // =============================================
