@@ -581,6 +581,7 @@
                 <option value="">Todos los grados</option>
               </select>
             </div>
+            <div style="font-size:.7rem;color:#94a3b8;margin-bottom:.4rem;" id="att-threshold-debug"></div>
             <div id="att-threshold-bd"><div class="empty"><div class="ei">⚠️</div>Cargando datos…</div></div>
           </div>
 
@@ -1244,6 +1245,12 @@ async function loadInsights() {
   const data = await window.RAICE.fetchRectorInsights(api);
   if (!data) return;
   _insights = data;
+  // Debug: show which date range the API used for risk calculation
+  if (data._debug) {
+    console.log('[RAICE] Risk att range:', data._debug.riskAttStart, '→', data._debug.today, '(monthStart was:', data._debug.monthStart + ')');
+    const dbgEl = document.getElementById('att-threshold-debug');
+    if (dbgEl) dbgEl.textContent = 'Rango API: ' + data._debug.riskAttStart + ' → ' + data._debug.today;
+  }
   renderRisk(data.students_at_risk || []);
   renderGrades(data.grade_ranking   || []);
   renderExcusasRecientes(data.excusas_summary || {});

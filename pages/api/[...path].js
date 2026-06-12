@@ -4419,7 +4419,8 @@ async function getRectorInsights(req, res, user) {
     teacher_compliance,
     cases_summary,
     students_at_risk: riskScores,
-    excusas_summary
+    excusas_summary,
+    _debug: { riskAttStart, monthStart, today }
   });
 }
 
