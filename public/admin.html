@@ -543,6 +543,9 @@
     <button class="nav-item" onclick="showSection('periodos',this)">
       <span class="nav-ico">🗓️</span> Períodos académicos
     </button>
+    <button class="nav-item" onclick="showSection('horarios-especiales',this)">
+      <span class="nav-ico">⭐</span> Horarios especiales
+    </button>
 
     <div class="nav-group-title">Mi cuenta</div>
     <button class="nav-item" onclick="showSection('notificaciones',this)" id="nav-notif">
@@ -1270,6 +1273,28 @@
         </div>
         <div class="card-body" id="periods-body">
           <div style="text-align:center;padding:2rem;color:var(--gray);">Cargando…</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- HORARIOS ESPECIALES -->
+    <section class="section" id="sec-horarios-especiales">
+      <div class="card">
+        <div class="card-header">
+          <h3>⭐ Horarios especiales</h3>
+          <div class="card-actions">
+            <select id="sd-filter-estado" onchange="filterSpecialDays()" style="padding:.42rem .7rem;border:1.5px solid var(--border);border-radius:9px;font-size:.83rem;font-family:'DM Sans',sans-serif;">
+              <option value="">Todos</option>
+              <option value="activo">Activos</option>
+              <option value="cancelado">Cancelados</option>
+            </select>
+            <button class="btn btn-primary btn-sm" onclick="openNewSpecialDay()">➕ Nuevo día especial</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div id="sd-list" style="display:grid;gap:.9rem;">
+            <div style="text-align:center;padding:2rem;color:var(--gray);">Cargando…</div>
+          </div>
         </div>
       </div>
     </section>
@@ -2226,7 +2251,8 @@ function showSection(name, btn) {
     tardanzas:'Reporte de tardanzas', calendario:'Calendario escolar',
     reemplazos:'Reemplazos docentes', 'convivencia-extra':'Retiros y suspensiones',
     excusas:'Excusas de estudiantes', subgrupos:'Subgrupos',
-    'mapa-escolar':'Mapa escolar'
+    'mapa-escolar':'Mapa escolar',
+    'horarios-especiales':'Horarios especiales'
   };
   document.getElementById('page-title').textContent = titles[name] || name;
   if (name === 'dashboard')    loadDashboard();
@@ -2247,6 +2273,7 @@ function showSection(name, btn) {
   if (name === 'calendario')   loadCalendar();
   if (name === 'mapa-escolar')      loadMapaEscolar();
   if (name === 'reemplazos')        { initReemplazosDate(); loadReemplazos(); }
+  if (name === 'horarios-especiales') loadSpecialDays();
   if (name === 'convivencia-extra') { initRemovalsDate(); loadRemovals(); loadSuspensions(); initEvasionsDate(); loadEvasions(); }
   if (name === 'reportes') { rptApplyPreset(); rptMenuSelect('executive'); }
   if (name === 'asistencia') {
@@ -10697,6 +10724,310 @@ ${pages}
     closePrintListModal();
   }
 </script>
+
+<!-- ── HORARIOS ESPECIALES JS + MODALES ── -->
+<script>
+// ---- estado local ----
+let _sdAll = [];          // todos los días especiales cargados
+let _sdTeachers = [];     // docentes de la sede (para selects)
+let _sdCourses  = [];     // cursos de la sede
+let _sdEditId   = null;   // id del día en edición (null = nuevo)
+let _sdBlocksDayId = null;// id del día cuyo modal de bloques está abierto
+
+// ---- carga principal ----
+async function loadSpecialDays() {
+  const el = document.getElementById('sd-list');
+  el.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--gray);">Cargando…</div>';
+  const r = await fetchAPI('/raice/special-days');
+  _sdAll = r.ok ? (r.data || []) : [];
+  filterSpecialDays();
+  // pre-cargar docentes y cursos para los modales
+  if (!_sdTeachers.length) {
+    const [tr, cr] = await Promise.all([
+      fetchAPI('/raice/teachers'),
+      fetchAPI('/raice/courses'),
+    ]);
+    _sdTeachers = tr.ok ? (tr.data || []) : [];
+    _sdCourses  = cr.ok ? (cr.data || []) : [];
+  }
+}
+
+function filterSpecialDays() {
+  const estado = document.getElementById('sd-filter-estado')?.value || '';
+  let list = _sdAll;
+  if (estado) list = list.filter(d => d.estado === estado);
+  renderSpecialDays(list);
+}
+
+function renderSpecialDays(list) {
+  const el = document.getElementById('sd-list');
+  if (!list.length) {
+    el.innerHTML = '<div style="text-align:center;padding:2.5rem;color:var(--gray);">No hay días especiales registrados. Crea uno con el botón de arriba.</div>';
+    return;
+  }
+  const tipoLabel = { jornada_especial:'Jornada especial', jornada_sindical:'Jornada sindical', dia_logros:'Día de logros', pedagogico:'Jornada pedagógica', otro:'Otro' };
+  el.innerHTML = list.map(d => {
+    const isPast    = d.fecha < new Date().toISOString().slice(0,10);
+    const isCancelled = d.estado === 'cancelado';
+    const badge = isCancelled
+      ? '<span style="background:#fee2e2;color:#dc2626;padding:.15rem .55rem;border-radius:999px;font-size:.73rem;font-weight:700;">Cancelado</span>'
+      : isPast
+        ? '<span style="background:#f1f5f9;color:#64748b;padding:.15rem .55rem;border-radius:999px;font-size:.73rem;font-weight:700;">Pasado</span>'
+        : '<span style="background:#d1fae5;color:#065f46;padding:.15rem .55rem;border-radius:999px;font-size:.73rem;font-weight:700;">Activo</span>';
+    const fechaFmt = new Date(d.fecha + 'T12:00:00').toLocaleDateString('es-CO', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+    return `<div style="border:1.5px solid var(--border);border-radius:12px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap;background:${isCancelled?'#fafafa':'white'};">
+      <div style="flex:1;min-width:180px;">
+        <div style="display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;margin-bottom:.25rem;">
+          <span style="font-weight:700;font-size:.95rem;color:var(--navy);">${d.nombre}</span>
+          ${badge}
+        </div>
+        <div style="font-size:.82rem;color:var(--gray);">📅 ${fechaFmt}</div>
+        <div style="font-size:.79rem;color:var(--gray);margin-top:.15rem;">🏷️ ${tipoLabel[d.tipo]||d.tipo}${d.descripcion ? ' · ' + d.descripcion : ''}</div>
+      </div>
+      <div style="display:flex;gap:.5rem;flex-shrink:0;flex-wrap:wrap;">
+        <button class="btn btn-ghost btn-sm" onclick="openSpecialDayBlocks('${d.id}','${d.nombre.replace(/'/g,"\\'")}')">🧩 Bloques</button>
+        ${!isCancelled ? `<button class="btn btn-ghost btn-sm" onclick="openEditSpecialDay('${d.id}')">✏️ Editar</button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--rose);" onclick="cancelSpecialDay('${d.id}')">✕ Cancelar</button>` : ''}
+        <button class="btn btn-ghost btn-sm" style="color:#dc2626;" onclick="deleteSpecialDay('${d.id}')">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ---- crear / editar día ----
+function openNewSpecialDay() {
+  _sdEditId = null;
+  document.getElementById('sd-modal-title').textContent = 'Nuevo día especial';
+  document.getElementById('sd-form').reset();
+  // fecha por defecto: mañana
+  const tom = new Date(); tom.setDate(tom.getDate()+1);
+  document.getElementById('sd-fecha').value = tom.toISOString().slice(0,10);
+  openModal('modal-special-day');
+}
+
+async function openEditSpecialDay(id) {
+  _sdEditId = id;
+  document.getElementById('sd-modal-title').textContent = 'Editar día especial';
+  const r = await fetchAPI('/raice/special-days/' + id);
+  if (!r.ok) { showToast('No se pudo cargar el día especial', 'error'); return; }
+  const d = r.data;
+  document.getElementById('sd-nombre').value = d.nombre || '';
+  document.getElementById('sd-fecha').value  = d.fecha  || '';
+  document.getElementById('sd-tipo').value   = d.tipo   || 'jornada_especial';
+  document.getElementById('sd-desc').value   = d.descripcion || '';
+  openModal('modal-special-day');
+}
+
+async function saveSpecialDay() {
+  const nombre = document.getElementById('sd-nombre').value.trim();
+  const fecha  = document.getElementById('sd-fecha').value;
+  const tipo   = document.getElementById('sd-tipo').value;
+  const desc   = document.getElementById('sd-desc').value.trim();
+  if (!nombre || !fecha) { showToast('Nombre y fecha son obligatorios', 'warning'); return; }
+
+  // sede_id: viene del perfil del coordinador
+  const sedeId = currentUser?.sede_id || currentUser?.sede_ids?.[0];
+  if (!sedeId) { showToast('No se detectó sede asignada a tu usuario', 'error'); return; }
+
+  const body = JSON.stringify({ nombre, fecha, tipo, descripcion: desc, sede_id: sedeId });
+  let r;
+  if (_sdEditId) {
+    r = await fetchAPI('/raice/special-days/' + _sdEditId, { method:'PUT', body });
+  } else {
+    r = await fetchAPI('/raice/special-days', { method:'POST', body });
+  }
+  if (!r.ok) { showToast(r.data?.error || 'Error al guardar', 'error'); return; }
+  showToast(_sdEditId ? 'Día especial actualizado' : 'Día especial creado', 'success');
+  closeModal('modal-special-day');
+  loadSpecialDays();
+}
+
+async function cancelSpecialDay(id) {
+  if (!confirm('¿Cancelar este día especial? Los bloques se conservan pero no afectará la asistencia.')) return;
+  const r = await fetchAPI('/raice/special-days/' + id, { method:'PUT', body: JSON.stringify({ estado:'cancelado' }) });
+  if (r.ok) { showToast('Día especial cancelado', 'success'); loadSpecialDays(); }
+  else showToast('Error al cancelar', 'error');
+}
+
+async function deleteSpecialDay(id) {
+  if (!confirm('¿Eliminar este día especial y todos sus bloques? Esta acción no se puede deshacer.')) return;
+  const r = await fetchAPI('/raice/special-days/' + id, { method:'DELETE' });
+  if (r.ok) { showToast('Día especial eliminado', 'success'); loadSpecialDays(); }
+  else showToast('Error al eliminar', 'error');
+}
+
+// ---- modal de bloques ----
+async function openSpecialDayBlocks(dayId, dayNombre) {
+  _sdBlocksDayId = dayId;
+  document.getElementById('sd-blocks-title').textContent = '🧩 Bloques — ' + dayNombre;
+  document.getElementById('sd-blocks-body').innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--gray);">Cargando…</div>';
+  openModal('modal-special-blocks');
+  const r = await fetchAPI('/raice/special-days/' + dayId + '/blocks');
+  const blocks = r.ok ? (r.data || []) : [];
+  renderBlocksTable(blocks);
+}
+
+function renderBlocksTable(blocks) {
+  const tbody = document.getElementById('sd-blocks-body');
+  const teacherOpts = _sdTeachers.map(t =>
+    `<option value="${t.id}">${t.first_name} ${t.last_name}</option>`
+  ).join('');
+  const courseOpts = '<option value="">— Sin curso —</option>' + _sdCourses.map(c =>
+    `<option value="${c.id}">${c.name || ('Grado ' + c.grade + (c.number ? '-' + c.number : ''))}</option>`
+  ).join('');
+
+  let rows = blocks.map(b => {
+    const tName = b.teacher ? `${b.teacher.first_name} ${b.teacher.last_name}` : '—';
+    const cName = b.course  ? (b.course.name || `Grado ${b.course.grade}${b.course.number?'-'+b.course.number:''}`) : '—';
+    return `<tr>
+      <td style="font-size:.83rem;font-weight:600;">${b.hora_inicio?.slice(0,5)||'—'}</td>
+      <td style="font-size:.82rem;">${tName}</td>
+      <td style="font-size:.82rem;">${b.asignatura}</td>
+      <td style="font-size:.82rem;">${b.duracion_min} min</td>
+      <td style="font-size:.82rem;">${cName}</td>
+      <td><button class="btn btn-ghost btn-sm" style="color:#dc2626;padding:.2rem .5rem;" onclick="deleteBlock('${b.id}',this)">🗑️</button></td>
+    </tr>`;
+  }).join('');
+
+  tbody.innerHTML = `
+    <table style="width:100%;border-collapse:collapse;font-family:'DM Sans',sans-serif;">
+      <thead>
+        <tr style="background:#f8fafc;border-bottom:2px solid var(--border);">
+          <th style="padding:.5rem .7rem;text-align:left;font-size:.78rem;color:var(--navy);">Hora</th>
+          <th style="padding:.5rem .7rem;text-align:left;font-size:.78rem;color:var(--navy);">Docente</th>
+          <th style="padding:.5rem .7rem;text-align:left;font-size:.78rem;color:var(--navy);">Asignatura</th>
+          <th style="padding:.5rem .7rem;text-align:left;font-size:.78rem;color:var(--navy);">Duración</th>
+          <th style="padding:.5rem .7rem;text-align:left;font-size:.78rem;color:var(--navy);">Curso</th>
+          <th style="padding:.5rem .7rem;"></th>
+        </tr>
+      </thead>
+      <tbody id="sd-blocks-rows">${rows || '<tr><td colspan="6" style="text-align:center;padding:1.2rem;color:var(--gray);font-size:.84rem;">Sin bloques aún. Agrega el primero abajo.</td></tr>'}</tbody>
+    </table>
+    <div style="border-top:1.5px solid var(--border);margin-top:.9rem;padding-top:.9rem;">
+      <div style="font-weight:700;font-size:.83rem;color:var(--navy);margin-bottom:.6rem;">➕ Agregar bloque</div>
+      <div style="display:grid;grid-template-columns:1fr 2fr 2fr 1fr 2fr auto;gap:.5rem;align-items:end;flex-wrap:wrap;">
+        <div>
+          <label style="font-size:.74rem;color:var(--gray);display:block;margin-bottom:.2rem;">Hora inicio</label>
+          <input type="time" id="nb-hora" style="width:100%;padding:.4rem .55rem;border:1.5px solid var(--border);border-radius:8px;font-size:.83rem;">
+        </div>
+        <div>
+          <label style="font-size:.74rem;color:var(--gray);display:block;margin-bottom:.2rem;">Docente</label>
+          <select id="nb-teacher" style="width:100%;padding:.4rem .55rem;border:1.5px solid var(--border);border-radius:8px;font-size:.83rem;font-family:'DM Sans',sans-serif;">
+            <option value="">— Seleccionar —</option>${teacherOpts}
+          </select>
+        </div>
+        <div>
+          <label style="font-size:.74rem;color:var(--gray);display:block;margin-bottom:.2rem;">Asignatura</label>
+          <input type="text" id="nb-asignatura" placeholder="Ej. Matemáticas" style="width:100%;padding:.4rem .55rem;border:1.5px solid var(--border);border-radius:8px;font-size:.83rem;">
+        </div>
+        <div>
+          <label style="font-size:.74rem;color:var(--gray);display:block;margin-bottom:.2rem;">Duración (min)</label>
+          <input type="number" id="nb-duracion" value="55" min="10" max="240" style="width:100%;padding:.4rem .55rem;border:1.5px solid var(--border);border-radius:8px;font-size:.83rem;">
+        </div>
+        <div>
+          <label style="font-size:.74rem;color:var(--gray);display:block;margin-bottom:.2rem;">Curso (opcional)</label>
+          <select id="nb-course" style="width:100%;padding:.4rem .55rem;border:1.5px solid var(--border);border-radius:8px;font-size:.83rem;font-family:'DM Sans',sans-serif;">
+            ${courseOpts}
+          </select>
+        </div>
+        <div style="padding-bottom:.05rem;">
+          <button class="btn btn-primary btn-sm" onclick="saveBlock()" style="white-space:nowrap;">Agregar</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function saveBlock() {
+  const hora_inicio = document.getElementById('nb-hora').value;
+  const teacher_id  = document.getElementById('nb-teacher').value;
+  const asignatura  = document.getElementById('nb-asignatura').value.trim();
+  const duracion_min= parseInt(document.getElementById('nb-duracion').value) || 55;
+  const course_id   = document.getElementById('nb-course').value || null;
+
+  if (!hora_inicio || !teacher_id || !asignatura) {
+    showToast('Hora, docente y asignatura son obligatorios', 'warning'); return;
+  }
+  const r = await fetchAPI('/raice/special-days/' + _sdBlocksDayId + '/blocks', {
+    method: 'POST',
+    body: JSON.stringify({ hora_inicio, teacher_id, asignatura, duracion_min, course_id }),
+  });
+  if (!r.ok) { showToast(r.data?.error || 'Error al agregar bloque', 'error'); return; }
+  showToast('Bloque agregado', 'success');
+  // recargar bloques
+  const rb = await fetchAPI('/raice/special-days/' + _sdBlocksDayId + '/blocks');
+  renderBlocksTable(rb.ok ? (rb.data || []) : []);
+}
+
+async function deleteBlock(blockId, btn) {
+  if (!confirm('¿Eliminar este bloque?')) return;
+  btn.disabled = true;
+  const r = await fetchAPI('/raice/special-day-blocks/' + blockId, { method:'DELETE' });
+  if (!r.ok) { showToast('Error al eliminar bloque', 'error'); btn.disabled = false; return; }
+  showToast('Bloque eliminado', 'success');
+  const rb = await fetchAPI('/raice/special-days/' + _sdBlocksDayId + '/blocks');
+  renderBlocksTable(rb.ok ? (rb.data || []) : []);
+}
+</script>
+
+<!-- Modal: crear/editar día especial -->
+<div class="modal-overlay" id="modal-special-day" onclick="if(event.target===this)closeModal('modal-special-day')">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-header">
+      <h3 id="sd-modal-title">Nuevo día especial</h3>
+      <button class="modal-close" onclick="closeModal('modal-special-day')">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="sd-form" onsubmit="event.preventDefault();saveSpecialDay();" style="display:flex;flex-direction:column;gap:.9rem;">
+        <div>
+          <label class="form-label">Nombre del día *</label>
+          <input type="text" id="sd-nombre" class="form-input" placeholder="Ej. Jornada sindical docente" required>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;">
+          <div>
+            <label class="form-label">Fecha *</label>
+            <input type="date" id="sd-fecha" class="form-input" required>
+          </div>
+          <div>
+            <label class="form-label">Tipo</label>
+            <select id="sd-tipo" class="form-input">
+              <option value="jornada_especial">Jornada especial</option>
+              <option value="jornada_sindical">Jornada sindical</option>
+              <option value="dia_logros">Día de logros</option>
+              <option value="pedagogico">Jornada pedagógica</option>
+              <option value="otro">Otro</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="form-label">Descripción / observaciones</label>
+          <textarea id="sd-desc" class="form-input" rows="2" placeholder="Opcional…" style="resize:vertical;"></textarea>
+        </div>
+        <div style="display:flex;gap:.6rem;justify-content:flex-end;margin-top:.25rem;">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('modal-special-day')">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: bloques del día especial -->
+<div class="modal-overlay" id="modal-special-blocks" onclick="if(event.target===this)closeModal('modal-special-blocks')">
+  <div class="modal" style="max-width:820px;">
+    <div class="modal-header">
+      <h3 id="sd-blocks-title">Bloques</h3>
+      <button class="modal-close" onclick="closeModal('modal-special-blocks')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="sd-blocks-body">
+        <div style="text-align:center;padding:1.5rem;color:var(--gray);">Cargando…</div>
+      </div>
+    </div>
+    <div class="modal-footer" style="display:flex;justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="closeModal('modal-special-blocks')">Cerrar</button>
+    </div>
+  </div>
+</div>
 
 <!-- ── Modal: resumen de importación ── -->
 <div class="modal-overlay" id="modal-import-summary" onclick="if(event.target===this)closeModal('modal-import-summary')">
