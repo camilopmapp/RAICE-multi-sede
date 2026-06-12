@@ -4334,7 +4334,6 @@ async function getRectorInsights(req, res, user) {
   });
 
   // ── 5. Estudiantes en riesgo ──
-  // Low attendance + open cases + unfulfilled commitments
   // Use active period start date so att_pct matches the ficha's period view
   let riskAttStart = monthStart;
   try {
@@ -4342,40 +4341,49 @@ async function getRectorInsights(req, res, user) {
     if (ap?.start_date) riskAttStart = ap.start_date;
   } catch (_) { /* keep monthStart fallback */ }
 
-  const [riskAttRes, riskCasesRes, riskCommRes, riskStudentsRes] = await Promise.all([
-    safe(() => applySedeAtt(sb.from('raice_attendance').select('student_id, status, course_id').gte('date', riskAttStart).lte('date', today)), { data: [] }),
+  // Fetch cases, commitments, and student info in parallel
+  const [riskCasesRes, riskCommRes, riskStudentsRes] = await Promise.all([
     safe(() => { let q = sb.from('raice_cases').select('student_id, course_id').in('status', ['open', 'tracking']); if (sedeCourseIds) q = q.in('course_id', sedeCourseIds); return q; }, { data: [] }),
     safe(() => sb.from('raice_commitments').select('student_id').eq('fulfilled', false), { data: [] }),
-    safe(() => applySedeStudents(sb.from('raice_students').select('id, first_name, last_name, grade, course_id, raice_courses(grade, number)').eq('status', 'active')), { data: [] })
+    safe(() => applySedeStudents(sb.from('raice_students').select('id, first_name, last_name, course_id, raice_courses(grade, number)').eq('status', 'active')), { data: [] })
   ]);
 
-  // Build attendance % per student
-  const stuAttMap = {};
-  (riskAttRes.data || []).forEach(a => {
-    if (a.status === 'NR' || a.status === 'S') return;
-    if (!stuAttMap[a.student_id]) stuAttMap[a.student_id] = { countable: 0, present: 0 };
-    if (a.status !== 'PE' && a.status !== 'S') stuAttMap[a.student_id].countable++; // canónico: PE y S fuera del denominador
-    if (a.status === 'P' || a.status === 'T') stuAttMap[a.student_id].present++;
-  });
-
-  // Build open cases count per student
   const stuCasesMap = {};
   (riskCasesRes.data || []).forEach(c => { stuCasesMap[c.student_id] = (stuCasesMap[c.student_id] || 0) + 1; });
-
-  // Build unfulfilled commitments count per student
   const stuCommMap = {};
   (riskCommRes.data || []).forEach(c => { stuCommMap[c.student_id] = (stuCommMap[c.student_id] || 0) + 1; });
-
-  // Score students
   const studentMap = {};
   (riskStudentsRes.data || []).forEach(s => { studentMap[s.id] = s; });
 
-  const riskScores = Object.keys(studentMap).map(sid => {
+  // Candidate students: those with cases or commitments (bounded set, avoids row-limit on full attendance scan)
+  const candidateIds = [...new Set([
+    ...Object.keys(stuCasesMap),
+    ...Object.keys(stuCommMap)
+  ])].filter(sid => studentMap[sid]);
+
+  // Fetch attendance per-student in parallel (each query is small: ~100-200 rows/student)
+  const stuAttMap = {};
+  await Promise.all(candidateIds.map(async sid => {
+    const { data: recs } = await sb.from('raice_attendance')
+      .select('status')
+      .eq('student_id', sid)
+      .gte('date', riskAttStart)
+      .lte('date', today);
+    if (!recs) return;
+    let countable = 0, present = 0;
+    recs.forEach(a => {
+      if (a.status === 'NR' || a.status === 'S') return;
+      if (a.status !== 'PE') countable++;
+      if (a.status === 'P' || a.status === 'T') present++;
+    });
+    stuAttMap[sid] = { countable, present };
+  }));
+
+  const riskScores = candidateIds.map(sid => {
     const att = stuAttMap[sid];
     const attPct = att && att.countable > 0 ? Math.round((att.present / att.countable) * 100) : null;
     const openCases = stuCasesMap[sid] || 0;
     const pendingComm = stuCommMap[sid] || 0;
-    // Risk score: lower attendance = higher risk, more cases = higher risk
     let score = 0;
     if (attPct !== null && attPct < 80) score += (80 - attPct) * 2;
     if (attPct !== null && attPct < 60) score += 30;
