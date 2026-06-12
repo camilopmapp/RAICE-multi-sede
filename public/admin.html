@@ -10956,7 +10956,7 @@ function onBlockCourseChange(sel) {
     return;
   }
   teacherSel.innerHTML = '<option value="">— Seleccionar docente —</option>'
-    + filtered.map(t => `<option value="${t.id}">${t.name || t.full_name || t.id}</option>`).join('');
+    + filtered.map(t => `<option value="${t.id}">${t.first_name} ${t.last_name}</option>`).join('');
 }
 
 function onBlockTeacherChange(sel) {
