@@ -197,6 +197,16 @@ export default async function handler(req, res) {
     if (pathParts[0]==='raice' && pathParts[1]==='psych' && pathParts[2]==='goals' && pathParts[3])
       return await handlePsychGoalDetail(req, res, user);
     if (route === 'raice/psych/goals')          return await handlePsychGoals(req, res, user);
+    if (pathParts[0]==='raice' && pathParts[1]==='psych' && pathParts[2]==='commitments' && pathParts[3])
+      return await handlePsychCommitmentDetail(req, res, user);
+    if (route === 'raice/psych/commitments')    return await handlePsychCommitments(req, res, user);
+    if (pathParts[0]==='raice' && pathParts[1]==='psych' && pathParts[2]==='area-ratings' && pathParts[3])
+      return await handlePsychAreaRatingDetail(req, res, user);
+    if (route === 'raice/psych/area-ratings')   return await handlePsychAreaRatings(req, res, user);
+    if (pathParts[0]==='raice' && pathParts[1]==='psych' && pathParts[2]==='risk-flags' && pathParts[3])
+      return await handlePsychRiskFlagDetail(req, res, user);
+    if (route === 'raice/psych/risk-flags')     return await handlePsychRiskFlags(req, res, user);
+    if (route === 'raice/psych/stats')          return await handlePsychStats(req, res, user);
 
     return res.status(404).json({ error: 'Ruta no encontrada' });
   } catch (err) {
@@ -9199,23 +9209,46 @@ async function handlePsychHistoryDetail(req, res, user) {
   const pathParts = url.pathname.replace('/api/','').split('/');
   const id = pathParts[3];
   if (req.method === 'GET') {
-    const [histRes, sessRes, instrRes, goalsRes] = await Promise.all([
+    const [histRes, sessRes, instrRes, goalsRes, commRes, ratingsRes, flagsRes, logRes] = await Promise.all([
       sb.from('psych_histories').select('*, student:raice_students(id, first_name, last_name, doc_number, grade, course, birth_date, gender)').eq('id', id).maybeSingle(),
       sb.from('psych_sessions').select('*').eq('history_id', id).order('session_date', { ascending: false }),
       sb.from('psych_instruments').select('*').eq('history_id', id).order('application_date', { ascending: false }),
       sb.from('psych_goals').select('*').eq('history_id', id).order('created_at', { ascending: true }),
+      sb.from('psych_commitments').select('*').eq('history_id', id).order('due_date', { ascending: true }),
+      sb.from('psych_area_ratings').select('*').eq('history_id', id).order('rating_date', { ascending: true }),
+      sb.from('psych_risk_flags').select('*').eq('history_id', id).order('flag_date', { ascending: false }),
+      sb.from('psych_status_log').select('*').eq('history_id', id).order('changed_at', { ascending: false }),
     ]);
     if (!histRes.data) return res.status(404).json({ error: 'Historia no encontrada.' });
-    return res.status(200).json({ ...histRes.data, sessions: sessRes.data || [], instruments: instrRes.data || [], goals: goalsRes.data || [] });
+    return res.status(200).json({
+      ...histRes.data,
+      sessions: sessRes.data || [],
+      instruments: instrRes.data || [],
+      goals: goalsRes.data || [],
+      commitments: commRes.data || [],
+      area_ratings: ratingsRes.data || [],
+      risk_flags: flagsRes.data || [],
+      status_log: logRes.data || [],
+    });
   }
   if (req.method === 'PUT') {
     const body = req.body || {};
     const allowed = ['first_session_date','referral_source','consultation_reason','consent_signed','consent_signed_by','consent_date','family_background','personal_background','family_composition','socioeconomic_status','support_network','cognitive_area','emotional_area','behavioral_area','social_area','diagnostic_hypothesis','initial_intervention_plan','status','close_date','close_reason','close_summary','close_recommendations','referred_to'];
     const updates = {};
     for (const k of allowed) if (body[k] !== undefined) updates[k] = body[k];
+    // Fetch current status to log change
+    const { data: prev } = await sb.from('psych_histories').select('status').eq('id', id).maybeSingle();
     updates.updated_at = new Date().toISOString();
     const { data, error } = await sb.from('psych_histories').update(updates).eq('id', id).select().single();
     if (error) return res.status(500).json({ error: _dbErr(error, 'psych_histories PUT') });
+    // Log status change if it changed
+    if (updates.status && prev && prev.status !== updates.status) {
+      await sb.from('psych_status_log').insert({
+        history_id: id, changed_by: user.id,
+        from_status: prev.status, to_status: updates.status,
+        note: body.status_note || null,
+      }).catch(() => {});
+    }
     return res.status(200).json(data);
   }
   if (req.method === 'DELETE') {
@@ -9376,4 +9409,212 @@ async function handlePsychGoalDetail(req, res, user) {
     return res.status(200).json({ ok: true });
   }
   return res.status(405).json({ error: 'Metodo no permitido.' });
+}
+
+// -- psych_commitments --
+async function handlePsychCommitments(req, res, user) {
+  _requirePsychRole(user);
+  const sb = getSupabase();
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  if (req.method === 'GET') {
+    const history_id = url.searchParams.get('history_id');
+    if (!history_id) return res.status(400).json({ error: 'history_id requerido.' });
+    const { data, error } = await sb.from('psych_commitments').select('*').eq('history_id', history_id).order('due_date', { ascending: true });
+    if (error) return res.status(500).json({ error: _dbErr(error, 'psych_commitments GET') });
+    return res.status(200).json(data || []);
+  }
+  if (req.method === 'POST') {
+    const body = req.body || {};
+    if (!body.history_id || !body.description) return res.status(400).json({ error: 'history_id y description son requeridos.' });
+    const row = {
+      history_id: body.history_id, session_id: body.session_id || null, created_by: user.id,
+      assigned_to: body.assigned_to || 'estudiante', description: body.description,
+      due_date: body.due_date || null, status: 'pending',
+    };
+    const { data, error } = await sb.from('psych_commitments').insert(row).select().single();
+    if (error) return res.status(500).json({ error: _dbErr(error, 'psych_commitments POST') });
+    return res.status(201).json(data);
+  }
+  return res.status(405).json({ error: 'Metodo no permitido.' });
+}
+async function handlePsychCommitmentDetail(req, res, user) {
+  _requirePsychRole(user);
+  const sb = getSupabase();
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const id = url.pathname.replace('/api/','').split('/')[3];
+  if (req.method === 'PUT') {
+    const body = req.body || {};
+    const allowed = ['assigned_to','description','due_date','status','follow_up_note','follow_up_date'];
+    const updates = {};
+    for (const k of allowed) if (body[k] !== undefined) updates[k] = body[k];
+    updates.updated_at = new Date().toISOString();
+    const { data, error } = await sb.from('psych_commitments').update(updates).eq('id', id).select().single();
+    if (error) return res.status(500).json({ error: _dbErr(error, 'psych_commitments PUT') });
+    return res.status(200).json(data);
+  }
+  if (req.method === 'DELETE') {
+    const { error } = await sb.from('psych_commitments').delete().eq('id', id);
+    if (error) return res.status(500).json({ error: _dbErr(error, 'psych_commitments DELETE') });
+    return res.status(200).json({ ok: true });
+  }
+  return res.status(405).json({ error: 'Metodo no permitido.' });
+}
+
+// -- psych_area_ratings --
+async function handlePsychAreaRatings(req, res, user) {
+  _requirePsychRole(user);
+  const sb = getSupabase();
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  if (req.method === 'GET') {
+    const history_id = url.searchParams.get('history_id');
+    if (!history_id) return res.status(400).json({ error: 'history_id requerido.' });
+    const { data, error } = await sb.from('psych_area_ratings').select('*').eq('history_id', history_id).order('rating_date', { ascending: true });
+    if (error) return res.status(500).json({ error: _dbErr(error, 'psych_area_ratings GET') });
+    return res.status(200).json(data || []);
+  }
+  if (req.method === 'POST') {
+    const body = req.body || {};
+    if (!body.history_id || !body.rating_date) return res.status(400).json({ error: 'history_id y rating_date son requeridos.' });
+    const row = {
+      history_id: body.history_id, session_id: body.session_id || null, created_by: user.id,
+      rating_date: body.rating_date,
+      cognitive_score: body.cognitive_score ? parseInt(body.cognitive_score) : null,
+      emotional_score: body.emotional_score ? parseInt(body.emotional_score) : null,
+      behavioral_score: body.behavioral_score ? parseInt(body.behavioral_score) : null,
+      social_score: body.social_score ? parseInt(body.social_score) : null,
+      overall_note: body.overall_note || null,
+    };
+    const { data, error } = await sb.from('psych_area_ratings').insert(row).select().single();
+    if (error) return res.status(500).json({ error: _dbErr(error, 'psych_area_ratings POST') });
+    return res.status(201).json(data);
+  }
+  return res.status(405).json({ error: 'Metodo no permitido.' });
+}
+async function handlePsychAreaRatingDetail(req, res, user) {
+  _requirePsychRole(user);
+  const sb = getSupabase();
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const id = url.pathname.replace('/api/','').split('/')[3];
+  if (req.method === 'PUT') {
+    const body = req.body || {};
+    const allowed = ['rating_date','cognitive_score','emotional_score','behavioral_score','social_score','overall_note'];
+    const updates = {};
+    for (const k of allowed) if (body[k] !== undefined) updates[k] = body[k];
+    const { data, error } = await sb.from('psych_area_ratings').update(updates).eq('id', id).select().single();
+    if (error) return res.status(500).json({ error: _dbErr(error, 'psych_area_ratings PUT') });
+    return res.status(200).json(data);
+  }
+  if (req.method === 'DELETE') {
+    const { error } = await sb.from('psych_area_ratings').delete().eq('id', id);
+    if (error) return res.status(500).json({ error: _dbErr(error, 'psych_area_ratings DELETE') });
+    return res.status(200).json({ ok: true });
+  }
+  return res.status(405).json({ error: 'Metodo no permitido.' });
+}
+
+// -- psych_risk_flags --
+async function handlePsychRiskFlags(req, res, user) {
+  _requirePsychRole(user);
+  const sb = getSupabase();
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  if (req.method === 'GET') {
+    const history_id = url.searchParams.get('history_id');
+    if (!history_id) return res.status(400).json({ error: 'history_id requerido.' });
+    const { data, error } = await sb.from('psych_risk_flags').select('*').eq('history_id', history_id).order('flag_date', { ascending: false });
+    if (error) return res.status(500).json({ error: _dbErr(error, 'psych_risk_flags GET') });
+    return res.status(200).json(data || []);
+  }
+  if (req.method === 'POST') {
+    const body = req.body || {};
+    if (!body.history_id || !body.student_id || !body.category || !body.description || !body.flag_date)
+      return res.status(400).json({ error: 'history_id, student_id, category, description y flag_date son requeridos.' });
+    const row = {
+      history_id: body.history_id, student_id: body.student_id, created_by: user.id,
+      flag_date: body.flag_date, category: body.category, severity: body.severity || 'moderate',
+      description: body.description, action_taken: body.action_taken || null,
+      reported_to: body.reported_to || null, active: true,
+    };
+    const { data, error } = await sb.from('psych_risk_flags').insert(row).select().single();
+    if (error) return res.status(500).json({ error: _dbErr(error, 'psych_risk_flags POST') });
+    return res.status(201).json(data);
+  }
+  return res.status(405).json({ error: 'Metodo no permitido.' });
+}
+async function handlePsychRiskFlagDetail(req, res, user) {
+  _requirePsychRole(user);
+  const sb = getSupabase();
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const id = url.pathname.replace('/api/','').split('/')[3];
+  if (req.method === 'PUT') {
+    const body = req.body || {};
+    const allowed = ['flag_date','category','severity','description','action_taken','reported_to','active','resolution_note','resolved_at'];
+    const updates = {};
+    for (const k of allowed) if (body[k] !== undefined) updates[k] = body[k];
+    updates.updated_at = new Date().toISOString();
+    const { data, error } = await sb.from('psych_risk_flags').update(updates).eq('id', id).select().single();
+    if (error) return res.status(500).json({ error: _dbErr(error, 'psych_risk_flags PUT') });
+    return res.status(200).json(data);
+  }
+  if (req.method === 'DELETE') {
+    const { error } = await sb.from('psych_risk_flags').delete().eq('id', id);
+    if (error) return res.status(500).json({ error: _dbErr(error, 'psych_risk_flags DELETE') });
+    return res.status(200).json({ ok: true });
+  }
+  return res.status(405).json({ error: 'Metodo no permitido.' });
+}
+
+// -- psych stats --
+async function handlePsychStats(req, res, user) {
+  _requirePsychRole(user);
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Metodo no permitido.' });
+  const sb = getSupabase();
+  let query = sb.from('psych_histories').select('id, status, referral_source, created_at, first_session_date');
+  if (user.sede_id) query = query.eq('sede_id', user.sede_id);
+  const { data: histories } = await query;
+  const all = histories || [];
+  const byStatus = { active:0, monitoring:0, closed:0, referred:0 };
+  const byReferral = {};
+  const sessionsPerMonth = {};
+  const today = new Date();
+  let noSessionIn30 = 0;
+  for (const h of all) {
+    byStatus[h.status] = (byStatus[h.status]||0)+1;
+    if (h.referral_source) byReferral[h.referral_source] = (byReferral[h.referral_source]||0)+1;
+  }
+  // Sessions this month
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0,10);
+  const { data: sessThisMonth } = await sb.from('psych_sessions').select('id, session_date, history_id')
+    .gte('session_date', monthStart).lte('session_date', today.toISOString().slice(0,10));
+  // Students without session in 30 days (active only)
+  const thirtyAgo = new Date(today.getTime() - 30*24*60*60*1000).toISOString().slice(0,10);
+  const activeIds = all.filter(h=>h.status==='active'||h.status==='monitoring').map(h=>h.id);
+  if (activeIds.length) {
+    const { data: recentSess } = await sb.from('psych_sessions').select('history_id')
+      .in('history_id', activeIds).gte('session_date', thirtyAgo);
+    const withRecent = new Set((recentSess||[]).map(s=>s.history_id));
+    noSessionIn30 = activeIds.filter(id=>!withRecent.has(id)).length;
+  }
+  // Goals achieved rate
+  const { data: goals } = await sb.from('psych_goals').select('status').in('history_id', all.map(h=>h.id));
+  const goalsAll = goals||[];
+  const goalsAchieved = goalsAll.filter(g=>g.status==='achieved').length;
+  // Sessions last 6 months
+  const sixMonthsAgo = new Date(today.getFullYear(), today.getMonth()-5, 1).toISOString().slice(0,10);
+  const { data: sess6 } = await sb.from('psych_sessions').select('session_date').gte('session_date', sixMonthsAgo);
+  const sessMonthMap = {};
+  (sess6||[]).forEach(s => {
+    const m = s.session_date.slice(0,7);
+    sessMonthMap[m] = (sessMonthMap[m]||0)+1;
+  });
+  return res.status(200).json({
+    total: all.length,
+    by_status: byStatus,
+    by_referral: byReferral,
+    sessions_this_month: (sessThisMonth||[]).length,
+    no_session_in_30_days: noSessionIn30,
+    goals_total: goalsAll.length,
+    goals_achieved: goalsAchieved,
+    goals_rate: goalsAll.length ? Math.round(goalsAchieved/goalsAll.length*100) : 0,
+    sessions_by_month: sessMonthMap,
+  });
 }

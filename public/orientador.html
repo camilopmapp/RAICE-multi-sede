@@ -347,6 +347,38 @@
   .hc-goal-in_progress{border-left:3px solid #f59e0b;}
   .hc-goal-achieved{border-left:3px solid #22c55e;}
   .nh-stu-selected{background:#f3f0ff!important;border-left:3px solid var(--violet)!important;}
+  /* Rating stars */
+  .rating-stars{display:flex;gap:.2rem;margin-top:.2rem;}
+  .rating-star{font-size:1.3rem;cursor:pointer;transition:transform .1s;line-height:1;color:#d1d5db;}
+  .rating-star.filled{color:#f59e0b;}
+  .rating-star:hover{transform:scale(1.2);}
+  /* Commitment status */
+  .comm-pill{font-size:.68rem;padding:.18rem .55rem;border-radius:20px;font-weight:700;white-space:nowrap;}
+  .comm-pending{background:rgba(234,179,8,.12);color:#a16207;}
+  .comm-met{background:rgba(22,163,74,.1);color:#15803d;}
+  .comm-partial{background:rgba(99,102,241,.1);color:#4338ca;}
+  .comm-unmet{background:rgba(220,38,38,.1);color:#dc2626;}
+  /* Risk flag severity */
+  .flag-low{border-left:4px solid #fbbf24;background:rgba(251,191,36,.04);}
+  .flag-moderate{border-left:4px solid #f97316;background:rgba(249,115,22,.04);}
+  .flag-high{border-left:4px solid #dc2626;background:rgba(220,38,38,.05);}
+  .flag-critical{border-left:4px solid #7c3aed;background:rgba(124,58,237,.06);}
+  .flag-resolved{opacity:.55;border-left-color:#94a3b8!important;}
+  /* Evolution chart */
+  .evo-bar-wrap{display:flex;align-items:center;gap:.6rem;margin-bottom:.45rem;}
+  .evo-bar-label{font-size:.73rem;color:var(--navy);width:90px;font-weight:600;flex-shrink:0;}
+  .evo-bar-track{flex:1;height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;}
+  .evo-bar-fill{height:100%;border-radius:4px;transition:width .4s ease;}
+  .evo-score-num{font-size:.73rem;font-weight:700;width:18px;text-align:right;flex-shrink:0;}
+  /* Resumen cards */
+  .hc-stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.7rem;margin-bottom:1.1rem;}
+  .hc-stat-card{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:.8rem .9rem;}
+  .hc-stat-val{font-size:1.45rem;font-weight:900;color:var(--navy);line-height:1;}
+  .hc-stat-lbl{font-size:.7rem;color:var(--gray);margin-top:.2rem;}
+  @media(max-width:520px){.hc-stat-grid{grid-template-columns:repeat(2,1fr);}}
+  .text-danger{color:#dc2626;}
+  .btn-icon{background:none;border:none;cursor:pointer;font-size:.9rem;padding:.2rem .3rem;border-radius:6px;opacity:.6;transition:opacity .15s;}
+  .btn-icon:hover{opacity:1;background:var(--bg);}
   @media(max-width:640px){.hc-form-grid{grid-template-columns:1fr;} .hc-field[style*="grid-column:1/-1"]{grid-column:1!important;}}
 
   /* ── PERFIL SECTION ── */
@@ -480,6 +512,7 @@
 
     <!-- ── DASHBOARD ── -->
     <section class="section active" id="section-dashboard">
+      <div id="psych-kpi-row"></div>
       <div class="kpi-grid" id="stat-grid">
         <div class="kpi-card" style="--kpi-color:#6366f1;"><div class="kpi-bg-ico">⏳</div><div class="kpi-ico-row">⏳</div><div class="kpi-val">—</div><div class="kpi-lbl">Cargando</div></div>
         <div class="kpi-card" style="--kpi-color:#6366f1;"><div class="kpi-bg-ico">⏳</div><div class="kpi-ico-row">⏳</div><div class="kpi-val">—</div><div class="kpi-lbl">Cargando</div></div>
@@ -704,24 +737,40 @@
           </div>
           <div style="display:flex;gap:.5rem;align-items:center;">
             <span id="hcm-status-badge" style="font-size:.72rem;padding:.25rem .65rem;border-radius:20px;font-weight:700;"></span>
-            <button onclick="printHistory()" style="background:rgba(255,255,255,.18);border:none;color:#fff;padding:.4rem .8rem;border-radius:8px;cursor:pointer;font-size:.8rem;">🖨️ Imprimir</button>
+            <div style="position:relative;" id="hcm-print-wrap">
+              <button onclick="togglePrintMenu()" style="background:rgba(255,255,255,.18);border:none;color:#fff;padding:.4rem .8rem;border-radius:8px;cursor:pointer;font-size:.8rem;display:flex;align-items:center;gap:.35rem;">🖨️ Imprimir ▾</button>
+              <div id="hcm-print-menu" style="display:none;position:absolute;right:0;top:calc(100% + .35rem);background:#fff;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.18);min-width:200px;z-index:10;overflow:hidden;">
+                <div onclick="printHistory('seguimiento')" style="padding:.6rem 1rem;cursor:pointer;font-size:.82rem;color:var(--navy);font-weight:600;border-bottom:1px solid var(--border);" onmouseover="this.style.background='#f8f7ff'" onmouseout="this.style.background=''">📄 Informe de seguimiento</div>
+                <div onclick="printHistory('consentimiento')" style="padding:.6rem 1rem;cursor:pointer;font-size:.82rem;color:var(--navy);font-weight:600;border-bottom:1px solid var(--border);" onmouseover="this.style.background='#f8f7ff'" onmouseout="this.style.background=''">✍️ Consentimiento informado</div>
+                <div onclick="printHistory('remision')" style="padding:.6rem 1rem;cursor:pointer;font-size:.82rem;color:var(--navy);font-weight:600;" onmouseover="this.style.background='#f8f7ff'" onmouseout="this.style.background=''">📤 Remisión externa</div>
+              </div>
+            </div>
             <button onclick="closeHcModal()" style="background:rgba(255,255,255,.18);border:none;color:#fff;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:1rem;">✕</button>
           </div>
         </div>
 
         <!-- Tabs -->
-        <div style="display:flex;border-bottom:1px solid var(--border);overflow-x:auto;background:#fafbff;">
-          <button class="hc-tab active" data-tab="ingreso" onclick="switchHcTab('ingreso',this)">Ingreso</button>
-          <button class="hc-tab" data-tab="anamnesis" onclick="switchHcTab('anamnesis',this)">Anamnesis</button>
-          <button class="hc-tab" data-tab="valoracion" onclick="switchHcTab('valoracion',this)">Valoración</button>
-          <button class="hc-tab" data-tab="sesiones" onclick="switchHcTab('sesiones',this)">Sesiones</button>
-          <button class="hc-tab" data-tab="plan" onclick="switchHcTab('plan',this)">Plan</button>
-          <button class="hc-tab" data-tab="instrumentos" onclick="switchHcTab('instrumentos',this)">Instrumentos</button>
-          <button class="hc-tab" data-tab="cierre" onclick="switchHcTab('cierre',this)">Cierre</button>
+        <div style="display:flex;border-bottom:1px solid var(--border);overflow-x:auto;background:#fafbff;scrollbar-width:none;">
+          <button class="hc-tab active" data-tab="resumen"      onclick="switchHcTab('resumen',this)">📊 Resumen</button>
+          <button class="hc-tab" data-tab="ingreso"             onclick="switchHcTab('ingreso',this)">Ingreso</button>
+          <button class="hc-tab" data-tab="anamnesis"           onclick="switchHcTab('anamnesis',this)">Anamnesis</button>
+          <button class="hc-tab" data-tab="valoracion"          onclick="switchHcTab('valoracion',this)">Valoración</button>
+          <button class="hc-tab" data-tab="evolucion"           onclick="switchHcTab('evolucion',this)">📈 Evolución</button>
+          <button class="hc-tab" data-tab="sesiones"            onclick="switchHcTab('sesiones',this)">Sesiones</button>
+          <button class="hc-tab" data-tab="compromisos"         onclick="switchHcTab('compromisos',this)">Compromisos</button>
+          <button class="hc-tab" data-tab="plan"                onclick="switchHcTab('plan',this)">Plan</button>
+          <button class="hc-tab" data-tab="instrumentos"        onclick="switchHcTab('instrumentos',this)">Instrumentos</button>
+          <button class="hc-tab" data-tab="alertas"             onclick="switchHcTab('alertas',this)" id="hc-tab-alertas">⚠️ Alertas</button>
+          <button class="hc-tab" data-tab="cierre"              onclick="switchHcTab('cierre',this)">Cierre</button>
+        </div>
+
+        <!-- Tab: Resumen -->
+        <div class="hc-tab-panel active" id="hct-resumen" style="padding:1.4rem 1.6rem;">
+          <div id="hc-resumen-wrap"></div>
         </div>
 
         <!-- Tab: Ingreso -->
-        <div class="hc-tab-panel active" id="hct-ingreso" style="padding:1.4rem 1.6rem;">
+        <div class="hc-tab-panel" id="hct-ingreso" style="padding:1.4rem 1.6rem;display:none;">
           <div class="hc-form-grid">
             <div class="hc-field"><label>Fecha primera sesión</label><input type="date" id="hcf-first_session_date"></div>
             <div class="hc-field"><label>Motivo de consulta</label><textarea id="hcf-consultation_reason" rows="3"></textarea></div>
@@ -787,6 +836,19 @@
           </div>
         </div>
 
+        <!-- Tab: Evolución -->
+        <div class="hc-tab-panel" id="hct-evolucion" style="padding:1.4rem 1.6rem;display:none;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+            <div>
+              <div style="font-weight:700;font-size:.88rem;color:var(--navy);">Evolución por áreas</div>
+              <div style="font-size:.74rem;color:var(--gray);margin-top:.1rem;">Calificación 1 (crítico) → 5 (óptimo) en cada área por fecha de evaluación</div>
+            </div>
+            <button class="btn-primary" style="font-size:.78rem;padding:.35rem .8rem;" onclick="openRatingForm()">+ Registrar evaluación</button>
+          </div>
+          <div id="hc-evolution-chart" style="margin-bottom:1.2rem;"></div>
+          <div id="hc-ratings-list"></div>
+        </div>
+
         <!-- Tab: Sesiones -->
         <div class="hc-tab-panel" id="hct-sesiones" style="padding:1.4rem 1.6rem;display:none;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
@@ -794,6 +856,18 @@
             <button class="btn-primary" style="font-size:.78rem;padding:.35rem .8rem;" onclick="openSessionForm()">+ Nueva sesión</button>
           </div>
           <div id="hc-sessions-list"><div class="empty">Sin sesiones registradas.</div></div>
+        </div>
+
+        <!-- Tab: Compromisos -->
+        <div class="hc-tab-panel" id="hct-compromisos" style="padding:1.4rem 1.6rem;display:none;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+            <div>
+              <div style="font-weight:700;font-size:.88rem;color:var(--navy);">Seguimiento de compromisos</div>
+              <div style="font-size:.74rem;color:var(--gray);margin-top:.1rem;">Acuerdos establecidos con el estudiante, familia o docentes</div>
+            </div>
+            <button class="btn-primary" style="font-size:.78rem;padding:.35rem .8rem;" onclick="openCommitmentForm()">+ Nuevo compromiso</button>
+          </div>
+          <div id="hc-commitments-list"><div class="empty">Sin compromisos registrados.</div></div>
         </div>
 
         <!-- Tab: Plan -->
@@ -816,6 +890,18 @@
             <button class="btn-primary" style="font-size:.78rem;padding:.35rem .8rem;" onclick="openInstrumentForm()">+ Nuevo instrumento</button>
           </div>
           <div id="hc-instruments-list"><div class="empty">Sin instrumentos registrados.</div></div>
+        </div>
+
+        <!-- Tab: Alertas -->
+        <div class="hc-tab-panel" id="hct-alertas" style="padding:1.4rem 1.6rem;display:none;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+            <div>
+              <div style="font-weight:700;font-size:.88rem;color:var(--navy);">Señales de alerta y situaciones críticas</div>
+              <div style="font-size:.74rem;color:var(--gray);margin-top:.1rem;">Registro confidencial de situaciones que requieren atención prioritaria</div>
+            </div>
+            <button class="btn-primary" style="font-size:.78rem;padding:.35rem .8rem;background:#dc2626;" onclick="openRiskFlagForm()">⚠️ Registrar alerta</button>
+          </div>
+          <div id="hc-riskflags-list"><div class="empty">Sin alertas registradas.</div></div>
         </div>
 
         <!-- Tab: Cierre -->
@@ -1050,6 +1136,132 @@
           <div style="display:flex;justify-content:flex-end;gap:.6rem;margin-top:1rem;">
             <button class="btn-secondary" onclick="closeGoalModal()">Cancelar</button>
             <button class="btn-primary" onclick="saveGoal()">Guardar objetivo</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ MODAL EVALUACIÓN DE ÁREAS ══ -->
+    <div id="hc-rating-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:1020;align-items:center;justify-content:center;padding:1rem;">
+      <div style="background:#fff;border-radius:14px;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,.18);overflow:hidden;">
+        <div style="background:linear-gradient(135deg,#7c3aed 0%,#a78bfa 100%);padding:1.1rem 1.4rem;display:flex;justify-content:space-between;align-items:center;">
+          <div style="color:#fff;font-weight:700;font-size:.95rem;" id="rating-modal-title">Registrar evaluación</div>
+          <button onclick="closeRatingModal()" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:28px;height:28px;border-radius:7px;cursor:pointer;">✕</button>
+        </div>
+        <div style="padding:1.4rem;">
+          <input type="hidden" id="rating-id">
+          <div class="hc-field" style="margin-bottom:.9rem;"><label>Fecha de evaluación *</label><input type="date" id="rating-date"></div>
+          <div style="font-size:.78rem;font-weight:700;color:var(--navy);margin-bottom:.6rem;text-transform:uppercase;letter-spacing:.04em;">Puntaje por área (1 = crítico · 5 = óptimo)</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:.9rem;">
+            <div class="hc-field"><label>🧠 Área cognitiva</label><div class="rating-stars" id="rs-cognitive" data-field="rating-cognitive"></div><input type="hidden" id="rating-cognitive" value="0"></div>
+            <div class="hc-field"><label>❤️ Área emocional</label><div class="rating-stars" id="rs-emotional" data-field="rating-emotional"></div><input type="hidden" id="rating-emotional" value="0"></div>
+            <div class="hc-field"><label>⚡ Área comportamental</label><div class="rating-stars" id="rs-behavioral" data-field="rating-behavioral"></div><input type="hidden" id="rating-behavioral" value="0"></div>
+            <div class="hc-field"><label>👥 Área social</label><div class="rating-stars" id="rs-social" data-field="rating-social"></div><input type="hidden" id="rating-social" value="0"></div>
+          </div>
+          <div class="hc-field"><label>Observación general</label><textarea id="rating-note" rows="2" placeholder="Aspectos destacados de esta evaluación…"></textarea></div>
+          <div style="display:flex;justify-content:flex-end;gap:.6rem;margin-top:1rem;">
+            <button class="btn-secondary" onclick="closeRatingModal()">Cancelar</button>
+            <button class="btn-primary" onclick="saveRating()">Guardar evaluación</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ MODAL COMPROMISO ══ -->
+    <div id="hc-commitment-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:1020;align-items:center;justify-content:center;padding:1rem;">
+      <div style="background:#fff;border-radius:14px;width:100%;max-width:500px;box-shadow:0 20px 60px rgba(0,0,0,.18);overflow:hidden;">
+        <div style="background:linear-gradient(135deg,#0891b2 0%,#22d3ee 100%);padding:1.1rem 1.4rem;display:flex;justify-content:space-between;align-items:center;">
+          <div style="color:#fff;font-weight:700;font-size:.95rem;" id="comm-modal-title">Nuevo compromiso</div>
+          <button onclick="closeCommitmentModal()" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:28px;height:28px;border-radius:7px;cursor:pointer;">✕</button>
+        </div>
+        <div style="padding:1.4rem;">
+          <input type="hidden" id="comm-id">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;">
+            <div class="hc-field"><label>Responsable *</label>
+              <select id="comm-assigned_to">
+                <option value="estudiante">Estudiante</option>
+                <option value="familia">Familia / Acudiente</option>
+                <option value="docente">Docente</option>
+                <option value="orientadora">Orientadora</option>
+                <option value="rector">Rector / Coordinador</option>
+              </select>
+            </div>
+            <div class="hc-field"><label>Fecha límite</label><input type="date" id="comm-due_date"></div>
+            <div class="hc-field" style="grid-column:1/-1;"><label>Descripción del compromiso *</label><textarea id="comm-description" rows="3" placeholder="¿Qué se comprometió a hacer?"></textarea></div>
+            <div class="hc-field"><label>Estado</label>
+              <select id="comm-status">
+                <option value="pending">Pendiente</option>
+                <option value="met">Cumplido</option>
+                <option value="partial">Cumplido parcialmente</option>
+                <option value="unmet">Incumplido</option>
+              </select>
+            </div>
+            <div class="hc-field"><label>Fecha de seguimiento</label><input type="date" id="comm-follow_up_date"></div>
+            <div class="hc-field" style="grid-column:1/-1;"><label>Nota de seguimiento</label><textarea id="comm-follow_up_note" rows="2" placeholder="Observaciones sobre el cumplimiento…"></textarea></div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:.6rem;margin-top:1rem;">
+            <button class="btn-secondary" onclick="closeCommitmentModal()">Cancelar</button>
+            <button class="btn-primary" onclick="saveCommitment()">Guardar compromiso</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ MODAL ALERTA ══ -->
+    <div id="hc-riskflag-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:1020;align-items:center;justify-content:center;padding:1rem;">
+      <div style="background:#fff;border-radius:14px;width:100%;max-width:520px;box-shadow:0 20px 60px rgba(0,0,0,.18);overflow:hidden;">
+        <div style="background:linear-gradient(135deg,#dc2626 0%,#f87171 100%);padding:1.1rem 1.4rem;display:flex;justify-content:space-between;align-items:center;">
+          <div style="color:#fff;font-weight:700;font-size:.95rem;" id="flag-modal-title">Registrar señal de alerta</div>
+          <button onclick="closeRiskFlagModal()" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:28px;height:28px;border-radius:7px;cursor:pointer;">✕</button>
+        </div>
+        <div style="padding:1.4rem;">
+          <input type="hidden" id="flag-id">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;">
+            <div class="hc-field"><label>Fecha *</label><input type="date" id="flag-date"></div>
+            <div class="hc-field"><label>Severidad *</label>
+              <select id="flag-severity">
+                <option value="low">🟡 Baja</option>
+                <option value="moderate" selected>🟠 Moderada</option>
+                <option value="high">🔴 Alta</option>
+                <option value="critical">🚨 Crítica</option>
+              </select>
+            </div>
+            <div class="hc-field" style="grid-column:1/-1;"><label>Categoría *</label>
+              <select id="flag-category">
+                <option value="">— Seleccionar —</option>
+                <option value="ideacion_suicida">Ideación suicida</option>
+                <option value="autolesiones">Autolesiones</option>
+                <option value="violencia_familiar">Violencia intrafamiliar</option>
+                <option value="consumo_spa">Consumo de SPA</option>
+                <option value="acoso_escolar">Acoso escolar (víctima)</option>
+                <option value="acoso_agresor">Acoso escolar (agresor)</option>
+                <option value="crisis_academica">Crisis académica severa</option>
+                <option value="abandono_hogar">Riesgo de abandono del hogar</option>
+                <option value="otro">Otro</option>
+              </select>
+            </div>
+            <div class="hc-field" style="grid-column:1/-1;"><label>Descripción de la situación *</label><textarea id="flag-description" rows="3" placeholder="Describa la situación observada o reportada…"></textarea></div>
+            <div class="hc-field" style="grid-column:1/-1;"><label>Acción tomada</label><textarea id="flag-action_taken" rows="2" placeholder="Qué se hizo frente a la situación…"></textarea></div>
+            <div class="hc-field" style="grid-column:1/-1;"><label>Reportado a</label>
+              <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.25rem;">
+                <label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;font-weight:400;cursor:pointer;"><input type="checkbox" value="rector" class="flag-reported-cb"> Rector/Coordinador</label>
+                <label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;font-weight:400;cursor:pointer;"><input type="checkbox" value="familia" class="flag-reported-cb"> Familia</label>
+                <label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;font-weight:400;cursor:pointer;"><input type="checkbox" value="icbf" class="flag-reported-cb"> ICBF</label>
+                <label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;font-weight:400;cursor:pointer;"><input type="checkbox" value="eps" class="flag-reported-cb"> EPS / Médico</label>
+                <label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;font-weight:400;cursor:pointer;"><input type="checkbox" value="policia" class="flag-reported-cb"> Policía / ICBF</label>
+              </div>
+            </div>
+            <div class="hc-field"><label>¿Alerta activa?</label>
+              <select id="flag-active">
+                <option value="true">Sí — En seguimiento</option>
+                <option value="false">No — Resuelta</option>
+              </select>
+            </div>
+            <div class="hc-field"><label>Nota de resolución</label><input type="text" id="flag-resolution_note" placeholder="Cómo se resolvió…"></div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:.6rem;margin-top:1rem;">
+            <button class="btn-secondary" onclick="closeRiskFlagModal()">Cancelar</button>
+            <button class="btn-primary" style="background:#dc2626;" onclick="saveRiskFlag()">Guardar alerta</button>
           </div>
         </div>
       </div>
@@ -1488,9 +1700,34 @@ function switchFichaTab(tabId, btn) {
 // ── DASHBOARD ──
 async function loadDashboard() {
   const R = window.RAICE;
-  const [dash, alerts] = await Promise.all([R.fetchDashboard(api), R.fetchAlerts(api)]);
+  const [dash, alerts, psych] = await Promise.all([
+    R.fetchDashboard(api),
+    R.fetchAlerts(api),
+    api('/api/raice/psych/stats'),
+  ]);
   if (dash) renderKPIs(dash);
   renderAlerts(alerts || []);
+  if (psych && !psych.error) renderPsychKPIs(psych);
+}
+
+function renderPsychKPIs(p) {
+  const el = document.getElementById('psych-kpi-row');
+  if (!el) return;
+  const kpis = [
+    {ico:'🧠', val:p.total||0,                  lbl:'Historias clínicas',      color:'#7c3aed'},
+    {ico:'📅', val:p.sessions_this_month||0,     lbl:'Sesiones este mes',       color:'#0891b2'},
+    {ico:'🎯', val:p.goals_rate!=null ? p.goals_rate+'%' : '—', lbl:'Objetivos logrados', color:'#10b981'},
+    {ico:'⚠️', val:p.no_session_in_30_days||0,  lbl:'Sin sesión +30 días',     color:'#f97316'},
+  ];
+  el.innerHTML = `<div style="font-size:.74rem;font-weight:700;text-transform:uppercase;color:#6d28d9;letter-spacing:.05em;margin:1.1rem 0 .55rem;">Estadísticas de orientación</div>
+  <div class="kpi-grid" style="margin-bottom:.2rem;">${kpis.map(c=>`
+    <div class="kpi-card" style="--kpi-color:${c.color};">
+      <div class="kpi-bg-ico">${c.ico}</div>
+      <div class="kpi-ico-row">${c.ico}</div>
+      <div class="kpi-val">${c.val}</div>
+      <div class="kpi-lbl">${c.lbl}</div>
+    </div>`).join('')}
+  </div>`;
 }
 
 function renderKPIs(d) {
@@ -2121,9 +2358,333 @@ function populateHcModal(h) {
   renderSessions(h.sessions || []);
   renderGoals(h.goals || []);
   renderInstruments(h.instruments || []);
+  renderCommitments(h.commitments || []);
+  renderEvolution(h.area_ratings || []);
+  renderRiskFlags(h.risk_flags || []);
+  renderResumen(h);
 }
 
 function _setVal(id, val) { const el = document.getElementById(id); if (el) el.value = val; }
+
+// ─── RESUMEN TAB ─────────────────────────────────────────────────────────────
+function renderResumen(h) {
+  const el = document.getElementById('hct-resumen');
+  if (!el) return;
+  const sessions = h.sessions || [];
+  const goals = h.goals || [];
+  const flags = (h.risk_flags || []).filter(f => f.active);
+  const comms = h.commitments || [];
+  const achieved = goals.filter(g => g.status === 'achieved').length;
+  const pending = comms.filter(c => c.status === 'pending').length;
+  const lastSess = sessions[0];
+  const log = (h.status_log || []).slice(0, 5);
+
+  el.innerHTML = `
+  <div class="hc-stat-grid" style="margin-bottom:1rem;">
+    <div class="hc-stat-card"><div class="hc-stat-val">${sessions.length}</div><div class="hc-stat-lbl">Sesiones</div></div>
+    <div class="hc-stat-card"><div class="hc-stat-val">${goals.length ? Math.round(achieved/goals.length*100) : 0}%</div><div class="hc-stat-lbl">Objetivos logrados</div></div>
+    <div class="hc-stat-card"><div class="hc-stat-val ${flags.length ? 'text-danger' : ''}">${flags.length}</div><div class="hc-stat-lbl">Alertas activas</div></div>
+    <div class="hc-stat-card"><div class="hc-stat-val">${pending}</div><div class="hc-stat-lbl">Compromisos pendientes</div></div>
+    <div class="hc-stat-card"><div class="hc-stat-val">${lastSess ? lastSess.session_date : '—'}</div><div class="hc-stat-lbl">Última sesión</div></div>
+    <div class="hc-stat-card"><div class="hc-stat-val">${h.referral_source ? (REFERRAL_LABELS[h.referral_source]||h.referral_source) : '—'}</div><div class="hc-stat-lbl">Fuente de remisión</div></div>
+  </div>
+  ${goals.length ? `
+  <div style="margin-bottom:.9rem;">
+    <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;color:#6d28d9;margin-bottom:.45rem;">Objetivos (${achieved}/${goals.length})</div>
+    ${goals.map(g=>`<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem;">
+      <span style="font-size:.78rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(g.objective)}</span>
+      <span class="comm-pill ${g.status==='achieved'?'comm-met':g.status==='partial'?'comm-partial':g.status==='abandoned'?'comm-unmet':'comm-pending'}" style="font-size:.69rem;">${GOAL_STATUS_LABELS[g.status]||g.status}</span>
+    </div>`).join('')}
+  </div>` : ''}
+  ${flags.length ? `
+  <div style="margin-bottom:.9rem;">
+    <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;color:#dc2626;margin-bottom:.45rem;">⚠️ Alertas activas</div>
+    ${flags.map(f=>`<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem;">
+      <span class="flag-${f.severity}" style="font-size:.69rem;padding:.12rem .55rem;border-radius:20px;">${escHtml(RF_CATEGORY_LABELS[f.category]||f.category)}</span>
+      <span style="font-size:.78rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(f.description)}</span>
+      <span style="font-size:.7rem;color:#94a3b8;">${f.flag_date||''}</span>
+    </div>`).join('')}
+  </div>` : ''}
+  ${log.length ? `
+  <div>
+    <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:.45rem;">Historial de estado</div>
+    ${log.map(l=>`<div style="font-size:.77rem;color:#475569;margin-bottom:.2rem;">
+      <span style="color:#94a3b8;">${new Date(l.changed_at).toLocaleDateString('es-CO')}</span> → <strong>${HC_STATUS_LABELS[l.to_status]||l.to_status}</strong>${l.note?' · '+escHtml(l.note):''}
+    </div>`).join('')}
+  </div>` : ''}`;
+}
+
+// ─── COMPROMISOS TAB ──────────────────────────────────────────────────────────
+const COMM_STATUS_LABELS = { pending:'Pendiente', met:'Cumplido', partial:'Parcial', unmet:'No cumplido' };
+function renderCommitments(comms) {
+  const list = document.getElementById('hc-commitments-list');
+  if (!list) return;
+  if (!comms.length) { list.innerHTML = '<p style="color:#94a3b8;font-size:.83rem;">Sin compromisos registrados.</p>'; return; }
+  list.innerHTML = comms.map(c => `
+  <div class="comm-item" data-id="${c.id}" style="border:1px solid #e2e8f0;border-radius:10px;padding:.75rem .9rem;margin-bottom:.5rem;display:flex;gap:.75rem;align-items:flex-start;">
+    <div style="flex:1;">
+      <div style="font-weight:600;font-size:.85rem;margin-bottom:.2rem;">${escHtml(c.description)}</div>
+      <div style="font-size:.76rem;color:#64748b;display:flex;gap:.6rem;flex-wrap:wrap;">
+        <span>Para: <strong>${escHtml(c.assigned_to||'—')}</strong></span>
+        ${c.due_date?`<span>Fecha: <strong>${c.due_date}</strong></span>`:''}
+        <span class="comm-pill comm-${c.status||'pending'}">${COMM_STATUS_LABELS[c.status]||c.status}</span>
+      </div>
+      ${c.follow_up_note?`<div style="font-size:.74rem;color:#6d28d9;margin-top:.3rem;"><em>${escHtml(c.follow_up_note)}</em></div>`:''}
+    </div>
+    <div style="display:flex;gap:.35rem;flex-shrink:0;">
+      <button class="btn-icon" onclick="openCommitmentForm('${c.id}')" title="Editar">✏️</button>
+      <button class="btn-icon" onclick="deleteCommitment('${c.id}')" title="Eliminar">🗑️</button>
+    </div>
+  </div>`).join('');
+}
+
+function openCommitmentForm(id) {
+  const modal = document.getElementById('hc-commitment-modal');
+  if (!modal) return;
+  const c = id ? (_hcCurrent?.commitments||[]).find(x=>x.id===id) : null;
+  modal.dataset.editId = id || '';
+  _setVal('comm-assigned_to', c?.assigned_to||'estudiante');
+  _setVal('comm-due_date', c?.due_date||'');
+  _setVal('comm-description', c?.description||'');
+  _setVal('comm-status', c?.status||'pending');
+  _setVal('comm-follow_up_note', c?.follow_up_note||'');
+  _setVal('comm-follow_up_date', c?.follow_up_date||'');
+  modal.style.display = 'flex';
+}
+function closeCommitmentModal() { document.getElementById('hc-commitment-modal').style.display='none'; }
+async function saveCommitment() {
+  if (!_hcCurrent) return;
+  const modal = document.getElementById('hc-commitment-modal');
+  const editId = modal.dataset.editId;
+  const body = {
+    history_id: _hcCurrent.id,
+    assigned_to: document.getElementById('comm-assigned_to')?.value||'estudiante',
+    due_date:    document.getElementById('comm-due_date')?.value||null,
+    description: document.getElementById('comm-description')?.value||'',
+    status:      document.getElementById('comm-status')?.value||'pending',
+    follow_up_note: document.getElementById('comm-follow_up_note')?.value||null,
+    follow_up_date: document.getElementById('comm-follow_up_date')?.value||null,
+  };
+  const url = editId ? `/api/raice/psych/commitments/${editId}` : '/api/raice/psych/commitments';
+  const res = await api(url, { method: editId?'PUT':'POST', body: JSON.stringify(body) });
+  if (res?.error) return showToast('Error: '+res.error,'error');
+  closeCommitmentModal();
+  await reloadHcModal();
+  showToast('Compromiso guardado','success');
+}
+async function deleteCommitment(id) {
+  if (!confirm('¿Eliminar este compromiso?')) return;
+  await api(`/api/raice/psych/commitments/${id}`, { method:'DELETE' });
+  await reloadHcModal();
+}
+
+// ─── EVOLUCIÓN TAB ────────────────────────────────────────────────────────────
+const AREA_LABELS = { cognitive:'Cognitiva', emotional:'Emocional', behavioral:'Comportamental', social:'Social' };
+function renderEvolution(ratings) {
+  const chart = document.getElementById('hc-evolution-chart');
+  const list  = document.getElementById('hc-ratings-list');
+  if (!chart || !list) return;
+  if (!ratings.length) {
+    chart.innerHTML = '<p style="color:#94a3b8;font-size:.83rem;">Sin valoraciones registradas. Agrega una para ver el gráfico.</p>';
+    list.innerHTML = '';
+    return;
+  }
+  renderEvolutionChart(ratings, chart);
+  const sorted = [...ratings].sort((a,b)=>b.rating_date?.localeCompare(a.rating_date));
+  list.innerHTML = sorted.map(r => `
+  <div data-id="${r.id}" style="border:1px solid #e2e8f0;border-radius:10px;padding:.65rem .9rem;margin-bottom:.45rem;display:flex;gap:.75rem;align-items:center;">
+    <div style="flex:1;">
+      <div style="font-size:.78rem;font-weight:700;color:#6d28d9;margin-bottom:.3rem;">${r.rating_date||'—'}</div>
+      <div style="display:flex;gap:1rem;flex-wrap:wrap;">
+        ${['cognitive','emotional','behavioral','social'].map(a=>`
+        <span style="font-size:.75rem;"><strong>${AREA_LABELS[a]}:</strong>
+          ${'★'.repeat(r[a+'_score']||0)}${'☆'.repeat(5-(r[a+'_score']||0))}
+          <span style="color:#94a3b8;">(${r[a+'_score']||'—'})</span>
+        </span>`).join('')}
+      </div>
+      ${r.overall_note?`<div style="font-size:.74rem;color:#475569;margin-top:.25rem;"><em>${escHtml(r.overall_note)}</em></div>`:''}
+    </div>
+    <div style="display:flex;gap:.35rem;flex-shrink:0;">
+      <button class="btn-icon" onclick="openRatingForm('${r.id}')" title="Editar">✏️</button>
+      <button class="btn-icon" onclick="deleteRating('${r.id}')" title="Eliminar">🗑️</button>
+    </div>
+  </div>`).join('');
+}
+
+function renderEvolutionChart(ratings, container) {
+  const sorted = [...ratings].sort((a,b)=>a.rating_date?.localeCompare(b.rating_date));
+  const areas = ['cognitive','emotional','behavioral','social'];
+  const colors = {'cognitive':'#6d28d9','emotional':'#f59e0b','behavioral':'#10b981','social':'#3b82f6'};
+  const max = 5;
+  container.innerHTML = `
+  <div style="overflow-x:auto;">
+    <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:.5rem;">Evolución por área (1–5)</div>
+    ${areas.map(a=>`
+    <div class="evo-bar-wrap" style="margin-bottom:.5rem;display:flex;align-items:center;gap:.6rem;">
+      <span class="evo-bar-label" style="width:90px;font-size:.74rem;color:#475569;text-align:right;">${AREA_LABELS[a]}</span>
+      <div class="evo-bar-track" style="flex:1;display:flex;gap:3px;align-items:flex-end;height:30px;">
+        ${sorted.map(r=>{const v=r[a+'_score']||0;const pct=Math.round(v/max*100);
+        return `<div title="${r.rating_date}: ${v}" style="flex:1;background:${colors[a]};height:${pct}%;border-radius:3px 3px 0 0;min-height:3px;opacity:.85;"></div>`
+        }).join('')}
+      </div>
+    </div>`).join('')}
+    <div style="display:flex;gap:3px;margin-left:96px;margin-top:.2rem;">
+      ${sorted.map(r=>`<div style="flex:1;font-size:.6rem;color:#94a3b8;text-align:center;overflow:hidden;">${(r.rating_date||'').slice(5)}</div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function openRatingForm(id) {
+  const modal = document.getElementById('hc-rating-modal');
+  if (!modal) return;
+  const r = id ? (_hcCurrent?.area_ratings||[]).find(x=>x.id===id) : null;
+  modal.dataset.editId = id || '';
+  _setVal('rating-date', r?.rating_date || new Date().toISOString().slice(0,10));
+  _setVal('rating-note', r?.overall_note||'');
+  ['cognitive','emotional','behavioral','social'].forEach(a => setStarRating(a, r?.[a+'_score']||0));
+  ['cognitive','emotional','behavioral','social'].forEach(a => initStarWidget(a));
+  modal.style.display = 'flex';
+}
+function closeRatingModal() { document.getElementById('hc-rating-modal').style.display='none'; }
+
+function setStarRating(area, val) {
+  const container = document.getElementById('rs-'+area);
+  if (!container) return;
+  container.dataset.value = val;
+  container.querySelectorAll('.rating-star').forEach((s,i) => s.classList.toggle('filled', i < val));
+  const hidden = document.getElementById('rating-'+area);
+  if (hidden) hidden.value = val;
+}
+function initStarWidget(area) {
+  const container = document.getElementById('rs-'+area);
+  if (!container) return;
+  // Build stars if not yet rendered
+  if (!container.querySelector('.rating-star')) {
+    container.innerHTML = Array.from({length:5},(_,i)=>`<span class="rating-star" data-idx="${i}">★</span>`).join('');
+  }
+  // Re-attach listeners each open (container may be re-created)
+  container.querySelectorAll('.rating-star').forEach((star, i) => {
+    star.onclick = () => setStarRating(area, i+1);
+    star.onmouseover = () => container.querySelectorAll('.rating-star').forEach((s,j) => s.classList.toggle('filled', j<=i));
+    star.onmouseout = () => setStarRating(area, +container.dataset.value||0);
+  });
+}
+
+async function saveRating() {
+  if (!_hcCurrent) return;
+  const modal = document.getElementById('hc-rating-modal');
+  const editId = modal.dataset.editId;
+  const body = {
+    history_id: _hcCurrent.id,
+    rating_date: document.getElementById('rating-date')?.value,
+    overall_note: document.getElementById('rating-note')?.value||null,
+  };
+  ['cognitive','emotional','behavioral','social'].forEach(a => {
+    body[a+'_score'] = +document.getElementById('rs-'+a)?.dataset.value || null;
+  });
+  const url = editId ? `/api/raice/psych/area-ratings/${editId}` : '/api/raice/psych/area-ratings';
+  const res = await api(url, { method: editId?'PUT':'POST', body: JSON.stringify(body) });
+  if (res?.error) return showToast('Error: '+res.error,'error');
+  closeRatingModal();
+  await reloadHcModal();
+  showToast('Valoración guardada','success');
+}
+async function deleteRating(id) {
+  if (!confirm('¿Eliminar esta valoración?')) return;
+  await api(`/api/raice/psych/area-ratings/${id}`, { method:'DELETE' });
+  await reloadHcModal();
+}
+
+// ─── ALERTAS TAB ─────────────────────────────────────────────────────────────
+const RF_CATEGORY_LABELS = {
+  ideacion_suicida:'Ideación suicida', autolesiones:'Autolesiones', violencia_escolar:'Violencia escolar',
+  abuso:'Abuso/maltrato', consumo:'Consumo sustancias', desercion:'Riesgo deserción',
+  duelo:'Duelo/pérdida', crisis_familiar:'Crisis familiar', otro:'Otro'
+};
+const RF_SEVERITY_LABELS = { low:'Bajo', moderate:'Moderado', high:'Alto', critical:'Crítico' };
+function renderRiskFlags(flags) {
+  const list = document.getElementById('hc-riskflags-list');
+  if (!list) return;
+  if (!flags.length) { list.innerHTML = '<p style="color:#94a3b8;font-size:.83rem;">Sin señales de alerta registradas.</p>'; return; }
+  const sorted = [...flags].sort((a,b) => (b.active?1:0)-(a.active?1:0) || b.flag_date?.localeCompare(a.flag_date));
+  list.innerHTML = sorted.map(f => `
+  <div data-id="${f.id}" style="border:1px solid #e2e8f0;border-radius:10px;padding:.75rem .9rem;margin-bottom:.5rem;${!f.active?'opacity:.6;':''};display:flex;gap:.75rem;align-items:flex-start;">
+    <div style="flex:1;">
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem;flex-wrap:wrap;">
+        <span class="flag-${f.severity}" style="font-size:.72rem;padding:.12rem .55rem;border-radius:20px;">${RF_SEVERITY_LABELS[f.severity]||f.severity}</span>
+        <span style="font-weight:700;font-size:.84rem;">${escHtml(RF_CATEGORY_LABELS[f.category]||f.category)}</span>
+        <span style="font-size:.74rem;color:#94a3b8;">${f.flag_date||''}</span>
+        ${!f.active?'<span style="font-size:.7rem;background:#f1f5f9;color:#64748b;padding:.1rem .45rem;border-radius:20px;">Resuelta</span>':''}
+      </div>
+      <div style="font-size:.82rem;margin-bottom:.25rem;">${escHtml(f.description)}</div>
+      ${f.action_taken?`<div style="font-size:.75rem;color:#475569;"><strong>Acción:</strong> ${escHtml(f.action_taken)}</div>`:''}
+      ${f.reported_to?`<div style="font-size:.74rem;color:#6d28d9;">Reportado a: ${escHtml(f.reported_to)}</div>`:''}
+      ${f.resolution_note?`<div style="font-size:.74rem;color:#10b981;margin-top:.2rem;">✓ ${escHtml(f.resolution_note)}</div>`:''}
+    </div>
+    <div style="display:flex;gap:.35rem;flex-shrink:0;">
+      <button class="btn-icon" onclick="openRiskFlagForm('${f.id}')" title="Editar">✏️</button>
+      <button class="btn-icon" onclick="deleteRiskFlag('${f.id}')" title="Eliminar">🗑️</button>
+    </div>
+  </div>`).join('');
+}
+
+function openRiskFlagForm(id) {
+  const modal = document.getElementById('hc-riskflag-modal');
+  if (!modal) return;
+  const f = id ? (_hcCurrent?.risk_flags||[]).find(x=>x.id===id) : null;
+  modal.dataset.editId = id || '';
+  _setVal('flag-category', f?.category||'');
+  _setVal('flag-severity', f?.severity||'moderate');
+  _setVal('flag-date', f?.flag_date || new Date().toISOString().slice(0,10));
+  _setVal('flag-description', f?.description||'');
+  _setVal('flag-action_taken', f?.action_taken||'');
+  _setVal('flag-resolution_note', f?.resolution_note||'');
+  _setVal('flag-active', f ? (f.active ? 'true' : 'false') : 'true');
+  // reported_to checkboxes (class-based)
+  const reported = (f?.reported_to||'').split(',').map(s=>s.trim());
+  document.querySelectorAll('.flag-reported-cb').forEach(cb => {
+    cb.checked = reported.includes(cb.value);
+  });
+  modal.style.display = 'flex';
+}
+function closeRiskFlagModal() { document.getElementById('hc-riskflag-modal').style.display='none'; }
+
+async function saveRiskFlag() {
+  if (!_hcCurrent) return;
+  const modal = document.getElementById('hc-riskflag-modal');
+  const editId = modal.dataset.editId;
+  const s = _hcCurrent.student || {};
+  const reported = [...document.querySelectorAll('.flag-reported-cb:checked')].map(cb=>cb.value).join(', ');
+  const body = {
+    history_id: _hcCurrent.id,
+    student_id: _hcCurrent.student_id || s.id,
+    category:    document.getElementById('flag-category')?.value||'otro',
+    severity:    document.getElementById('flag-severity')?.value||'moderate',
+    flag_date:   document.getElementById('flag-date')?.value,
+    description: document.getElementById('flag-description')?.value||'',
+    action_taken: document.getElementById('flag-action_taken')?.value||null,
+    reported_to:  reported||null,
+    active:       document.getElementById('flag-active')?.value === 'true',
+    resolution_note: document.getElementById('flag-resolution_note')?.value||null,
+  };
+  const url = editId ? `/api/raice/psych/risk-flags/${editId}` : '/api/raice/psych/risk-flags';
+  const res = await api(url, { method: editId?'PUT':'POST', body: JSON.stringify(body) });
+  if (res?.error) return showToast('Error: '+res.error,'error');
+  closeRiskFlagModal();
+  await reloadHcModal();
+  showToast('Alerta guardada','success');
+}
+async function deleteRiskFlag(id) {
+  if (!confirm('¿Eliminar esta alerta?')) return;
+  await api(`/api/raice/psych/risk-flags/${id}`, { method:'DELETE' });
+  await reloadHcModal();
+}
+
+async function reloadHcModal() {
+  if (!_hcCurrent) return;
+  const h = await api(`/api/raice/psych/histories/${_hcCurrent.id}`);
+  if (h?.id) { _hcCurrent = h; populateHcModal(h); }
+}
 
 function switchHcTab(tab, btn) {
   document.querySelectorAll('.hc-tab').forEach(b => b.classList.remove('active'));
@@ -2576,100 +3137,193 @@ async function createNewHistory() {
   } else { showToast('Error: ' + (res?.error || 'No se pudo crear la historia')); }
 }
 
+// ── Print menu toggle ──
+function togglePrintMenu() {
+  const m = document.getElementById('hcm-print-menu');
+  if (m) m.style.display = m.style.display === 'none' ? 'block' : 'none';
+}
+document.addEventListener('click', e => {
+  const wrap = document.getElementById('hcm-print-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    const m = document.getElementById('hcm-print-menu');
+    if (m) m.style.display = 'none';
+  }
+});
+
 // ── Print ──
-function printHistory() {
+const _printBaseStyle = `
+  body{font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#1e293b;margin:0;padding:2cm;}
+  h1{font-size:18px;margin:0 0 .15rem;font-weight:800;}
+  h2{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:#6d28d9;border-bottom:2px solid #6d28d9;padding-bottom:.3rem;margin:1.4rem 0 .65rem;}
+  .hdr{border-bottom:2px solid #1e293b;padding-bottom:.8rem;margin-bottom:1.2rem;display:flex;justify-content:space-between;align-items:flex-start;}
+  .hdr-left h1{font-size:20px;} .hdr-sub{font-size:11.5px;color:#475569;margin-top:.2rem;}
+  .meta2{display:grid;grid-template-columns:1fr 1fr;gap:.3rem .9rem;font-size:12px;} .meta2 strong{color:#475569;}
+  table{width:100%;border-collapse:collapse;font-size:12px;margin-top:.5rem;}
+  th{background:#f1f5f9;padding:.4rem .6rem;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;}
+  td{padding:.4rem .6rem;border-bottom:1px solid #e2e8f0;vertical-align:top;}
+  .fb{margin-bottom:.75rem;} .fl{font-size:10.5px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:.2rem;} .fv{font-size:13px;white-space:pre-line;}
+  .sig-area{border-top:1.5px solid #1e293b;margin-top:2.5rem;padding-top:.4rem;font-size:11px;color:#475569;width:200px;display:inline-block;}
+  .sev-high{color:#dc2626;font-weight:700;} .sev-moderate{color:#f97316;font-weight:700;} .sev-low{color:#ca8a04;font-weight:700;} .sev-critical{color:#7c3aed;font-weight:700;}
+  @media print{body{padding:1cm;}}`;
+
+function printHistory(format) {
+  document.getElementById('hcm-print-menu').style.display='none';
   if (!_hcCurrent) return;
   const h = _hcCurrent;
   const s = h.student || {};
   const name = `${s.first_name||''} ${s.last_name||''}`.trim();
   const grade = s.grade ? `${s.grade}° ${s.course||''}` : '';
   const today = new Date().toLocaleDateString('es-CO', { day:'2-digit', month:'long', year:'numeric' });
-  const sessions = (h.sessions||[]).map(sess => `
-    <div style="border:1px solid #e2e8f0;border-radius:8px;padding:.85rem 1rem;margin-bottom:.6rem;">
-      <div style="font-weight:700;font-size:.88rem;">${sess.session_date||''} ${sess.session_time?'· '+sess.session_time:''} ${sess.session_type?'· '+(SESSION_TYPE_LABELS[sess.session_type]||sess.session_type):''} ${sess.duration_min?'· '+sess.duration_min+' min':''}</div>
-      ${sess.reason?`<div style="font-size:.82rem;color:#475569;margin-top:.25rem;">Motivo: ${escHtml(sess.reason)}</div>`:''}
-      ${sess.development?`<div style="font-size:.82rem;margin-top:.3rem;white-space:pre-line;">${escHtml(sess.development)}</div>`:''}
-      ${sess.strategies?`<div style="font-size:.8rem;margin-top:.25rem;color:#374151;"><strong>Estrategias:</strong> ${escHtml(sess.strategies)}</div>`:''}
-      ${sess.commitments?`<div style="font-size:.8rem;margin-top:.2rem;"><strong>Compromisos:</strong> ${escHtml(sess.commitments)}</div>`:''}
-      ${sess.next_date?`<div style="font-size:.78rem;color:#6d28d9;margin-top:.2rem;">Próxima sesión: ${sess.next_date}</div>`:''}
-    </div>`).join('');
-  const goals = (h.goals||[]).map(g =>
-    `<tr><td>${escHtml(g.objective)}</td><td>${escHtml(g.strategies||'—')}</td><td>${escHtml(g.indicators||'—')}</td><td>${GOAL_STATUS_LABELS[g.status]||g.status}</td><td>${g.review_date||'—'}</td></tr>`
-  ).join('');
-  const instruments = (h.instruments||[]).map(i =>
-    `<tr><td>${escHtml(i.instrument_name)}</td><td>${i.application_date||'—'}</td><td>${escHtml(i.results||'—')}</td><td>${escHtml(i.interpretation||'—')}</td></tr>`
-  ).join('');
+  const schoolName = _schoolConfig?.school_name || 'Institución Educativa';
 
-  const win = window.open('', '_blank', 'width=900,height=800');
-  win.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
-  <title>Historia Clínica – ${name}</title>
-  <style>
-    body{font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#1e293b;margin:0;padding:2cm;}
-    h1{font-size:18px;margin:0 0 .2rem;}
-    h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:#6d28d9;border-bottom:2px solid #6d28d9;padding-bottom:.3rem;margin:1.5rem 0 .7rem;}
-    .header{border-bottom:2px solid #1e293b;padding-bottom:.75rem;margin-bottom:1.2rem;}
-    .meta{display:grid;grid-template-columns:1fr 1fr;gap:.35rem .8rem;font-size:12px;}
-    .meta strong{color:#475569;}
-    table{width:100%;border-collapse:collapse;font-size:12px;margin-top:.5rem;}
-    th{background:#f1f5f9;padding:.4rem .6rem;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;}
-    td{padding:.4rem .6rem;border-bottom:1px solid #e2e8f0;vertical-align:top;}
-    .field-block{margin-bottom:.8rem;}
-    .field-label{font-size:11px;font-weight:700;text-transform:uppercase;color:#475569;margin-bottom:.2rem;}
-    .field-val{font-size:13px;white-space:pre-line;}
-    @media print{body{padding:1cm;}}
-  </style></head><body>
-  <div class="header">
-    <h1>Historia Clínica Psicológica</h1>
-    <div style="font-size:12px;color:#475569;">${name} · ${grade} · Doc: ${s.doc_number||'—'} · Generado: ${today}</div>
-  </div>
+  if (format === 'consentimiento') { _printConsentimiento(h, s, name, grade, today, schoolName); return; }
+  if (format === 'remision')       { _printRemision(h, s, name, grade, today, schoolName); return; }
+  // Default: informe de seguimiento
+  const sessions = (h.sessions||[]).map(sess => {
+    const tl = SESSION_TYPE_LABELS[sess.session_type]||sess.session_type||'';
+    return `<div style="border:1px solid #e2e8f0;border-radius:6px;padding:.75rem .9rem;margin-bottom:.5rem;">
+      <div style="font-weight:700;font-size:.88rem;">${sess.session_date||''} ${sess.session_time?'· '+sess.session_time:''} ${tl?'· '+escHtml(tl):''} ${sess.duration_min?'· '+sess.duration_min+' min':''}</div>
+      ${sess.reason?`<div style="font-size:.8rem;color:#475569;margin-top:.2rem;">Motivo: ${escHtml(sess.reason)}</div>`:''}
+      ${sess.development?`<div style="font-size:.81rem;margin-top:.25rem;white-space:pre-line;">${escHtml(sess.development)}</div>`:''}
+      ${sess.strategies?`<div style="font-size:.79rem;margin-top:.2rem;"><strong>Estrategias:</strong> ${escHtml(sess.strategies)}</div>`:''}
+      ${sess.next_date?`<div style="font-size:.77rem;color:#6d28d9;margin-top:.2rem;">Próxima: ${sess.next_date}</div>`:''}
+    </div>`;
+  }).join('');
+  const goals = (h.goals||[]).map(g =>
+    `<tr><td>${escHtml(g.objective)}</td><td>${escHtml(g.strategies||'—')}</td><td>${GOAL_STATUS_LABELS[g.status]||g.status}</td><td>${g.review_date||'—'}</td></tr>`).join('');
+  const instruments = (h.instruments||[]).map(i =>
+    `<tr><td>${escHtml(i.instrument_name)}</td><td>${i.application_date||'—'}</td><td>${escHtml(i.results||'—')}</td><td>${escHtml(i.interpretation||'—')}</td></tr>`).join('');
+  const comms = (h.commitments||[]).map(c =>
+    `<tr><td>${escHtml(c.description)}</td><td>${c.assigned_to||'—'}</td><td>${c.due_date||'—'}</td><td>${c.status||'—'}</td></tr>`).join('');
+  const flags = (h.risk_flags||[]).filter(f=>f.active).map(f =>
+    `<tr><td>${f.flag_date||'—'}</td><td class="sev-${f.severity}">${escHtml(RF_CATEGORY_LABELS[f.category]||f.category)}</td><td>${escHtml(f.description)}</td><td>${escHtml(f.action_taken||'—')}</td></tr>`).join('');
+
+  const win = window.open('', '_blank', 'width=940,height=820');
+  win.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Informe – ${escHtml(name)}</title><style>${_printBaseStyle}</style></head><body>
+  <div class="hdr"><div class="hdr-left"><div style="font-size:11px;color:#6d28d9;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.3rem;">ORIENTACIÓN ESCOLAR — HISTORIA CLÍNICA PSICOLÓGICA</div>
+  <h1>${escHtml(name)}</h1><div class="hdr-sub">${escHtml(schoolName)} · ${escHtml(grade)} · Doc: ${escHtml(s.doc_number||'—')} · Generado: ${today}</div></div>
+  <div style="text-align:right;font-size:11px;color:#64748b;">Estado: <strong>${HC_STATUS_LABELS[h.status]||h.status}</strong><br>Sesiones: <strong>${h.sessions?.length||0}</strong></div></div>
 
   <h2>1. Datos de ingreso</h2>
-  <div class="meta">
+  <div class="meta2">
     <div><strong>Primera sesión:</strong> ${h.first_session_date||'—'}</div>
     <div><strong>Fuente de remisión:</strong> ${REFERRAL_LABELS[h.referral_source]||h.referral_source||'—'}</div>
-    <div><strong>Consentimiento:</strong> ${h.consent_signed?'Firmado':'No firmado'}</div>
-    <div><strong>Firmado por:</strong> ${h.consent_signed_by||'—'}</div>
-    <div><strong>Estado:</strong> ${HC_STATUS_LABELS[h.status]||h.status}</div>
+    <div><strong>Consentimiento:</strong> ${h.consent_signed?'Firmado por '+escHtml(h.consent_signed_by||'—'):'No firmado'}</div>
+    <div><strong>Fecha firma:</strong> ${h.consent_date||'—'}</div>
   </div>
-  ${h.consultation_reason?`<div class="field-block" style="margin-top:.6rem;"><div class="field-label">Motivo de consulta</div><div class="field-val">${escHtml(h.consultation_reason)}</div></div>`:''}
+  ${h.consultation_reason?`<div class="fb" style="margin-top:.55rem;"><div class="fl">Motivo de consulta</div><div class="fv">${escHtml(h.consultation_reason)}</div></div>`:''}
 
   <h2>2. Anamnesis</h2>
-  ${h.family_background?`<div class="field-block"><div class="field-label">Antecedentes familiares</div><div class="field-val">${escHtml(h.family_background)}</div></div>`:''}
-  ${h.personal_background?`<div class="field-block"><div class="field-label">Antecedentes personales</div><div class="field-val">${escHtml(h.personal_background)}</div></div>`:''}
-  ${h.family_composition?`<div class="field-block"><div class="field-label">Composición familiar</div><div class="field-val">${escHtml(h.family_composition)}</div></div>`:''}
-  ${h.socioeconomic_status?`<div class="field-block"><div class="field-label">Nivel socioeconómico</div><div class="field-val">${escHtml(h.socioeconomic_status)}</div></div>`:''}
-  ${h.support_network?`<div class="field-block"><div class="field-label">Red de apoyo</div><div class="field-val">${escHtml(h.support_network)}</div></div>`:''}
+  ${h.family_background?`<div class="fb"><div class="fl">Antecedentes familiares</div><div class="fv">${escHtml(h.family_background)}</div></div>`:''}
+  ${h.personal_background?`<div class="fb"><div class="fl">Antecedentes personales</div><div class="fv">${escHtml(h.personal_background)}</div></div>`:''}
+  ${h.family_composition?`<div class="fb"><div class="fl">Composición familiar</div><div class="fv">${escHtml(h.family_composition)}</div></div>`:''}
+  ${h.support_network?`<div class="fb"><div class="fl">Red de apoyo</div><div class="fv">${escHtml(h.support_network)}</div></div>`:''}
 
   <h2>3. Valoración psicológica</h2>
-  ${h.cognitive_area?`<div class="field-block"><div class="field-label">Área cognitiva</div><div class="field-val">${escHtml(h.cognitive_area)}</div></div>`:''}
-  ${h.emotional_area?`<div class="field-block"><div class="field-label">Área emocional</div><div class="field-val">${escHtml(h.emotional_area)}</div></div>`:''}
-  ${h.behavioral_area?`<div class="field-block"><div class="field-label">Área comportamental</div><div class="field-val">${escHtml(h.behavioral_area)}</div></div>`:''}
-  ${h.social_area?`<div class="field-block"><div class="field-label">Área social</div><div class="field-val">${escHtml(h.social_area)}</div></div>`:''}
-  ${h.diagnostic_hypothesis?`<div class="field-block"><div class="field-label">Hipótesis diagnóstica</div><div class="field-val">${escHtml(h.diagnostic_hypothesis)}</div></div>`:''}
+  ${h.cognitive_area?`<div class="fb"><div class="fl">Área cognitiva</div><div class="fv">${escHtml(h.cognitive_area)}</div></div>`:''}
+  ${h.emotional_area?`<div class="fb"><div class="fl">Área emocional</div><div class="fv">${escHtml(h.emotional_area)}</div></div>`:''}
+  ${h.behavioral_area?`<div class="fb"><div class="fl">Área comportamental</div><div class="fv">${escHtml(h.behavioral_area)}</div></div>`:''}
+  ${h.social_area?`<div class="fb"><div class="fl">Área social</div><div class="fv">${escHtml(h.social_area)}</div></div>`:''}
+  ${h.diagnostic_hypothesis?`<div class="fb"><div class="fl">Hipótesis diagnóstica</div><div class="fv">${escHtml(h.diagnostic_hypothesis)}</div></div>`:''}
 
   <h2>4. Plan de intervención</h2>
-  ${h.initial_intervention_plan?`<div class="field-block"><div class="field-val">${escHtml(h.initial_intervention_plan)}</div></div>`:'<p style="color:#94a3b8;">Sin plan registrado.</p>'}
-  ${goals?`<table><thead><tr><th>Objetivo</th><th>Estrategias</th><th>Indicadores</th><th>Estado</th><th>Revisión</th></tr></thead><tbody>${goals}</tbody></table>`:''}
+  ${h.initial_intervention_plan?`<div class="fb"><div class="fv">${escHtml(h.initial_intervention_plan)}</div></div>`:''}
+  ${goals?`<table><thead><tr><th>Objetivo</th><th>Estrategias</th><th>Estado</th><th>Revisión</th></tr></thead><tbody>${goals}</tbody></table>`:''}
 
-  <h2>5. Sesiones (${h.sessions?.length||0})</h2>
-  ${sessions || '<p style="color:#94a3b8;">Sin sesiones registradas.</p>'}
+  <h2>5. Sesiones registradas (${h.sessions?.length||0})</h2>
+  ${sessions||'<p style="color:#94a3b8;font-size:12px;">Sin sesiones.</p>'}
 
-  <h2>6. Instrumentos aplicados</h2>
-  ${instruments?`<table><thead><tr><th>Instrumento</th><th>Fecha</th><th>Resultados</th><th>Interpretación</th></tr></thead><tbody>${instruments}</tbody></table>`:'<p style="color:#94a3b8;">Sin instrumentos.</p>'}
+  ${comms?`<h2>6. Compromisos</h2><table><thead><tr><th>Compromiso</th><th>Responsable</th><th>Fecha límite</th><th>Estado</th></tr></thead><tbody>${comms}</tbody></table>`:''}
+  ${instruments?`<h2>7. Instrumentos aplicados</h2><table><thead><tr><th>Instrumento</th><th>Fecha</th><th>Resultados</th><th>Interpretación</th></tr></thead><tbody>${instruments}</tbody></table>`:''}
+  ${flags?`<h2>8. Alertas activas</h2><table><thead><tr><th>Fecha</th><th>Categoría</th><th>Descripción</th><th>Acción tomada</th></tr></thead><tbody>${flags}</tbody></table>`:''}
 
-  ${h.status==='closed'||h.status==='referred'?`
-  <h2>7. Cierre</h2>
-  <div class="meta">
-    <div><strong>Fecha de cierre:</strong> ${h.close_date||'—'}</div>
-    <div><strong>Motivo:</strong> ${h.close_reason||'—'}</div>
-  </div>
-  ${h.close_summary?`<div class="field-block" style="margin-top:.5rem;"><div class="field-label">Resumen del proceso</div><div class="field-val">${escHtml(h.close_summary)}</div></div>`:''}
-  ${h.close_recommendations?`<div class="field-block"><div class="field-label">Recomendaciones finales</div><div class="field-val">${escHtml(h.close_recommendations)}</div></div>`:''}
-  ${h.referred_to?`<div class="field-block"><div class="field-label">Remitido a</div><div class="field-val">${escHtml(h.referred_to)}</div></div>`:''}
+  ${h.status==='closed'||h.status==='referred'?`<h2>${flags?9:8}. Cierre del proceso</h2>
+  <div class="meta2"><div><strong>Fecha:</strong> ${h.close_date||'—'}</div><div><strong>Motivo:</strong> ${h.close_reason||'—'}</div></div>
+  ${h.close_summary?`<div class="fb" style="margin-top:.5rem;"><div class="fl">Resumen</div><div class="fv">${escHtml(h.close_summary)}</div></div>`:''}
+  ${h.close_recommendations?`<div class="fb"><div class="fl">Recomendaciones</div><div class="fv">${escHtml(h.close_recommendations)}</div></div>`:''}
+  ${h.referred_to?`<div class="fb"><div class="fl">Remitido a</div><div class="fv">${escHtml(h.referred_to)}</div></div>`:''}
   `:''}
+  <div style="margin-top:3rem;display:flex;justify-content:space-between;">
+    <div><div class="sig-area">Firma orientadora</div></div>
+    <div style="font-size:10px;color:#94a3b8;text-align:right;">Documento confidencial — Uso exclusivo orientación escolar<br>RAICE · ${schoolName}</div>
+  </div>
+  <script>window.onload=()=>{window.print();}<\/script></body></html>`);
+  win.document.close();
+}
 
-  <script>window.onload=()=>{window.print();}<\/script>
-  </body></html>`);
+function _printConsentimiento(h, s, name, grade, today, schoolName) {
+  const win = window.open('', '_blank', 'width=800,height=700');
+  win.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Consentimiento – ${escHtml(name)}</title>
+  <style>${_printBaseStyle} .line{border-bottom:1px solid #94a3b8;margin:1rem 0 .2rem;height:1.5rem;} p{line-height:1.7;font-size:13px;margin:.7rem 0;}</style></head><body>
+  <div class="hdr"><div class="hdr-left">
+    <div style="font-size:10px;color:#6d28d9;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.25rem;">ORIENTACIÓN ESCOLAR</div>
+    <h1 style="font-size:17px;">Consentimiento Informado</h1>
+    <div class="hdr-sub">${escHtml(schoolName)} · Fecha: ${today}</div>
+  </div></div>
+  <p>Yo, <span style="border-bottom:1px solid #1e293b;display:inline-block;min-width:220px;"></span>, identificado/a con C.C. <span style="border-bottom:1px solid #1e293b;display:inline-block;min-width:120px;"></span>, en calidad de <strong>acudiente</strong> del/la estudiante:</p>
+  <div style="background:#f8f7ff;border:1px solid #c4b5fd;border-radius:8px;padding:.9rem 1.1rem;margin:.8rem 0;">
+    <strong style="font-size:15px;">${escHtml(name)}</strong><br>
+    <span style="font-size:12px;color:#475569;">${escHtml(grade)} · Documento: ${escHtml(s.doc_number||'—')}</span>
+  </div>
+  <p>Autorizo a la <strong>orientadora escolar</strong> de ${escHtml(schoolName)} para brindar <strong>acompañamiento psicológico</strong> a mi acudido/a, en el marco del Servicio de Orientación Escolar, de acuerdo con la Ley 1620 de 2013 y la Ley 1090 de 2006 (Código Deontológico y Bioético del Psicólogo).</p>
+  <p>Entiendo que:</p>
+  <ul style="font-size:13px;line-height:1.8;padding-left:1.2rem;">
+    <li>La información compartida es <strong>confidencial</strong>, salvo situaciones de riesgo para la integridad del/la estudiante u otros.</li>
+    <li>Puedo retirar este consentimiento en cualquier momento mediante comunicación escrita.</li>
+    <li>El proceso tiene carácter preventivo y de apoyo, no clínico-terapéutico externo.</li>
+    <li>Seré informado/a de los avances del proceso cuando sea pertinente.</li>
+  </ul>
+  <p>Motivo de ingreso: <em>${escHtml(h.consultation_reason||'—')}</em></p>
+  <p>Fecha de inicio del proceso: <strong>${h.first_session_date||today}</strong></p>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:2rem;margin-top:3rem;">
+    <div><div class="sig-area">Firma del acudiente</div><div style="font-size:10px;color:#64748b;margin-top:.3rem;">Nombre: <span style="border-bottom:1px solid #94a3b8;display:inline-block;min-width:140px;"></span></div></div>
+    <div><div class="sig-area">Orientadora escolar</div><div style="font-size:10px;color:#64748b;margin-top:.3rem;">Firma y sello</div></div>
+  </div>
+  <script>window.onload=()=>{window.print();}<\/script></body></html>`);
+  win.document.close();
+}
+
+function _printRemision(h, s, name, grade, today, schoolName) {
+  const win = window.open('', '_blank', 'width=800,height=700');
+  const activeFlags = (h.risk_flags||[]).filter(f=>f.active);
+  win.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Remisión – ${escHtml(name)}</title>
+  <style>${_printBaseStyle} p{line-height:1.7;font-size:13px;margin:.6rem 0;}</style></head><body>
+  <div class="hdr"><div class="hdr-left">
+    <div style="font-size:10px;color:#6d28d9;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.25rem;">ORIENTACIÓN ESCOLAR — REMISIÓN EXTERNA</div>
+    <h1 style="font-size:16px;">${escHtml(schoolName)}</h1>
+    <div class="hdr-sub">Fecha: ${today}</div>
+  </div></div>
+  <p><strong>Señores:</strong> <span style="border-bottom:1px solid #1e293b;display:inline-block;min-width:280px;">${escHtml(h.referred_to||'')}</span></p>
+  <p>La orientadora escolar de ${escHtml(schoolName)} hace remisión del/la siguiente estudiante:</p>
+  <div style="background:#f8f7ff;border:1px solid #c4b5fd;border-radius:8px;padding:.9rem 1.1rem;margin:.8rem 0;">
+    <div class="meta2">
+      <div><strong>Nombre:</strong> ${escHtml(name)}</div>
+      <div><strong>Grado:</strong> ${escHtml(grade)}</div>
+      <div><strong>Documento:</strong> ${escHtml(s.doc_number||'—')}</div>
+      <div><strong>Edad:</strong> ${s.birth_date?Math.floor((new Date()-new Date(s.birth_date))/31557600000)+' años':'—'}</div>
+    </div>
+  </div>
+  <h2>Motivo de remisión</h2>
+  <p>${escHtml(h.consultation_reason||'—')}</p>
+  ${h.diagnostic_hypothesis?`<h2>Hipótesis diagnóstica</h2><p>${escHtml(h.diagnostic_hypothesis)}</p>`:''}
+  <h2>Resumen del proceso de acompañamiento</h2>
+  <div class="meta2" style="margin-bottom:.6rem;">
+    <div><strong>Inicio del proceso:</strong> ${h.first_session_date||'—'}</div>
+    <div><strong>Sesiones realizadas:</strong> ${h.sessions?.length||0}</div>
+    <div><strong>Estado actual:</strong> ${HC_STATUS_LABELS[h.status]||h.status}</div>
+  </div>
+  ${h.close_summary?`<p>${escHtml(h.close_summary)}</p>`:''}
+  ${activeFlags.length?`<h2>Situaciones de alerta relevantes</h2>
+  <ul style="font-size:13px;line-height:1.8;padding-left:1.2rem;">
+    ${activeFlags.map(f=>`<li><strong>${escHtml(RF_CATEGORY_LABELS[f.category]||f.category)}</strong> (${f.flag_date||'—'}): ${escHtml(f.description)}</li>`).join('')}
+  </ul>`:''}
+  ${h.close_recommendations?`<h2>Recomendaciones</h2><p>${escHtml(h.close_recommendations)}</p>`:''}
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:2rem;margin-top:3rem;">
+    <div><div class="sig-area">Orientadora escolar</div><div style="font-size:10px;color:#64748b;margin-top:.3rem;">Nombre y firma</div></div>
+    <div><div class="sig-area">Rectoría — Vo.Bo.</div><div style="font-size:10px;color:#64748b;margin-top:.3rem;">Firma y sello</div></div>
+  </div>
+  <div style="margin-top:1.5rem;font-size:10px;color:#94a3b8;text-align:center;">Documento confidencial — Generado por RAICE · ${today}</div>
+  <script>window.onload=()=>{window.print();}<\/script></body></html>`);
   win.document.close();
 }
 

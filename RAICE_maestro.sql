@@ -924,11 +924,76 @@ CREATE TABLE IF NOT EXISTS psych_goals (
   status       TEXT NOT NULL DEFAULT 'pending'
 );
 
-CREATE INDEX IF NOT EXISTS idx_psych_histories_student  ON psych_histories(student_id);
-CREATE INDEX IF NOT EXISTS idx_psych_histories_sede     ON psych_histories(sede_id);
-CREATE INDEX IF NOT EXISTS idx_psych_sessions_history   ON psych_sessions(history_id);
+-- Compromisos de seguimiento (quién, qué, para cuándo, si se cumplió)
+CREATE TABLE IF NOT EXISTS psych_commitments (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  history_id      UUID NOT NULL REFERENCES psych_histories(id) ON DELETE CASCADE,
+  session_id      UUID REFERENCES psych_sessions(id) ON DELETE SET NULL,
+  created_by      UUID REFERENCES raice_users(id),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  assigned_to     TEXT NOT NULL DEFAULT 'estudiante',
+  description     TEXT NOT NULL,
+  due_date        DATE,
+  status          TEXT NOT NULL DEFAULT 'pending',
+  follow_up_note  TEXT,
+  follow_up_date  DATE
+);
+
+-- Valoración periódica de áreas (para gráfica de evolución)
+CREATE TABLE IF NOT EXISTS psych_area_ratings (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  history_id       UUID NOT NULL REFERENCES psych_histories(id) ON DELETE CASCADE,
+  session_id       UUID REFERENCES psych_sessions(id) ON DELETE SET NULL,
+  created_by       UUID REFERENCES raice_users(id),
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  rating_date      DATE NOT NULL,
+  cognitive_score  SMALLINT CHECK (cognitive_score BETWEEN 1 AND 5),
+  emotional_score  SMALLINT CHECK (emotional_score BETWEEN 1 AND 5),
+  behavioral_score SMALLINT CHECK (behavioral_score BETWEEN 1 AND 5),
+  social_score     SMALLINT CHECK (social_score BETWEEN 1 AND 5),
+  overall_note     TEXT
+);
+
+-- Señales de alerta y situaciones críticas
+CREATE TABLE IF NOT EXISTS psych_risk_flags (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  history_id      UUID NOT NULL REFERENCES psych_histories(id) ON DELETE CASCADE,
+  student_id      UUID NOT NULL REFERENCES raice_students(id),
+  created_by      UUID REFERENCES raice_users(id),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  flag_date       DATE NOT NULL,
+  category        TEXT NOT NULL,
+  severity        TEXT NOT NULL DEFAULT 'moderate',
+  description     TEXT NOT NULL,
+  action_taken    TEXT,
+  reported_to     TEXT,
+  active          BOOLEAN NOT NULL DEFAULT true,
+  resolution_note TEXT,
+  resolved_at     DATE
+);
+
+-- Historial de cambios de estado (activo → seguimiento → cerrado, etc.)
+CREATE TABLE IF NOT EXISTS psych_status_log (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  history_id   UUID NOT NULL REFERENCES psych_histories(id) ON DELETE CASCADE,
+  changed_by   UUID REFERENCES raice_users(id),
+  changed_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  from_status  TEXT,
+  to_status    TEXT NOT NULL,
+  note         TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_psych_histories_student   ON psych_histories(student_id);
+CREATE INDEX IF NOT EXISTS idx_psych_histories_sede      ON psych_histories(sede_id);
+CREATE INDEX IF NOT EXISTS idx_psych_sessions_history    ON psych_sessions(history_id);
 CREATE INDEX IF NOT EXISTS idx_psych_instruments_history ON psych_instruments(history_id);
-CREATE INDEX IF NOT EXISTS idx_psych_goals_history      ON psych_goals(history_id);
+CREATE INDEX IF NOT EXISTS idx_psych_goals_history       ON psych_goals(history_id);
+CREATE INDEX IF NOT EXISTS idx_psych_commitments_history ON psych_commitments(history_id);
+CREATE INDEX IF NOT EXISTS idx_psych_area_ratings_history ON psych_area_ratings(history_id);
+CREATE INDEX IF NOT EXISTS idx_psych_risk_flags_history  ON psych_risk_flags(history_id);
+CREATE INDEX IF NOT EXISTS idx_psych_status_log_history  ON psych_status_log(history_id);
 
 -- =====================================================================
 -- SECCIÓN 4: FUNCIONES
