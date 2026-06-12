@@ -1491,6 +1491,12 @@
   }
 
   async function pasarListaInteligente(btn) {
+    // Special day: blocks are shown in the courses grid, no normal schedule to route
+    if (_todaySpecialDay) {
+      showSection('mis-cursos', document.querySelector('.nav-item'));
+      return;
+    }
+
     if (!myCourses.length) await loadMyCourses();
 
     const now     = new Date();
