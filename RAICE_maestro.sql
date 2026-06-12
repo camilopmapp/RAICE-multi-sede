@@ -996,6 +996,51 @@ CREATE INDEX IF NOT EXISTS idx_psych_risk_flags_history  ON psych_risk_flags(his
 CREATE INDEX IF NOT EXISTS idx_psych_status_log_history  ON psych_status_log(history_id);
 
 -- =====================================================================
+-- SECCIÓN 3.6: HORARIOS ESPECIALES
+-- =====================================================================
+
+-- Cabecera del día especial (jornada sindical, día de logros, etc.)
+CREATE TABLE IF NOT EXISTS raice_special_days (
+  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  sede_id     UUID        NOT NULL REFERENCES raice_sedes(id) ON DELETE CASCADE,
+  created_by  UUID        REFERENCES raice_users(id) ON DELETE SET NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  fecha       DATE        NOT NULL,
+  nombre      TEXT        NOT NULL,
+  tipo        TEXT        NOT NULL DEFAULT 'jornada_especial',
+  descripcion TEXT,
+  estado      TEXT        NOT NULL DEFAULT 'activo',
+  CONSTRAINT raice_special_days_tipo_check
+    CHECK (tipo   IN ('jornada_especial','jornada_sindical','dia_logros','pedagogico','otro')),
+  CONSTRAINT raice_special_days_estado_check
+    CHECK (estado IN ('activo','cancelado')),
+  UNIQUE (sede_id, fecha)
+);
+
+-- Bloques del día especial: un bloque = un docente con una asignatura a una hora
+CREATE TABLE IF NOT EXISTS raice_special_day_blocks (
+  id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  special_day_id  UUID        NOT NULL REFERENCES raice_special_days(id) ON DELETE CASCADE,
+  teacher_id      UUID        NOT NULL REFERENCES raice_users(id) ON DELETE CASCADE,
+  course_id       UUID        REFERENCES raice_courses(id) ON DELETE SET NULL,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  hora_inicio     TIME        NOT NULL,
+  duracion_min    INTEGER     NOT NULL DEFAULT 55 CHECK (duracion_min > 0),
+  asignatura      TEXT        NOT NULL,
+  orden           SMALLINT    NOT NULL DEFAULT 1
+);
+
+-- Índices
+CREATE INDEX IF NOT EXISTS idx_special_days_sede  ON raice_special_days(sede_id);
+CREATE INDEX IF NOT EXISTS idx_special_days_fecha ON raice_special_days(fecha);
+CREATE INDEX IF NOT EXISTS idx_special_blocks_day ON raice_special_day_blocks(special_day_id);
+CREATE INDEX IF NOT EXISTS idx_special_blocks_teacher ON raice_special_day_blocks(teacher_id);
+-- Evita que un docente tenga dos bloques con la misma hora de inicio en el mismo día especial
+CREATE UNIQUE INDEX IF NOT EXISTS idx_special_blocks_no_overlap
+  ON raice_special_day_blocks(special_day_id, teacher_id, hora_inicio);
+
+-- =====================================================================
 -- SECCIÓN 4: FUNCIONES
 -- =====================================================================
 
