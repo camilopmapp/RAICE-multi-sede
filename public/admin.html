@@ -10747,8 +10747,8 @@ async function loadSpecialDays() {
       fetchAPI('/raice/teachers'),
       fetchAPI('/raice/courses'),
     ]);
-    _sdTeachers = tr.ok ? (tr.data || []) : [];
-    _sdCourses  = cr.ok ? (cr.data || []) : [];
+    _sdTeachers = tr.ok ? (tr.data?.teachers || tr.data || []) : [];
+    _sdCourses  = cr.ok ? (cr.data?.courses  || cr.data || []) : [];
   }
 }
 
