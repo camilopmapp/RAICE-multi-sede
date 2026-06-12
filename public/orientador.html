@@ -749,19 +749,25 @@
           </div>
         </div>
 
-        <!-- Tabs -->
-        <div style="display:flex;border-bottom:1px solid var(--border);overflow-x:auto;background:#fafbff;scrollbar-width:none;">
-          <button class="hc-tab active" data-tab="resumen"      onclick="switchHcTab('resumen',this)">📊 Resumen</button>
-          <button class="hc-tab" data-tab="ingreso"             onclick="switchHcTab('ingreso',this)">Ingreso</button>
-          <button class="hc-tab" data-tab="anamnesis"           onclick="switchHcTab('anamnesis',this)">Anamnesis</button>
-          <button class="hc-tab" data-tab="valoracion"          onclick="switchHcTab('valoracion',this)">Valoración</button>
-          <button class="hc-tab" data-tab="evolucion"           onclick="switchHcTab('evolucion',this)">📈 Evolución</button>
-          <button class="hc-tab" data-tab="sesiones"            onclick="switchHcTab('sesiones',this)">Sesiones</button>
-          <button class="hc-tab" data-tab="compromisos"         onclick="switchHcTab('compromisos',this)">Compromisos</button>
-          <button class="hc-tab" data-tab="plan"                onclick="switchHcTab('plan',this)">Plan</button>
-          <button class="hc-tab" data-tab="instrumentos"        onclick="switchHcTab('instrumentos',this)">Instrumentos</button>
-          <button class="hc-tab" data-tab="alertas"             onclick="switchHcTab('alertas',this)" id="hc-tab-alertas">⚠️ Alertas</button>
-          <button class="hc-tab" data-tab="cierre"              onclick="switchHcTab('cierre',this)">Cierre</button>
+        <!-- Tabs — 2 filas temáticas -->
+        <div style="background:#fafbff;border-bottom:1px solid var(--border);">
+          <div style="display:flex;align-items:center;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid #f0f0f5;">
+            <span style="font-size:.63rem;font-weight:800;text-transform:uppercase;color:#a78bfa;letter-spacing:.08em;padding:0 .7rem;white-space:nowrap;flex-shrink:0;">Clínico</span>
+            <button class="hc-tab active" data-tab="resumen"    onclick="switchHcTab('resumen',this)">📊 Resumen</button>
+            <button class="hc-tab" data-tab="ingreso"           onclick="switchHcTab('ingreso',this)">Ingreso</button>
+            <button class="hc-tab" data-tab="anamnesis"         onclick="switchHcTab('anamnesis',this)">Anamnesis</button>
+            <button class="hc-tab" data-tab="valoracion"        onclick="switchHcTab('valoracion',this)">Valoración</button>
+            <button class="hc-tab" data-tab="plan"              onclick="switchHcTab('plan',this)">Plan</button>
+            <button class="hc-tab" data-tab="cierre"            onclick="switchHcTab('cierre',this)">Cierre</button>
+          </div>
+          <div style="display:flex;align-items:center;overflow-x:auto;scrollbar-width:none;">
+            <span style="font-size:.63rem;font-weight:800;text-transform:uppercase;color:#67e8f9;letter-spacing:.08em;padding:0 .7rem;white-space:nowrap;flex-shrink:0;">Seguimiento</span>
+            <button class="hc-tab" data-tab="sesiones"          onclick="switchHcTab('sesiones',this)">Sesiones</button>
+            <button class="hc-tab" data-tab="compromisos"       onclick="switchHcTab('compromisos',this)">Compromisos</button>
+            <button class="hc-tab" data-tab="evolucion"         onclick="switchHcTab('evolucion',this)">📈 Evolución</button>
+            <button class="hc-tab" data-tab="instrumentos"      onclick="switchHcTab('instrumentos',this)">Instrumentos</button>
+            <button class="hc-tab" data-tab="alertas"           onclick="switchHcTab('alertas',this)" id="hc-tab-alertas">⚠️ Alertas</button>
+          </div>
         </div>
 
         <!-- Tab: Resumen -->
@@ -1703,7 +1709,7 @@ async function loadDashboard() {
   const [dash, alerts, psych] = await Promise.all([
     R.fetchDashboard(api),
     R.fetchAlerts(api),
-    api('/api/raice/psych/stats'),
+    api('/api/raice/psych/stats').then(r => r.ok ? r.data : null),
   ]);
   if (dash) renderKPIs(dash);
   renderAlerts(alerts || []);
@@ -2242,6 +2248,13 @@ let _hcAll = [];          // all loaded histories
 let _hcCurrent = null;    // history detail currently open
 let _nhSelectedStudent = null; // student selected in new-history modal
 
+// Unwraps the {ok, status, data} envelope returned by the shared api client
+async function pApi(path, opts) {
+  const r = await pApi(path, opts);
+  if (!r.ok) return { error: r.data?.error || 'Error del servidor' };
+  return r.data;
+}
+
 const HC_STATUS_LABELS = { active:'Activo', monitoring:'Seguimiento', closed:'Cerrado', referred:'Remitido' };
 const HC_STATUS_CLASS  = { active:'hc-status-active', monitoring:'hc-status-monitoring', closed:'hc-status-closed', referred:'hc-status-referred' };
 const REFERRAL_LABELS  = { docente:'Docente', acudiente:'Acudiente', autorremision:'Autorremisión', rector:'Rector/Coordinador', otro:'Otro' };
@@ -2252,7 +2265,7 @@ async function loadHistories() {
   const statusVal = document.getElementById('hc-status')?.value || '';
   let url = '/api/raice/psych/histories';
   if (statusVal) url += '?status=' + encodeURIComponent(statusVal);
-  const data = await api(url);
+  const data = await pApi(url);
   _hcAll = Array.isArray(data) ? data : [];
   filterHistories();
 }
@@ -2306,13 +2319,13 @@ function renderHistoriesList(list) {
 }
 
 async function openHistoryDetail(id) {
-  const data = await api(`/api/raice/psych/histories/${id}`);
+  const data = await pApi(`/api/raice/psych/histories/${id}`);
   if (!data || data.error) { alert('No se pudo cargar la historia.'); return; }
   _hcCurrent = data;
   populateHcModal(data);
   document.getElementById('hc-modal').style.display = 'block';
   document.body.style.overflow = 'hidden';
-  switchHcTab('ingreso', document.querySelector('.hc-tab[data-tab="ingreso"]'));
+  switchHcTab('resumen', document.querySelector('.hc-tab[data-tab="resumen"]'));
 }
 
 function populateHcModal(h) {
@@ -2466,7 +2479,7 @@ async function saveCommitment() {
     follow_up_date: document.getElementById('comm-follow_up_date')?.value||null,
   };
   const url = editId ? `/api/raice/psych/commitments/${editId}` : '/api/raice/psych/commitments';
-  const res = await api(url, { method: editId?'PUT':'POST', body: JSON.stringify(body) });
+  const res = await pApi(url, { method: editId?'PUT':'POST', body: JSON.stringify(body) });
   if (res?.error) return showToast('Error: '+res.error,'error');
   closeCommitmentModal();
   await reloadHcModal();
@@ -2474,7 +2487,7 @@ async function saveCommitment() {
 }
 async function deleteCommitment(id) {
   if (!confirm('¿Eliminar este compromiso?')) return;
-  await api(`/api/raice/psych/commitments/${id}`, { method:'DELETE' });
+  await pApi(`/api/raice/psych/commitments/${id}`, { method:'DELETE' });
   await reloadHcModal();
 }
 
@@ -2583,7 +2596,7 @@ async function saveRating() {
     body[a+'_score'] = +document.getElementById('rs-'+a)?.dataset.value || null;
   });
   const url = editId ? `/api/raice/psych/area-ratings/${editId}` : '/api/raice/psych/area-ratings';
-  const res = await api(url, { method: editId?'PUT':'POST', body: JSON.stringify(body) });
+  const res = await pApi(url, { method: editId?'PUT':'POST', body: JSON.stringify(body) });
   if (res?.error) return showToast('Error: '+res.error,'error');
   closeRatingModal();
   await reloadHcModal();
@@ -2591,7 +2604,7 @@ async function saveRating() {
 }
 async function deleteRating(id) {
   if (!confirm('¿Eliminar esta valoración?')) return;
-  await api(`/api/raice/psych/area-ratings/${id}`, { method:'DELETE' });
+  await pApi(`/api/raice/psych/area-ratings/${id}`, { method:'DELETE' });
   await reloadHcModal();
 }
 
@@ -2668,7 +2681,7 @@ async function saveRiskFlag() {
     resolution_note: document.getElementById('flag-resolution_note')?.value||null,
   };
   const url = editId ? `/api/raice/psych/risk-flags/${editId}` : '/api/raice/psych/risk-flags';
-  const res = await api(url, { method: editId?'PUT':'POST', body: JSON.stringify(body) });
+  const res = await pApi(url, { method: editId?'PUT':'POST', body: JSON.stringify(body) });
   if (res?.error) return showToast('Error: '+res.error,'error');
   closeRiskFlagModal();
   await reloadHcModal();
@@ -2676,13 +2689,13 @@ async function saveRiskFlag() {
 }
 async function deleteRiskFlag(id) {
   if (!confirm('¿Eliminar esta alerta?')) return;
-  await api(`/api/raice/psych/risk-flags/${id}`, { method:'DELETE' });
+  await pApi(`/api/raice/psych/risk-flags/${id}`, { method:'DELETE' });
   await reloadHcModal();
 }
 
 async function reloadHcModal() {
   if (!_hcCurrent) return;
-  const h = await api(`/api/raice/psych/histories/${_hcCurrent.id}`);
+  const h = await pApi(`/api/raice/psych/histories/${_hcCurrent.id}`);
   if (h?.id) { _hcCurrent = h; populateHcModal(h); }
 }
 
@@ -2718,7 +2731,7 @@ async function saveHcSection(section) {
     body[f] = el.type === 'checkbox' ? el.checked : (el.value || null);
   }
   if (section === 'ingreso') body.consent_signed = document.getElementById('hcf-consent_signed')?.checked || false;
-  const res = await api(`/api/raice/psych/histories/${_hcCurrent.id}`, { method:'PUT', body: JSON.stringify(body) });
+  const res = await pApi(`/api/raice/psych/histories/${_hcCurrent.id}`, { method:'PUT', body: JSON.stringify(body) });
   if (res && !res.error) {
     Object.assign(_hcCurrent, res);
     // Update badge
@@ -2793,10 +2806,10 @@ async function saveSession() {
   if (!body.session_date) { alert('La fecha de sesión es obligatoria.'); return; }
   const url = id ? `/api/raice/psych/sessions/${id}` : '/api/raice/psych/sessions';
   const method = id ? 'PUT' : 'POST';
-  const res = await api(url, { method, body: JSON.stringify(body) });
+  const res = await pApi(url, { method, body: JSON.stringify(body) });
   if (res && !res.error) {
     closeSessionModal();
-    const detail = await api(`/api/raice/psych/histories/${_hcCurrent.id}`);
+    const detail = await pApi(`/api/raice/psych/histories/${_hcCurrent.id}`);
     if (detail && !detail.error) { _hcCurrent = detail; renderSessions(detail.sessions||[]); }
     showToast('Sesión guardada');
   } else { alert('Error: ' + (res?.error || 'desconocido')); }
@@ -2804,7 +2817,7 @@ async function saveSession() {
 
 async function deleteSession(id) {
   if (!confirm('¿Eliminar esta sesión?')) return;
-  const res = await api(`/api/raice/psych/sessions/${id}`, { method:'DELETE' });
+  const res = await pApi(`/api/raice/psych/sessions/${id}`, { method:'DELETE' });
   if (res && !res.error) {
     _hcCurrent.sessions = (_hcCurrent.sessions||[]).filter(s=>s.id!==id);
     renderSessions(_hcCurrent.sessions);
@@ -2868,10 +2881,10 @@ async function saveGoal() {
   if (!body.objective) { alert('El objetivo es obligatorio.'); return; }
   const url = id ? `/api/raice/psych/goals/${id}` : '/api/raice/psych/goals';
   const method = id ? 'PUT' : 'POST';
-  const res = await api(url, { method, body: JSON.stringify(body) });
+  const res = await pApi(url, { method, body: JSON.stringify(body) });
   if (res && !res.error) {
     closeGoalModal();
-    const detail = await api(`/api/raice/psych/histories/${_hcCurrent.id}`);
+    const detail = await pApi(`/api/raice/psych/histories/${_hcCurrent.id}`);
     if (detail && !detail.error) { _hcCurrent = detail; renderGoals(detail.goals||[]); }
     showToast('Objetivo guardado');
   } else { alert('Error: ' + (res?.error || 'desconocido')); }
@@ -2879,7 +2892,7 @@ async function saveGoal() {
 
 async function deleteGoal(id) {
   if (!confirm('¿Eliminar este objetivo?')) return;
-  const res = await api(`/api/raice/psych/goals/${id}`, { method:'DELETE' });
+  const res = await pApi(`/api/raice/psych/goals/${id}`, { method:'DELETE' });
   if (res && !res.error) {
     _hcCurrent.goals = (_hcCurrent.goals||[]).filter(g=>g.id!==id);
     renderGoals(_hcCurrent.goals);
@@ -2937,10 +2950,10 @@ async function saveInstrument() {
   if (!body.instrument_name || !body.application_date) { alert('Nombre e instrumento y fecha son obligatorios.'); return; }
   const url = id ? `/api/raice/psych/instruments/${id}` : '/api/raice/psych/instruments';
   const method = id ? 'PUT' : 'POST';
-  const res = await api(url, { method, body: JSON.stringify(body) });
+  const res = await pApi(url, { method, body: JSON.stringify(body) });
   if (res && !res.error) {
     closeInstrumentModal();
-    const detail = await api(`/api/raice/psych/histories/${_hcCurrent.id}`);
+    const detail = await pApi(`/api/raice/psych/histories/${_hcCurrent.id}`);
     if (detail && !detail.error) { _hcCurrent = detail; renderInstruments(detail.instruments||[]); }
     showToast('Instrumento guardado');
   } else { alert('Error: ' + (res?.error || 'desconocido')); }
@@ -2948,7 +2961,7 @@ async function saveInstrument() {
 
 async function deleteInstrument(id) {
   if (!confirm('¿Eliminar este instrumento?')) return;
-  const res = await api(`/api/raice/psych/instruments/${id}`, { method:'DELETE' });
+  const res = await pApi(`/api/raice/psych/instruments/${id}`, { method:'DELETE' });
   if (res && !res.error) {
     _hcCurrent.instruments = (_hcCurrent.instruments||[]).filter(i=>i.id!==id);
     renderInstruments(_hcCurrent.instruments);
@@ -3127,7 +3140,7 @@ async function createNewHistory() {
   };
   const btn = document.getElementById('nh-save-btn');
   btn.disabled = true; btn.innerHTML = '<span style="opacity:.7">Creando…</span>';
-  const res = await api('/api/raice/psych/histories', { method:'POST', body: JSON.stringify(body) });
+  const res = await pApi('/api/raice/psych/histories', { method:'POST', body: JSON.stringify(body) });
   btn.disabled = false; btn.innerHTML = '<span>📋</span> Crear historia';
   if (res && !res.error) {
     closeNewHistoryModal();
@@ -3152,11 +3165,17 @@ document.addEventListener('click', e => {
 
 // ── Print ──
 const _printBaseStyle = `
-  body{font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#1e293b;margin:0;padding:2cm;}
-  h1{font-size:18px;margin:0 0 .15rem;font-weight:800;}
-  h2{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:#6d28d9;border-bottom:2px solid #6d28d9;padding-bottom:.3rem;margin:1.4rem 0 .65rem;}
-  .hdr{border-bottom:2px solid #1e293b;padding-bottom:.8rem;margin-bottom:1.2rem;display:flex;justify-content:space-between;align-items:flex-start;}
-  .hdr-left h1{font-size:20px;} .hdr-sub{font-size:11.5px;color:#475569;margin-top:.2rem;}
+  body{font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#1e293b;margin:0;padding:1.8cm 2cm;}
+  h1{font-size:17px;margin:0 0 .12rem;font-weight:800;}
+  h2{font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;color:#6d28d9;border-bottom:2px solid #6d28d9;padding-bottom:.3rem;margin:1.3rem 0 .6rem;}
+  .phdr{border-bottom:2px solid #1e293b;padding-bottom:.85rem;margin-bottom:1.2rem;display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;}
+  .phdr-logos{display:flex;align-items:center;gap:.55rem;flex-shrink:0;}
+  .phdr-logos img{height:52px;width:52px;object-fit:contain;}
+  .phdr-logos .logo-div{width:1px;height:44px;background:#d1d5db;}
+  .phdr-info{flex:1;}
+  .phdr-label{font-size:9.5px;color:#6d28d9;font-weight:800;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.25rem;}
+  .phdr-sub{font-size:11px;color:#475569;margin-top:.2rem;}
+  .phdr-right{text-align:right;font-size:11px;color:#64748b;flex-shrink:0;}
   .meta2{display:grid;grid-template-columns:1fr 1fr;gap:.3rem .9rem;font-size:12px;} .meta2 strong{color:#475569;}
   table{width:100%;border-collapse:collapse;font-size:12px;margin-top:.5rem;}
   th{background:#f1f5f9;padding:.4rem .6rem;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;}
@@ -3164,7 +3183,14 @@ const _printBaseStyle = `
   .fb{margin-bottom:.75rem;} .fl{font-size:10.5px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:.2rem;} .fv{font-size:13px;white-space:pre-line;}
   .sig-area{border-top:1.5px solid #1e293b;margin-top:2.5rem;padding-top:.4rem;font-size:11px;color:#475569;width:200px;display:inline-block;}
   .sev-high{color:#dc2626;font-weight:700;} .sev-moderate{color:#f97316;font-weight:700;} .sev-low{color:#ca8a04;font-weight:700;} .sev-critical{color:#7c3aed;font-weight:700;}
-  @media print{body{padding:1cm;}}`;
+  @media print{body{padding:1cm;} .phdr-logos img{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}`;
+
+function _buildPrintLogos(logoUrl) {
+  const raiceSrc = window.location.origin + '/icons/icon-96.png';
+  const schoolImg = logoUrl ? `<img src="${logoUrl}" alt="Escudo" onerror="this.style.display='none'">` : '';
+  const divider = logoUrl ? '<div class="logo-div"></div>' : '';
+  return `<div class="phdr-logos">${schoolImg}${divider}<img src="${raiceSrc}" alt="RAICE"></div>`;
+}
 
 function printHistory(format) {
   document.getElementById('hcm-print-menu').style.display='none';
@@ -3198,11 +3224,18 @@ function printHistory(format) {
   const flags = (h.risk_flags||[]).filter(f=>f.active).map(f =>
     `<tr><td>${f.flag_date||'—'}</td><td class="sev-${f.severity}">${escHtml(RF_CATEGORY_LABELS[f.category]||f.category)}</td><td>${escHtml(f.description)}</td><td>${escHtml(f.action_taken||'—')}</td></tr>`).join('');
 
+  const logoUrl = _schoolConfig?.logo_url || '';
   const win = window.open('', '_blank', 'width=940,height=820');
   win.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Informe – ${escHtml(name)}</title><style>${_printBaseStyle}</style></head><body>
-  <div class="hdr"><div class="hdr-left"><div style="font-size:11px;color:#6d28d9;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.3rem;">ORIENTACIÓN ESCOLAR — HISTORIA CLÍNICA PSICOLÓGICA</div>
-  <h1>${escHtml(name)}</h1><div class="hdr-sub">${escHtml(schoolName)} · ${escHtml(grade)} · Doc: ${escHtml(s.doc_number||'—')} · Generado: ${today}</div></div>
-  <div style="text-align:right;font-size:11px;color:#64748b;">Estado: <strong>${HC_STATUS_LABELS[h.status]||h.status}</strong><br>Sesiones: <strong>${h.sessions?.length||0}</strong></div></div>
+  <div class="phdr">
+    ${_buildPrintLogos(logoUrl)}
+    <div class="phdr-info">
+      <div class="phdr-label">Orientación escolar — Historia clínica psicológica</div>
+      <h1>${escHtml(name)}</h1>
+      <div class="phdr-sub">${escHtml(schoolName)} · ${escHtml(grade)} · Doc: ${escHtml(s.doc_number||'—')}</div>
+    </div>
+    <div class="phdr-right">Estado: <strong>${HC_STATUS_LABELS[h.status]||h.status}</strong><br>Sesiones: <strong>${h.sessions?.length||0}</strong><br><span style="color:#94a3b8;">${today}</span></div>
+  </div>
 
   <h2>1. Datos de ingreso</h2>
   <div class="meta2">
@@ -3252,14 +3285,19 @@ function printHistory(format) {
 }
 
 function _printConsentimiento(h, s, name, grade, today, schoolName) {
+  const logoUrl = _schoolConfig?.logo_url || '';
   const win = window.open('', '_blank', 'width=800,height=700');
   win.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Consentimiento – ${escHtml(name)}</title>
   <style>${_printBaseStyle} .line{border-bottom:1px solid #94a3b8;margin:1rem 0 .2rem;height:1.5rem;} p{line-height:1.7;font-size:13px;margin:.7rem 0;}</style></head><body>
-  <div class="hdr"><div class="hdr-left">
-    <div style="font-size:10px;color:#6d28d9;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.25rem;">ORIENTACIÓN ESCOLAR</div>
-    <h1 style="font-size:17px;">Consentimiento Informado</h1>
-    <div class="hdr-sub">${escHtml(schoolName)} · Fecha: ${today}</div>
-  </div></div>
+  <div class="phdr">
+    ${_buildPrintLogos(logoUrl)}
+    <div class="phdr-info">
+      <div class="phdr-label">Orientación escolar</div>
+      <h1>Consentimiento Informado</h1>
+      <div class="phdr-sub">${escHtml(schoolName)}</div>
+    </div>
+    <div class="phdr-right"><span style="color:#94a3b8;">${today}</span></div>
+  </div>
   <p>Yo, <span style="border-bottom:1px solid #1e293b;display:inline-block;min-width:220px;"></span>, identificado/a con C.C. <span style="border-bottom:1px solid #1e293b;display:inline-block;min-width:120px;"></span>, en calidad de <strong>acudiente</strong> del/la estudiante:</p>
   <div style="background:#f8f7ff;border:1px solid #c4b5fd;border-radius:8px;padding:.9rem 1.1rem;margin:.8rem 0;">
     <strong style="font-size:15px;">${escHtml(name)}</strong><br>
@@ -3284,15 +3322,20 @@ function _printConsentimiento(h, s, name, grade, today, schoolName) {
 }
 
 function _printRemision(h, s, name, grade, today, schoolName) {
+  const logoUrl = _schoolConfig?.logo_url || '';
   const win = window.open('', '_blank', 'width=800,height=700');
   const activeFlags = (h.risk_flags||[]).filter(f=>f.active);
   win.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Remisión – ${escHtml(name)}</title>
   <style>${_printBaseStyle} p{line-height:1.7;font-size:13px;margin:.6rem 0;}</style></head><body>
-  <div class="hdr"><div class="hdr-left">
-    <div style="font-size:10px;color:#6d28d9;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.25rem;">ORIENTACIÓN ESCOLAR — REMISIÓN EXTERNA</div>
-    <h1 style="font-size:16px;">${escHtml(schoolName)}</h1>
-    <div class="hdr-sub">Fecha: ${today}</div>
-  </div></div>
+  <div class="phdr">
+    ${_buildPrintLogos(logoUrl)}
+    <div class="phdr-info">
+      <div class="phdr-label">Orientación escolar — Remisión externa</div>
+      <h1>${escHtml(schoolName)}</h1>
+      <div class="phdr-sub">Paciente: <strong>${escHtml(name)}</strong> · ${escHtml(grade)}</div>
+    </div>
+    <div class="phdr-right"><span style="color:#94a3b8;">${today}</span></div>
+  </div>
   <p><strong>Señores:</strong> <span style="border-bottom:1px solid #1e293b;display:inline-block;min-width:280px;">${escHtml(h.referred_to||'')}</span></p>
   <p>La orientadora escolar de ${escHtml(schoolName)} hace remisión del/la siguiente estudiante:</p>
   <div style="background:#f8f7ff;border:1px solid #c4b5fd;border-radius:8px;padding:.9rem 1.1rem;margin:.8rem 0;">
