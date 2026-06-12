@@ -10968,15 +10968,16 @@ function onBlockTeacherChange(sel) {
     asigSel.innerHTML = '<option value="">— Selecciona un docente primero —</option>';
     return;
   }
-  const tc = (teacher.teacher_courses || []).find(c => c.course_id === courseId);
-  const subject = tc?.subject || '';
-  if (subject) {
-    asigSel.innerHTML = `<option value="${subject}">${subject}</option>`;
+  const tcs = (teacher.teacher_courses || []).filter(c => c.course_id === courseId);
+  const subjects = [...new Set(tcs.map(tc => tc.subject).filter(Boolean))];
+  if (subjects.length) {
+    asigSel.innerHTML = (subjects.length > 1 ? '<option value="">— Seleccionar asignatura —</option>' : '')
+      + subjects.map(s => `<option value="${s}">${s}</option>`).join('');
   } else {
-    const subjects = teacher.subjects || (teacher.subject ? [teacher.subject] : []);
-    if (subjects.length) {
+    const fallback = teacher.subjects || (teacher.subject ? [teacher.subject] : []);
+    if (fallback.length) {
       asigSel.innerHTML = '<option value="">— Seleccionar asignatura —</option>'
-        + subjects.map(s => `<option value="${s}">${s}</option>`).join('');
+        + fallback.map(s => `<option value="${s}">${s}</option>`).join('');
     } else {
       asigSel.innerHTML = '<option value="">— Sin asignatura registrada —</option>';
     }
