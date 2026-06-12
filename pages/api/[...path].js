@@ -2518,13 +2518,27 @@ async function handleAttendance(req, res, user) {
   const sb = getSupabase();
 
   if (req.method === 'POST') {
-    const { course_id, date, class_hour, records, activity_note } = req.body || {};
+    const { course_id, date, class_hour, records, activity_note, is_special_block } = req.body || {};
     if (!course_id || !date || !records?.length) return res.status(400).json({ error: 'Datos incompletos' });
 
     const hour = parseInt(class_hour) || 1;
 
     // Validate that this teacher is assigned to this course
     if (user.role === 'teacher') {
+      // Special day blocks: teacher is temporarily assigned via raice_special_day_blocks,
+      // not necessarily in raice_teacher_courses. Skip strict course+schedule check.
+      if (is_special_block) {
+        const today = todayCO();
+        const { data: sdToday } = await sb.from('raice_special_days')
+          .select('id').eq('sede_id', user.sede_id).eq('fecha', today).eq('estado','activo').maybeSingle();
+        if (sdToday) {
+          const { data: blockRow } = await sb.from('raice_special_day_blocks')
+            .select('id').eq('special_day_id', sdToday.id)
+            .eq('teacher_id', user.id).eq('course_id', course_id).maybeSingle();
+          if (!blockRow) return res.status(403).json({ error: 'No tienes un bloque especial asignado para este curso hoy' });
+        }
+        // If no special day today (edge case) fall through to normal validation
+      } else {
       // A teacher may teach multiple subjects in the same course → multiple rows
       const { data: tcRows } = await sb.from('raice_teacher_courses')
         .select('id').eq('teacher_id', user.id).eq('course_id', course_id);
@@ -2614,6 +2628,7 @@ async function handleAttendance(req, res, user) {
           return res.status(403).json({ error: 'La ventana de corrección cerró. Solicita al coordinador que haga la corrección.' });
         }
       }
+      } // end else (normal course validation)
     }
 
     // Try to delete with class_hour; if column doesn't exist, delete without it

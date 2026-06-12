@@ -1279,6 +1279,7 @@
   let _allCalendarEvents = [];
   let _todayHolidayInfo  = null; // resultado de /raice/calendar/today
   let _todaySpecialDay   = null; // resultado de /raice/special-days/today
+  let _savedSpecialBlocks = new Set(); // course_id+'_'+hora_inicio keys saved this session
   let studentsAtt     = [];   // [{id,name,status:'P'|'A'|'PE'|'T'}]
   let _attDirty       = false; // true when teacher has unsaved changes — prevents auto-refresh from overwriting
   // Bandera de "modo corrección": guarda la clave (curso_fecha_hora) de la hora
@@ -1644,6 +1645,79 @@
     }
   }
 
+  // ---- SPECIAL DAY GRID ----
+  function _sdEndTime(hora_inicio, duracion_min) {
+    const [h, m] = hora_inicio.split(':').map(Number);
+    const total  = h * 60 + m + (duracion_min || 55);
+    return String(Math.floor(total / 60)).padStart(2,'0') + ':' + String(total % 60).padStart(2,'0');
+  }
+
+  function renderSpecialDayGrid() {
+    const grid    = document.getElementById('courses-grid');
+    if (!grid || !_todaySpecialDay) return;
+    const dayName = _todaySpecialDay.nombre || 'Día especial';
+    // Sort blocks chronologically so hour numbering is always sequential
+    const blocks  = (_todaySpecialDay.blocks || []).slice()
+      .sort((a, b) => a.hora_inicio.localeCompare(b.hora_inicio));
+
+    if (!blocks.length) {
+      grid.innerHTML = `<div style="text-align:center;padding:3.5rem 1rem;color:var(--gray);grid-column:1/-1;">
+        <div style="font-size:2.5rem;margin-bottom:.75rem;">⭐</div>
+        <div style="font-family:'Fraunces',serif;font-size:1.1rem;font-weight:700;color:var(--navy);margin-bottom:.5rem;">${dayName}</div>
+        <div style="font-size:.88rem;">No tienes bloques asignados para este día especial.<br>Consulta con el coordinador.</div>
+      </div>`;
+      return;
+    }
+
+    const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
+    const banner  = `<div style="background:linear-gradient(135deg,#7c3aed 0%,#0b7a75 100%);border-radius:12px;padding:.85rem 1.2rem;color:white;display:flex;align-items:center;gap:.75rem;margin-bottom:.25rem;grid-column:1/-1;">
+      <span style="font-size:1.6rem;">⭐</span>
+      <div>
+        <div style="font-weight:700;font-size:.95rem;">${dayName}</div>
+        <div style="font-size:.78rem;opacity:.85;">Hoy aplica un horario especial — solo aparecen tus bloques asignados</div>
+      </div>
+    </div>`;
+
+    const cards = blocks.map((b, i) => {
+      const hourIdx   = i + 1; // sequential based on chronological order
+      const endTime   = _sdEndTime(b.hora_inicio, b.duracion_min);
+      const timeStr   = b.hora_inicio.slice(0,5) + ' – ' + endTime.slice(0,5);
+      const [sh, sm]  = b.hora_inicio.split(':').map(Number);
+      const [eh, em]  = endTime.split(':').map(Number);
+      const active    = nowMins >= sh * 60 + sm && nowMins <= eh * 60 + em;
+      const savedKey  = (b.course_id || '') + '_' + b.hora_inicio;
+      const isSaved   = _savedSpecialBlocks.has(savedKey);
+      const hasCourse = !!b.course_id;
+      const cName     = b.course
+        ? (b.course.name || `${b.course.grade}°${b.course.number || ''}`)
+        : null;
+      const pill = isSaved
+        ? '<span class="cc-pill" style="background:#dcfce7;color:#16a34a;border-color:#bbf7d0;">✅ Guardada</span>'
+        : active
+          ? '<span class="cc-pill now">⚡ Ahora</span>'
+          : '<span class="cc-pill pending">⏳ Pendiente</span>';
+      const cardClass = ['course-card', active ? 'active-now' : '', isSaved ? 'saved' : ''].filter(Boolean).join(' ');
+      const clickAttr = hasCourse
+        ? `onclick="openSpecialBlockAttendance(${JSON.stringify(b).replace(/"/g,'&quot;')})"`
+        : `onclick="showToast('Este bloque no tiene curso asignado — contacta al coordinador','warning')" style="cursor:default;opacity:.7;"`;
+      return `<div class="${cardClass}" ${clickAttr}>
+        <div class="cc-time">
+          <div class="cc-hour">${hourIdx}</div>
+          <div class="cc-htime">${b.hora_inicio.slice(0,5)}</div>
+        </div>
+        <div class="cc-divider"></div>
+        <div class="cc-info">
+          <div class="cc-grade">${cName || '—'}</div>
+          <div class="cc-subject">${b.asignatura}</div>
+          <div class="cc-meta">${timeStr} · ${b.duracion_min} min</div>
+        </div>
+        <div class="cc-status">${pill}</div>
+      </div>`;
+    }).join('');
+
+    grid.innerHTML = banner + cards;
+  }
+
   // ---- COURSES ----
   async function loadMyCourses() {
     // Prioridad 1: festivo que bloquea asistencia
@@ -1662,79 +1736,7 @@
 
     // Prioridad 2: día especial definido por el coordinador
     if (_todaySpecialDay) {
-      const grid    = document.getElementById('courses-grid');
-      const blocks  = _todaySpecialDay.blocks || [];
-      const dayName = _todaySpecialDay.nombre || 'Día especial';
-
-      if (!blocks.length) {
-        // Docente no tiene bloques asignados → no tiene clase hoy
-        grid.innerHTML = `<div style="text-align:center;padding:3.5rem 1rem;color:var(--gray);grid-column:1/-1;">
-          <div style="font-size:2.5rem;margin-bottom:.75rem;">⭐</div>
-          <div style="font-family:'Fraunces',serif;font-size:1.1rem;font-weight:700;color:var(--navy);margin-bottom:.5rem;">${dayName}</div>
-          <div style="font-size:.88rem;">No tienes bloques asignados para este día especial.<br>Consulta con el coordinador.</div>
-        </div>`;
-        return;
-      }
-
-      // Docente tiene bloques → renderizar tarjetas especiales
-      const ordinals = ['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª'];
-      const nowMins  = new Date().getHours() * 60 + new Date().getMinutes();
-
-      function computeEndTime(hora_inicio, duracion_min) {
-        const [h, m] = hora_inicio.split(':').map(Number);
-        const total  = h * 60 + m + (duracion_min || 55);
-        return String(Math.floor(total / 60)).padStart(2,'0') + ':' + String(total % 60).padStart(2,'0');
-      }
-
-      function isBlockActive(b) {
-        if (!b.hora_inicio) return false;
-        const [sh, sm] = b.hora_inicio.split(':').map(Number);
-        const end = computeEndTime(b.hora_inicio, b.duracion_min);
-        const [eh, em] = end.split(':').map(Number);
-        return nowMins >= sh * 60 + sm && nowMins <= eh * 60 + em;
-      }
-
-      const banner = `<div style="background:linear-gradient(135deg,#7c3aed 0%,#0b7a75 100%);border-radius:12px;padding:.85rem 1.2rem;color:white;display:flex;align-items:center;gap:.75rem;margin-bottom:.25rem;grid-column:1/-1;">
-        <span style="font-size:1.6rem;">⭐</span>
-        <div>
-          <div style="font-weight:700;font-size:.95rem;">${dayName}</div>
-          <div style="font-size:.78rem;opacity:.85;">Hoy aplica un horario especial — solo aparecen tus bloques asignados</div>
-        </div>
-      </div>`;
-
-      const cards = blocks.map((b, i) => {
-        const hourIdx   = b.orden || (i + 1);
-        const hourLabel = ordinals[hourIdx - 1] || hourIdx + 'ª';
-        const endTime   = computeEndTime(b.hora_inicio, b.duracion_min);
-        const timeStr   = b.hora_inicio.slice(0,5) + ' – ' + endTime.slice(0,5);
-        const active    = isBlockActive(b);
-        const hasCourse = !!b.course_id;
-        const cName     = b.course
-          ? (b.course.name || `${b.course.grade}°${b.course.number || ''}`)
-          : null;
-        const pill = active
-          ? '<span class="cc-pill now">⚡ Ahora</span>'
-          : '<span class="cc-pill pending">⏳ Pendiente</span>';
-        const cardClass = ['course-card', active ? 'active-now' : ''].filter(Boolean).join(' ');
-        const clickAttr = hasCourse
-          ? `onclick="openSpecialBlockAttendance(${JSON.stringify(b).replace(/"/g,'&quot;')})"`
-          : `onclick="showToast('Este bloque no tiene curso asignado — contacta al coordinador','warning')" style="cursor:default;opacity:.7;"`;
-        return `<div class="${cardClass}" ${clickAttr}>
-          <div class="cc-time">
-            <div class="cc-hour">${hourIdx}</div>
-            <div class="cc-htime">${b.hora_inicio.slice(0,5)}</div>
-          </div>
-          <div class="cc-divider"></div>
-          <div class="cc-info">
-            <div class="cc-grade">${cName || '—'}</div>
-            <div class="cc-subject">${b.asignatura}</div>
-            <div class="cc-meta">${timeStr} · ${b.duracion_min} min</div>
-          </div>
-          <div class="cc-status">${pill}</div>
-        </div>`;
-      }).join('');
-
-      grid.innerHTML = banner + cards;
+      renderSpecialDayGrid();
       return;
     }
 
@@ -3557,11 +3559,12 @@
     btn.disabled = true; btn.textContent = '⏳ Guardando…';
     const date    = document.getElementById('att-date-picker').value;
     const payload = {
-      course_id:    activeCourse.id,
+      course_id:        activeCourse.id,
       date,
-      class_hour:   activeHour,
-      records:      studentsAtt.map(s => ({ student_id: s.id, status: s.status })),
-      activity_note: _actividadEspecial ? (_actividadNote.trim() || null) : null
+      class_hour:       activeHour,
+      records:          studentsAtt.map(s => ({ student_id: s.id, status: s.status })),
+      activity_note:    _actividadEspecial ? (_actividadNote.trim() || null) : null,
+      is_special_block: activeCourse._isSpecialBlock || false,
     };
     const ordinals = ['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª','10ª'];
     const hourLabel = ordinals[activeHour-1] || activeHour+'ª';
@@ -3606,6 +3609,12 @@
       renderStudentList(); // ← switch list to read-only mode immediately
       showToast('Lista guardada correctamente', 'success');
       document.getElementById('att-saved-badge').textContent = '✅ Guardada';
+      // Mark special block as saved so the course card updates to ✅
+      if (activeCourse._isSpecialBlock) {
+        const savedKey = (activeCourse.id || '') + '_' + (activeCourse.today_slots?.[0]?.start_time || '');
+        _savedSpecialBlocks.add(savedKey);
+        renderSpecialDayGrid();
+      }
       const tardes = studentsAtt.filter(s => s.status==='T').length;
       if (tardes > 0) showToast(`⏰ ${tardes} tardanza(s) reportadas a coordinación`, 'info');
       // Show evasion feedback — toast always if detected, panel if student data available
