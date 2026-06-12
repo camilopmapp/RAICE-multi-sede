@@ -28,7 +28,8 @@
   /* ── SIDEBAR ── */
   .sidebar{width:var(--sidebar);background:var(--sb-bg);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:100;}
   .sidebar-brand{padding:1.35rem 1.15rem 1.05rem;border-bottom:1px solid rgba(255,255,255,.07);display:flex;align-items:center;gap:.7rem;}
-  .sb-mark{width:36px;height:36px;background:var(--violet2);border-radius:9px;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-weight:900;font-size:.95rem;color:var(--sb-bg);flex-shrink:0;}
+  .sb-mark{width:36px;height:36px;border-radius:9px;background:#fff;padding:2px;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;}
+  .sb-mark img{width:100%;height:100%;object-fit:contain;}
   .sb-logo{width:36px;height:36px;object-fit:contain;border-radius:9px;background:white;flex-shrink:0;display:none;}
   .sb-text .sb-name{font-family:'Fraunces',serif;font-weight:900;color:white;font-size:.98rem;}
   .sb-text .sb-role{font-size:.65rem;color:rgba(255,255,255,.38);text-transform:uppercase;letter-spacing:.06em;}
@@ -390,10 +391,9 @@
 <!-- ── SIDEBAR ── -->
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-brand">
-    <div class="sb-mark" id="sb-mark-wrap">R</div>
-    <img class="sb-logo" id="sb-logo" alt="">
+    <div class="sb-mark" id="sb-mark-wrap"><img src="/icons/icon-96.png" alt="RAICE"></div>
     <div class="sb-text">
-      <div class="sb-name">RAICE</div>
+      <div class="sb-name" id="sb-school-name">RAICE</div>
       <div class="sb-role">Orientador Escolar</div>
     </div>
   </div>
@@ -1088,11 +1088,15 @@ async function loadSchoolConfig() {
   const data = await window.RAICE.fetchConfig(api);
   if (!data) return;
   _schoolConfig = data;
+  if (data.school_name) {
+    const el = document.getElementById('sb-school-name');
+    if (el) el.textContent = data.school_name;
+  }
   if (data.logo_url) {
     const mark = document.getElementById('sb-mark-wrap');
-    const logo = document.getElementById('sb-logo');
-    if (mark) mark.style.display = 'none';
-    if (logo) { logo.src = data.logo_url; logo.style.display = 'block'; }
+    if (mark) {
+      mark.innerHTML = `<img src="${data.logo_url}" alt="${data.school_name||'Logo'}" style="width:100%;height:100%;object-fit:contain;">`;
+    }
   }
 }
 
