@@ -146,8 +146,12 @@
   .att-controls label{font-size:.76rem;font-weight:600;display:block;margin-bottom:.25rem;color:var(--navy);}
   .att-controls input[type=date]{border:1.5px solid var(--border);border-radius:9px;padding:.4rem .65rem;font-size:.83rem;font-family:'DM Sans',sans-serif;outline:none;color:var(--navy);}
   .att-controls input[type=date]:focus{border-color:var(--violet2);}
-  .btn-primary{background:var(--violet);color:white;border:none;border-radius:10px;padding:.48rem 1.2rem;font-size:.84rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:background .15s;}
-  .btn-primary:hover{background:#6d28d9;}
+  .btn-primary{background:var(--violet);color:white;border:none;border-radius:10px;padding:.48rem 1.2rem;font-size:.84rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s;}
+  .btn-primary:hover{background:#6d28d9;box-shadow:0 4px 12px rgba(109,40,217,.3);}
+  .btn-secondary{background:transparent;color:var(--navy);border:1.5px solid var(--border);border-radius:10px;padding:.46rem 1.2rem;font-size:.84rem;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s;}
+  .btn-secondary:hover{border-color:var(--violet2);color:var(--violet);background:rgba(167,139,250,.07);}
+  .btn-danger{background:#fee2e2;color:#dc2626;border:1.5px solid #fca5a5;border-radius:10px;padding:.46rem 1.2rem;font-size:.84rem;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s;}
+  .btn-danger:hover{background:#fecaca;}
 
   /* ── EXCUSAS RECIENTES ── */
   .exc-item{padding:.45rem 0;border-bottom:1px solid var(--border);font-size:.8rem;}
@@ -342,6 +346,7 @@
   .hc-goal-pending{border-left:3px solid #94a3b8;}
   .hc-goal-in_progress{border-left:3px solid #f59e0b;}
   .hc-goal-achieved{border-left:3px solid #22c55e;}
+  .nh-stu-selected{background:#f3f0ff!important;border-left:3px solid var(--violet)!important;}
   @media(max-width:640px){.hc-form-grid{grid-template-columns:1fr;} .hc-field[style*="grid-column:1/-1"]{grid-column:1!important;}}
 
   /* ── PERFIL SECTION ── */
@@ -848,34 +853,115 @@
     </div>
 
     <!-- ══ MODAL NUEVA HISTORIA ══ -->
-    <div id="hc-new-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:1010;display:none;align-items:center;justify-content:center;padding:1rem;">
-      <div style="background:#fff;border-radius:14px;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,.18);overflow:hidden;">
-        <div style="background:linear-gradient(135deg,var(--violet) 0%,var(--violet2) 100%);padding:1.1rem 1.4rem;display:flex;justify-content:space-between;align-items:center;">
-          <div style="color:#fff;font-weight:700;font-size:.95rem;">Nueva Historia Clínica</div>
-          <button onclick="closeNewHistoryModal()" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:28px;height:28px;border-radius:7px;cursor:pointer;">✕</button>
+    <div id="hc-new-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:1010;align-items:flex-start;justify-content:center;padding:1.5rem .75rem;overflow-y:auto;">
+      <div style="background:#fff;border-radius:16px;width:100%;max-width:520px;margin:0 auto;box-shadow:0 24px 64px rgba(0,0,0,.2);overflow:hidden;">
+
+        <!-- Header -->
+        <div style="background:linear-gradient(135deg,var(--violet) 0%,var(--violet2) 100%);padding:1.15rem 1.5rem;display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="color:#fff;font-weight:800;font-size:.97rem;">Nueva Historia Clínica</div>
+            <div style="color:rgba(255,255,255,.65);font-size:.75rem;margin-top:.1rem;">Paso 1 de 1 — Selecciona el estudiante y completa los datos iniciales</div>
+          </div>
+          <button onclick="closeNewHistoryModal()" style="background:rgba(255,255,255,.18);border:none;color:#fff;width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;">✕</button>
         </div>
-        <div style="padding:1.4rem;">
-          <div class="hc-field"><label>Buscar estudiante *</label>
-            <input type="search" id="nh-student-search" placeholder="Nombre o documento…" oninput="searchStudentForHistory()" style="width:100%;padding:.5rem .75rem;border:1px solid var(--border);border-radius:8px;font-size:.84rem;outline:none;">
-            <div id="nh-student-results" style="border:1px solid var(--border);border-radius:8px;max-height:180px;overflow-y:auto;margin-top:.35rem;display:none;"></div>
-            <div id="nh-selected-student" style="display:none;margin-top:.5rem;padding:.55rem .75rem;background:rgba(167,139,250,.1);border-radius:8px;font-size:.83rem;font-weight:600;color:var(--violet);"></div>
+
+        <div style="padding:1.4rem 1.5rem;">
+
+          <!-- Selector de modo -->
+          <div style="display:flex;background:#f1f5f9;border-radius:10px;padding:3px;margin-bottom:1.15rem;">
+            <button id="nh-mode-search" onclick="nhSetMode('search')"
+              style="flex:1;padding:.45rem .6rem;border:none;border-radius:8px;font-size:.81rem;font-weight:700;cursor:pointer;transition:all .18s;background:var(--violet);color:#fff;font-family:'DM Sans',sans-serif;">
+              🔍 Buscar por nombre
+            </button>
+            <button id="nh-mode-grade" onclick="nhSetMode('grade')"
+              style="flex:1;padding:.45rem .6rem;border:none;border-radius:8px;font-size:.81rem;font-weight:700;cursor:pointer;transition:all .18s;background:transparent;color:var(--gray);font-family:'DM Sans',sans-serif;">
+              🏫 Por grado y curso
+            </button>
           </div>
-          <div class="hc-field"><label>Fecha primera sesión</label><input type="date" id="nh-first_session_date"></div>
-          <div class="hc-field"><label>Motivo de consulta *</label><textarea id="nh-consultation_reason" rows="3" placeholder="Breve descripción del motivo de consulta…"></textarea></div>
-          <div class="hc-field"><label>Fuente de remisión</label>
-            <select id="nh-referral_source">
-              <option value="">— Seleccionar —</option>
-              <option value="docente">Docente</option>
-              <option value="acudiente">Acudiente</option>
-              <option value="autorremision">Autorremisión</option>
-              <option value="rector">Rector / Coordinador</option>
-              <option value="otro">Otro</option>
-            </select>
+
+          <!-- Modo búsqueda -->
+          <div id="nh-panel-search">
+            <div class="hc-field">
+              <label>Nombre o número de documento</label>
+              <div style="position:relative;">
+                <span style="position:absolute;left:.7rem;top:50%;transform:translateY(-50%);color:var(--gray);font-size:.85rem;">🔍</span>
+                <input type="search" id="nh-student-search" placeholder="Ej: Valentina García o 1023456…"
+                  oninput="searchStudentForHistory()"
+                  style="width:100%;padding:.5rem .75rem .5rem 2.1rem;border:1.5px solid var(--border);border-radius:9px;font-size:.84rem;outline:none;box-sizing:border-box;transition:border-color .15s;"
+                  onfocus="this.style.borderColor='var(--violet2)'" onblur="this.style.borderColor='var(--border)'">
+              </div>
+              <div id="nh-student-results" style="border:1.5px solid var(--border);border-radius:9px;max-height:200px;overflow-y:auto;margin-top:.3rem;display:none;box-shadow:0 4px 16px rgba(0,0,0,.08);"></div>
+            </div>
           </div>
-          <div style="display:flex;justify-content:flex-end;gap:.6rem;margin-top:1.2rem;">
-            <button class="btn-secondary" onclick="closeNewHistoryModal()">Cancelar</button>
-            <button class="btn-primary" id="nh-save-btn" onclick="createNewHistory()">Crear historia</button>
+
+          <!-- Modo por grado/curso -->
+          <div id="nh-panel-grade" style="display:none;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.7rem;margin-bottom:.8rem;">
+              <div class="hc-field">
+                <label>Grado</label>
+                <select id="nh-grade-select" onchange="nhUpdateCourses()"
+                  style="padding:.5rem .72rem;border:1.5px solid var(--border);border-radius:9px;font-size:.84rem;outline:none;background:#fff;transition:border-color .15s;"
+                  onfocus="this.style.borderColor='var(--violet2)'" onblur="this.style.borderColor='var(--border)'">
+                  <option value="">— Grado —</option>
+                </select>
+              </div>
+              <div class="hc-field">
+                <label>Curso</label>
+                <select id="nh-course-select" onchange="nhFilterStudentsByGrade()"
+                  style="padding:.5rem .72rem;border:1.5px solid var(--border);border-radius:9px;font-size:.84rem;outline:none;background:#fff;transition:border-color .15s;"
+                  onfocus="this.style.borderColor='var(--violet2)'" onblur="this.style.borderColor='var(--border)'">
+                  <option value="">— Todos —</option>
+                </select>
+              </div>
+            </div>
+            <div id="nh-grade-student-list" style="border:1.5px solid var(--border);border-radius:9px;max-height:190px;overflow-y:auto;display:none;box-shadow:0 4px 16px rgba(0,0,0,.07);"></div>
           </div>
+
+          <!-- Estudiante seleccionado (ambos modos) -->
+          <div id="nh-selected-student" style="display:none;margin-top:.75rem;padding:.65rem .9rem;background:linear-gradient(135deg,rgba(167,139,250,.12),rgba(139,92,246,.06));border:1.5px solid rgba(167,139,250,.4);border-radius:10px;display:none;align-items:center;gap:.7rem;">
+            <div style="width:34px;height:34px;border-radius:50%;background:var(--violet);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.85rem;flex-shrink:0;" id="nh-sel-avatar">?</div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:700;font-size:.87rem;color:var(--navy);" id="nh-sel-name">—</div>
+              <div style="font-size:.74rem;color:var(--gray);" id="nh-sel-meta">—</div>
+            </div>
+            <button onclick="nhClearStudent()" style="background:none;border:none;color:var(--gray);cursor:pointer;font-size:.8rem;padding:.2rem .4rem;border-radius:6px;" title="Cambiar estudiante">✕</button>
+          </div>
+
+          <div style="height:1px;background:var(--border);margin:1.1rem 0;"></div>
+
+          <!-- Datos iniciales -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;">
+            <div class="hc-field">
+              <label>Fecha primera sesión</label>
+              <input type="date" id="nh-first_session_date">
+            </div>
+            <div class="hc-field">
+              <label>Fuente de remisión</label>
+              <select id="nh-referral_source">
+                <option value="">— Seleccionar —</option>
+                <option value="docente">Docente</option>
+                <option value="acudiente">Acudiente</option>
+                <option value="autorremision">Autorremisión</option>
+                <option value="rector">Rector / Coordinador</option>
+                <option value="otro">Otro</option>
+              </select>
+            </div>
+            <div class="hc-field" style="grid-column:1/-1;">
+              <label>Motivo de consulta <span style="color:#dc2626;">*</span></label>
+              <textarea id="nh-consultation_reason" rows="3" placeholder="Breve descripción del motivo por el que el estudiante inicia el proceso de acompañamiento…"></textarea>
+            </div>
+          </div>
+
+          <!-- Botones -->
+          <div style="display:flex;justify-content:flex-end;gap:.7rem;margin-top:1.4rem;padding-top:1rem;border-top:1px solid var(--border);">
+            <button class="btn-secondary" onclick="closeNewHistoryModal()">
+              Cancelar
+            </button>
+            <button class="btn-primary" id="nh-save-btn" onclick="createNewHistory()" style="display:flex;align-items:center;gap:.4rem;">
+              <span>📋</span> Crear historia
+            </button>
+          </div>
+
         </div>
       </div>
     </div>
@@ -2312,51 +2398,166 @@ async function deleteInstrument(id) {
 // ── Nueva historia ──
 function openNewHistoryModal() {
   _nhSelectedStudent = null;
-  _setVal('nh-student-search',''); _setVal('nh-first_session_date',''); _setVal('nh-consultation_reason',''); _setVal('nh-referral_source','');
+  _setVal('nh-student-search', '');
+  _setVal('nh-first_session_date', new Date().toISOString().slice(0,10));
+  _setVal('nh-consultation_reason', '');
+  _setVal('nh-referral_source', '');
   document.getElementById('nh-student-results').style.display = 'none';
   document.getElementById('nh-student-results').innerHTML = '';
-  document.getElementById('nh-selected-student').style.display = 'none';
-  document.getElementById('nh-selected-student').textContent = '';
-  _setVal('nh-first_session_date', new Date().toISOString().slice(0,10));
+  nhHideSelected();
+  nhSetMode('search');
+  nhPopulateGrades();
   document.getElementById('hc-new-modal').style.display = 'flex';
 }
 function closeNewHistoryModal() { document.getElementById('hc-new-modal').style.display = 'none'; }
 
+function nhSetMode(mode) {
+  const isSearch = mode === 'search';
+  const btnS = document.getElementById('nh-mode-search');
+  const btnG = document.getElementById('nh-mode-grade');
+  const panS = document.getElementById('nh-panel-search');
+  const panG = document.getElementById('nh-panel-grade');
+  btnS.style.background = isSearch ? 'var(--violet)' : 'transparent';
+  btnS.style.color      = isSearch ? '#fff' : 'var(--gray)';
+  btnG.style.background = !isSearch ? 'var(--violet)' : 'transparent';
+  btnG.style.color      = !isSearch ? '#fff' : 'var(--gray)';
+  panS.style.display = isSearch ? 'block' : 'none';
+  panG.style.display = !isSearch ? 'block' : 'none';
+  nhHideSelected();
+  _nhSelectedStudent = null;
+  if (!isSearch) nhFilterStudentsByGrade();
+}
+
+function nhHideSelected() {
+  const el = document.getElementById('nh-selected-student');
+  if (el) el.style.display = 'none';
+}
+
+function nhShowSelected(s) {
+  _nhSelectedStudent = s;
+  const el  = document.getElementById('nh-selected-student');
+  const av  = document.getElementById('nh-sel-avatar');
+  const nm  = document.getElementById('nh-sel-name');
+  const mt  = document.getElementById('nh-sel-meta');
+  const ini = ((s.first_name||'?')[0] + (s.last_name||'?')[0]).toUpperCase();
+  if (av) av.textContent = ini;
+  if (nm) nm.textContent = `${s.first_name} ${s.last_name}`;
+  if (mt) mt.textContent = `Doc: ${s.doc||'—'} · ${s.grade||''}°${s.course||''}`;
+  if (el) el.style.display = 'flex';
+}
+
+function nhClearStudent() {
+  _nhSelectedStudent = null;
+  nhHideSelected();
+  _setVal('nh-student-search', '');
+  document.getElementById('nh-student-results').style.display = 'none';
+  // Deselect grade list item
+  document.querySelectorAll('#nh-grade-student-list .nh-stu-row').forEach(r => r.classList.remove('nh-stu-selected'));
+}
+
+// ── Modo búsqueda ──
 let _nhSearchTimer = null;
-async function searchStudentForHistory() {
+function searchStudentForHistory() {
   clearTimeout(_nhSearchTimer);
   const q = document.getElementById('nh-student-search').value.trim();
   const resultsEl = document.getElementById('nh-student-results');
+  nhHideSelected(); _nhSelectedStudent = null;
   if (q.length < 2) { resultsEl.style.display = 'none'; return; }
-  _nhSearchTimer = setTimeout(async () => {
-    const data = await api(`/api/raice/search?q=${encodeURIComponent(q)}&type=students`);
-    const students = Array.isArray(data?.students) ? data.students : (Array.isArray(data) ? data : []);
-    if (!students.length) { resultsEl.innerHTML = '<div style="padding:.6rem .9rem;font-size:.82rem;color:var(--gray);">Sin resultados.</div>'; resultsEl.style.display='block'; return; }
-    resultsEl.innerHTML = students.slice(0,8).map(s =>
-      `<div onclick="selectStudentForHistory('${s.id}','${esc(s.first_name)} ${esc(s.last_name)}','${esc(s.doc_number||'')}','${s.grade||''}','${s.course||''}')"
-        style="padding:.55rem .9rem;cursor:pointer;font-size:.83rem;border-bottom:1px solid var(--border);"
-        onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">
-        <strong>${esc(s.first_name)} ${esc(s.last_name)}</strong>
-        <span style="color:var(--gray);font-size:.76rem;"> · Doc: ${esc(s.doc_number||'—')} · ${s.grade||''}°${s.course||''}</span>
+  _nhSearchTimer = setTimeout(() => {
+    const lq = q.toLowerCase();
+    const hits = _students.filter(s =>
+      `${s.first_name} ${s.last_name}`.toLowerCase().includes(lq) ||
+      (s.doc_number||'').toLowerCase().includes(lq)
+    ).slice(0, 10);
+    if (!hits.length) {
+      resultsEl.innerHTML = '<div style="padding:.65rem 1rem;font-size:.82rem;color:var(--gray);">Sin resultados para esa búsqueda.</div>';
+      resultsEl.style.display = 'block'; return;
+    }
+    resultsEl.innerHTML = hits.map(s =>
+      `<div class="nh-search-row"
+        onclick="nhSelectFromSearch(this,'${s.id}','${esc(s.first_name)}','${esc(s.last_name)}','${esc(s.doc_number||'')}','${s.grade||''}','${s.course||''}')"
+        style="padding:.55rem 1rem;cursor:pointer;font-size:.83rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.65rem;transition:background .12s;"
+        onmouseover="this.style.background='#f8f7ff'" onmouseout="this.style.background=''">
+        <div style="width:30px;height:30px;border-radius:50%;background:var(--violet);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.75rem;flex-shrink:0;">${(s.first_name[0]||'')+(s.last_name[0]||'')}</div>
+        <div>
+          <div style="font-weight:700;color:var(--navy);">${esc(s.first_name)} ${esc(s.last_name)}</div>
+          <div style="font-size:.73rem;color:var(--gray);">Doc: ${esc(s.doc_number||'—')} · ${s.grade||''}°${s.course||''}</div>
+        </div>
       </div>`
     ).join('');
     resultsEl.style.display = 'block';
-  }, 350);
+  }, 280);
 }
 
-function selectStudentForHistory(id, name, doc, grade, course) {
-  _nhSelectedStudent = { id, name, doc, grade, course };
-  document.getElementById('nh-student-search').value = name;
+function nhSelectFromSearch(el, id, fn, ln, doc, grade, course) {
   document.getElementById('nh-student-results').style.display = 'none';
-  const sel = document.getElementById('nh-selected-student');
-  sel.textContent = `✓ ${name} · Doc: ${doc} · ${grade}°${course}`;
-  sel.style.display = 'block';
+  _setVal('nh-student-search', `${fn} ${ln}`);
+  nhShowSelected({ id, first_name: fn, last_name: ln, doc, grade, course });
+}
+
+// ── Modo por grado/curso ──
+function nhPopulateGrades() {
+  const sel = document.getElementById('nh-grade-select');
+  if (!sel) return;
+  const grades = [...new Set(_students.map(s => s.grade).filter(Boolean))].sort((a,b) => a-b);
+  sel.innerHTML = '<option value="">— Grado —</option>' + grades.map(g => `<option value="${g}">${g}°</option>`).join('');
+  _setVal('nh-course-select', '');
+  document.getElementById('nh-course-select').innerHTML = '<option value="">— Todos —</option>';
+  document.getElementById('nh-grade-student-list').style.display = 'none';
+}
+
+function nhUpdateCourses() {
+  const grade = document.getElementById('nh-grade-select').value;
+  const courseSel = document.getElementById('nh-course-select');
+  nhHideSelected(); _nhSelectedStudent = null;
+  if (!grade) { courseSel.innerHTML = '<option value="">— Todos —</option>'; nhFilterStudentsByGrade(); return; }
+  const courses = [...new Set(_students.filter(s => String(s.grade) === String(grade)).map(s => s.course).filter(Boolean))].sort();
+  courseSel.innerHTML = '<option value="">— Todos —</option>' + courses.map(c => `<option value="${c}">${c}</option>`).join('');
+  nhFilterStudentsByGrade();
+}
+
+function nhFilterStudentsByGrade() {
+  const grade  = document.getElementById('nh-grade-select').value;
+  const course = document.getElementById('nh-course-select').value;
+  const listEl = document.getElementById('nh-grade-student-list');
+  if (!grade) { listEl.style.display = 'none'; return; }
+  let filtered = _students.filter(s => String(s.grade) === String(grade));
+  if (course) filtered = filtered.filter(s => String(s.course) === String(course));
+  filtered.sort((a,b) => `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`));
+  if (!filtered.length) {
+    listEl.innerHTML = '<div style="padding:.65rem 1rem;font-size:.82rem;color:var(--gray);">Sin estudiantes en este grado/curso.</div>';
+    listEl.style.display = 'block'; return;
+  }
+  listEl.innerHTML = filtered.map(s =>
+    `<div class="nh-stu-row"
+      onclick="nhSelectFromGrade(this,'${s.id}','${esc(s.first_name)}','${esc(s.last_name)}','${esc(s.doc_number||'')}','${s.grade||''}','${s.course||''}')"
+      style="padding:.5rem 1rem;cursor:pointer;font-size:.83rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.65rem;transition:background .12s;"
+      onmouseover="if(!this.classList.contains('nh-stu-selected'))this.style.background='#f8f7ff'" onmouseout="if(!this.classList.contains('nh-stu-selected'))this.style.background=''">
+      <div style="width:30px;height:30px;border-radius:50%;background:var(--violet);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.75rem;flex-shrink:0;">${(s.first_name[0]||'')+(s.last_name[0]||'')}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:700;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(s.last_name)}, ${esc(s.first_name)}</div>
+        <div style="font-size:.72rem;color:var(--gray);">Doc: ${esc(s.doc_number||'—')}</div>
+      </div>
+      <span style="font-size:.7rem;color:var(--violet);font-weight:700;">${s.grade}°${s.course||''}</span>
+    </div>`
+  ).join('');
+  listEl.style.display = 'block';
+}
+
+function nhSelectFromGrade(el, id, fn, ln, doc, grade, course) {
+  document.querySelectorAll('#nh-grade-student-list .nh-stu-row').forEach(r => {
+    r.classList.remove('nh-stu-selected');
+    r.style.background = '';
+  });
+  el.classList.add('nh-stu-selected');
+  el.style.background = '#f3f0ff';
+  nhShowSelected({ id, first_name: fn, last_name: ln, doc, grade, course });
 }
 
 async function createNewHistory() {
-  if (!_nhSelectedStudent) { alert('Selecciona un estudiante.'); return; }
+  if (!_nhSelectedStudent) { showToast('⚠ Selecciona un estudiante primero.'); return; }
   const reason = document.getElementById('nh-consultation_reason').value.trim();
-  if (!reason) { alert('El motivo de consulta es obligatorio.'); return; }
+  if (!reason) { showToast('⚠ El motivo de consulta es obligatorio.'); return; }
   const body = {
     student_id: _nhSelectedStudent.id,
     first_session_date: document.getElementById('nh-first_session_date').value || null,
@@ -2364,15 +2565,15 @@ async function createNewHistory() {
     referral_source: document.getElementById('nh-referral_source').value || null,
   };
   const btn = document.getElementById('nh-save-btn');
-  btn.disabled = true; btn.textContent = 'Creando…';
+  btn.disabled = true; btn.innerHTML = '<span style="opacity:.7">Creando…</span>';
   const res = await api('/api/raice/psych/histories', { method:'POST', body: JSON.stringify(body) });
-  btn.disabled = false; btn.textContent = 'Crear historia';
+  btn.disabled = false; btn.innerHTML = '<span>📋</span> Crear historia';
   if (res && !res.error) {
     closeNewHistoryModal();
     await loadHistories();
     openHistoryDetail(res.id);
-    showToast('Historia clínica creada');
-  } else { alert('Error: ' + (res?.error || 'desconocido')); }
+    showToast('Historia clínica creada exitosamente');
+  } else { showToast('Error: ' + (res?.error || 'No se pudo crear la historia')); }
 }
 
 // ── Print ──
