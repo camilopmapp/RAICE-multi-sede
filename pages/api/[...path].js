@@ -208,6 +208,16 @@ export default async function handler(req, res) {
     if (route === 'raice/psych/risk-flags')     return await handlePsychRiskFlags(req, res, user);
     if (route === 'raice/psych/stats')          return await handlePsychStats(req, res, user);
 
+    // ---- HORARIOS ESPECIALES ----
+    if (route === 'raice/special-days/today')  return await getSpecialDayToday(req, res, user);
+    if (pathParts[0]==='raice' && pathParts[1]==='special-days' && pathParts[2] && pathParts[3]==='blocks')
+      return await handleSpecialDayBlocks(req, res, user);
+    if (pathParts[0]==='raice' && pathParts[1]==='special-day-blocks' && pathParts[2])
+      return await deleteSpecialDayBlock(req, res, user);
+    if (pathParts[0]==='raice' && pathParts[1]==='special-days' && pathParts[2])
+      return await handleSpecialDayDetail(req, res, user);
+    if (route === 'raice/special-days')        return await handleSpecialDays(req, res, user);
+
     return res.status(404).json({ error: 'Ruta no encontrada' });
   } catch (err) {
     // requireRole throws { status, message } — respect the status code
@@ -9622,4 +9632,180 @@ async function handlePsychStats(req, res, user) {
     goals_rate: goalsAll.length ? Math.round(goalsAchieved/goalsAll.length*100) : 0,
     sessions_by_month: sessMonthMap,
   });
+}
+
+// =====================================================================
+// HORARIOS ESPECIALES
+// =====================================================================
+
+function _requireAdmin(user) {
+  if (!['superadmin','admin'].includes(user.role))
+    throw { status: 403, message: 'Solo coordinadores y superadmin pueden gestionar horarios especiales.' };
+}
+
+// GET  /raice/special-days          → lista días especiales de la sede (admin/super: filtro sede)
+// POST /raice/special-days          → crea día especial (admin only)
+async function handleSpecialDays(req, res, user) {
+  const sb = getSupabase();
+  const url = new URL(req.url, `http://${req.headers.host}`);
+
+  if (req.method === 'GET') {
+    let q = sb.from('raice_special_days')
+      .select('*, created_by_user:raice_users!created_by(first_name,last_name)')
+      .order('fecha', { ascending: false });
+    q = sedeScope(q, user);
+    const sede_id = url.searchParams.get('sede_id');
+    if (sede_id) q = q.eq('sede_id', sede_id);
+    const from = url.searchParams.get('from');
+    const to   = url.searchParams.get('to');
+    if (from) q = q.gte('fecha', from);
+    if (to)   q = q.lte('fecha', to);
+    const { data, error } = await q;
+    if (error) return res.status(500).json({ error: _dbErr(error, 'special_days GET') });
+    return res.status(200).json(data || []);
+  }
+
+  if (req.method === 'POST') {
+    _requireAdmin(user);
+    const { sede_id, nombre, tipo, descripcion, fecha } = req.body || {};
+    if (!sede_id || !nombre || !fecha)
+      return res.status(400).json({ error: 'sede_id, nombre y fecha son obligatorios.' });
+    const { data, error } = await sb.from('raice_special_days').insert({
+      sede_id, nombre, tipo: tipo || 'jornada_especial', descripcion, fecha,
+      created_by: user.id,
+    }).select().single();
+    if (error) {
+      if (error.code === '23505') return res.status(409).json({ error: 'Ya existe un día especial para esa fecha en esta sede.' });
+      return res.status(500).json({ error: _dbErr(error, 'special_days POST') });
+    }
+    return res.status(201).json(data);
+  }
+
+  return res.status(405).json({ error: 'Método no permitido.' });
+}
+
+// GET /raice/special-days/:id       → detalle + bloques
+// PUT /raice/special-days/:id       → editar (nombre, tipo, descripcion, estado)
+// DELETE /raice/special-days/:id    → eliminar
+async function handleSpecialDayDetail(req, res, user) {
+  const sb = getSupabase();
+  const pathParts = new URL(req.url, `http://${req.headers.host}`).pathname
+    .replace('/api/', '').split('/').filter(Boolean);
+  const id = pathParts[2];
+
+  if (req.method === 'GET') {
+    const [dayRes, blocksRes] = await Promise.all([
+      sb.from('raice_special_days')
+        .select('*, created_by_user:raice_users!created_by(first_name,last_name)')
+        .eq('id', id).maybeSingle(),
+      sb.from('raice_special_day_blocks')
+        .select('*, teacher:raice_users!teacher_id(id,first_name,last_name), course:raice_courses!course_id(id,grade,number,name)')
+        .eq('special_day_id', id)
+        .order('hora_inicio', { ascending: true }),
+    ]);
+    if (dayRes.error) return res.status(500).json({ error: _dbErr(dayRes.error, 'special_day GET detail') });
+    if (!dayRes.data)  return res.status(404).json({ error: 'Día especial no encontrado.' });
+    return res.status(200).json({ ...dayRes.data, blocks: blocksRes.data || [] });
+  }
+
+  if (req.method === 'PUT') {
+    _requireAdmin(user);
+    const { nombre, tipo, descripcion, estado, fecha } = req.body || {};
+    const updates = {};
+    if (nombre      !== undefined) updates.nombre      = nombre;
+    if (tipo        !== undefined) updates.tipo        = tipo;
+    if (descripcion !== undefined) updates.descripcion = descripcion;
+    if (estado      !== undefined) updates.estado      = estado;
+    if (fecha       !== undefined) updates.fecha       = fecha;
+    updates.updated_at = new Date().toISOString();
+    const { data, error } = await sb.from('raice_special_days').update(updates).eq('id', id).select().single();
+    if (error) return res.status(500).json({ error: _dbErr(error, 'special_day PUT') });
+    return res.status(200).json(data);
+  }
+
+  if (req.method === 'DELETE') {
+    _requireAdmin(user);
+    const { error } = await sb.from('raice_special_days').delete().eq('id', id);
+    if (error) return res.status(500).json({ error: _dbErr(error, 'special_day DELETE') });
+    return res.status(200).json({ ok: true });
+  }
+
+  return res.status(405).json({ error: 'Método no permitido.' });
+}
+
+// GET  /raice/special-days/:id/blocks  → lista bloques del día
+// POST /raice/special-days/:id/blocks  → agrega bloque (admin only)
+async function handleSpecialDayBlocks(req, res, user) {
+  const sb = getSupabase();
+  const pathParts = new URL(req.url, `http://${req.headers.host}`).pathname
+    .replace('/api/', '').split('/').filter(Boolean);
+  const special_day_id = pathParts[2];
+
+  if (req.method === 'GET') {
+    const { data, error } = await sb.from('raice_special_day_blocks')
+      .select('*, teacher:raice_users!teacher_id(id,first_name,last_name), course:raice_courses!course_id(id,grade,number,name)')
+      .eq('special_day_id', special_day_id)
+      .order('hora_inicio', { ascending: true });
+    if (error) return res.status(500).json({ error: _dbErr(error, 'special_day_blocks GET') });
+    return res.status(200).json(data || []);
+  }
+
+  if (req.method === 'POST') {
+    _requireAdmin(user);
+    const { teacher_id, course_id, hora_inicio, duracion_min, asignatura, orden } = req.body || {};
+    if (!teacher_id || !hora_inicio || !asignatura)
+      return res.status(400).json({ error: 'teacher_id, hora_inicio y asignatura son obligatorios.' });
+    const { data, error } = await sb.from('raice_special_day_blocks').insert({
+      special_day_id, teacher_id, course_id: course_id || null,
+      hora_inicio, duracion_min: duracion_min || 55, asignatura,
+      orden: orden || 1,
+    }).select('*, teacher:raice_users!teacher_id(id,first_name,last_name), course:raice_courses!course_id(id,grade,number,name)').single();
+    if (error) {
+      if (error.code === '23505') return res.status(409).json({ error: 'Ese docente ya tiene un bloque a esa hora en este día especial.' });
+      return res.status(500).json({ error: _dbErr(error, 'special_day_blocks POST') });
+    }
+    return res.status(201).json(data);
+  }
+
+  return res.status(405).json({ error: 'Método no permitido.' });
+}
+
+// DELETE /raice/special-day-blocks/:id  → elimina un bloque
+async function deleteSpecialDayBlock(req, res, user) {
+  if (req.method !== 'DELETE') return res.status(405).json({ error: 'Método no permitido.' });
+  _requireAdmin(user);
+  const sb = getSupabase();
+  const pathParts = new URL(req.url, `http://${req.headers.host}`).pathname
+    .replace('/api/', '').split('/').filter(Boolean);
+  const id = pathParts[2];
+  const { error } = await sb.from('raice_special_day_blocks').delete().eq('id', id);
+  if (error) return res.status(500).json({ error: _dbErr(error, 'special_day_block DELETE') });
+  return res.status(200).json({ ok: true });
+}
+
+// GET /raice/special-days/today?sede_id=X
+// Usado por el módulo de asistencia del docente para detectar si hoy es día especial.
+// Retorna null si no hay día especial, o { ...day, blocks: [...] } con solo los bloques del docente.
+async function getSpecialDayToday(req, res, user) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Método no permitido.' });
+  const sb  = getSupabase();
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const sede_id = url.searchParams.get('sede_id') || user.sede_id;
+  if (!sede_id) return res.status(200).json(null);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: day, error } = await sb.from('raice_special_days')
+    .select('*').eq('sede_id', sede_id).eq('fecha', today).eq('estado', 'activo').maybeSingle();
+  if (error) return res.status(500).json({ error: _dbErr(error, 'special_days today') });
+  if (!day)  return res.status(200).json(null);
+
+  // Para docentes: solo devuelve sus bloques. Admin/superadmin/rector ven todos.
+  let blocksQuery = sb.from('raice_special_day_blocks')
+    .select('*, teacher:raice_users!teacher_id(id,first_name,last_name), course:raice_courses!course_id(id,grade,number,name)')
+    .eq('special_day_id', day.id)
+    .order('hora_inicio', { ascending: true });
+  if (user.role === 'teacher') blocksQuery = blocksQuery.eq('teacher_id', user.id);
+
+  const { data: blocks } = await blocksQuery;
+  return res.status(200).json({ ...day, blocks: blocks || [] });
 }
