@@ -63,6 +63,8 @@
   .tb-user-chip:hover{background:var(--bg);}
   .tb-avatar-sm{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#6d28d9,#a78bfa);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.72rem;flex-shrink:0;}
   .tb-vdiv{width:1px;height:22px;background:var(--border);flex-shrink:0;}
+  .tb-sede-chip{display:flex;align-items:center;gap:.3rem;background:var(--violet1,#ede9fe);border:1.5px solid var(--violet2,#c4b5fd);border-radius:9px;padding:.22rem .45rem .22rem .55rem;}
+  .tb-sede-chip select{background:none;border:none;outline:none;font-size:.73rem;font-weight:700;color:var(--violet,#7c3aed);cursor:pointer;max-width:160px;}
   .tb-btn-new{background:var(--violet);color:#fff;border:none;border-radius:9px;padding:.42rem .9rem;font-family:'DM Sans',sans-serif;font-size:.79rem;font-weight:700;cursor:pointer;white-space:nowrap;transition:background .15s;}
   .tb-btn-new:hover{background:#5b21b6;}
   .tb-bell{position:relative;background:none;border:none;cursor:pointer;padding:.3rem .4rem;border-radius:8px;font-size:1.05rem;color:var(--gray);transition:background .15s;}
@@ -520,6 +522,13 @@
         🔔<span class="tb-bell-badge" id="tb-bell-badge"></span>
       </button>
       <div class="tb-vdiv"></div>
+      <!-- Selector de sede (solo orientadores con múltiples sedes) -->
+      <div class="tb-sede-chip" id="tb-sede-wrap" style="display:none;" title="Sede activa">
+        <span style="font-size:.8rem;">🏫</span>
+        <select id="tb-sede-sel" onchange="onSedeChange(this)"></select>
+      </div>
+      <div class="tb-vdiv" id="tb-sede-vdiv" style="display:none;"></div>
+
       <div class="tb-user-chip" onclick="showSection('perfil',null,'Mi perfil')" title="Mi perfil">
         <div class="tb-avatar-sm" id="tb-avatar">OR</div>
         <div style="line-height:1.2;">
@@ -1410,8 +1419,41 @@ async function initSession() {
   document.getElementById('tb-avatar').textContent   = p.initials;
   document.getElementById('tb-user-name').textContent = p.firstName || p.fullName.split(' ')[0] || 'Orientador';
 
+  loadMySedes();
   const cp = new URLSearchParams(window.location.search);
   if (cp.get('cambiar-contrasena') === '1') { showSection('perfil', null, 'Mi perfil'); }
+}
+
+async function loadMySedes() {
+  const user = JSON.parse(sessionStorage.getItem('raice_user') || '{}');
+  if (!Array.isArray(user.counselor_sede_ids) || user.counselor_sede_ids.length <= 1) return;
+  const r = await api('/raice/my-sedes');
+  if (!r.ok || !r.data?.sedes?.length) return;
+  const sedes = r.data.sedes;
+  if (sedes.length <= 1) return;
+  const sel = document.getElementById('tb-sede-sel');
+  sel.innerHTML = sedes.map(s =>
+    `<option value="${s.id}" ${s.id === user.sede_id ? 'selected' : ''}>${s.name}</option>`
+  ).join('');
+  document.getElementById('tb-sede-wrap').style.display = '';
+  document.getElementById('tb-sede-vdiv').style.display = '';
+}
+
+async function onSedeChange(sel) {
+  const sedeId = sel.value;
+  const r = await api('/raice/switch-sede', { method: 'POST', body: JSON.stringify({ sede_id: sedeId }) });
+  if (!r.ok) {
+    window.RAICE.showToast('No se pudo cambiar la sede', 'error');
+    const user = JSON.parse(sessionStorage.getItem('raice_user') || '{}');
+    sel.value = user.sede_id || '';
+    return;
+  }
+  const { token, user: newUser } = r.data;
+  sessionStorage.setItem('raice_token', token);
+  sessionStorage.setItem('raice_user', JSON.stringify(newUser));
+  sessionStorage.setItem('raice_role', newUser.role || 'counselor');
+  window.RAICE.showToast(`Sede: ${sel.options[sel.selectedIndex].text}`, 'success');
+  setTimeout(() => location.reload(), 700);
 }
 
 // ── SCHOOL CONFIG ──

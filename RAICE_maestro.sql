@@ -1041,6 +1041,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_special_blocks_no_overlap
   ON raice_special_day_blocks(special_day_id, teacher_id, hora_inicio);
 
 -- =====================================================================
+-- 3.7  Sedes múltiples para orientadores
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS raice_counselor_sedes (
+  counselor_id UUID NOT NULL REFERENCES raice_users(id) ON DELETE CASCADE,
+  sede_id      UUID NOT NULL REFERENCES raice_sedes(id) ON DELETE CASCADE,
+  PRIMARY KEY (counselor_id, sede_id)
+);
+CREATE INDEX IF NOT EXISTS idx_counselor_sedes_counselor ON raice_counselor_sedes(counselor_id);
+CREATE INDEX IF NOT EXISTS idx_counselor_sedes_sede      ON raice_counselor_sedes(sede_id);
+
+-- =====================================================================
 -- SECCIÓN 4: FUNCIONES
 -- =====================================================================
 

@@ -3299,13 +3299,14 @@
       return;
     }
 
-    if (role === 'admin') {
+    if (role === 'admin' || role === 'counselor') {
+      const accentColor = role === 'counselor' ? 'var(--violet)' : 'var(--teal)';
       const checks = activeSedes.map(s => {
         const checked = Array.isArray(selectedIds) && selectedIds.includes(s.id) ? 'checked' : '';
         return `
           <label style="display:flex;align-items:center;gap:.45rem;padding:.3rem .1rem;cursor:pointer;font-weight:400;">
             <input type="checkbox" name="${wrapId}-sede" value="${s.id}" ${checked}
-              style="width:15px;height:15px;accent-color:var(--teal);">
+              style="width:15px;height:15px;accent-color:${accentColor};">
             ${s.name}
           </label>`;
       }).join('');
@@ -3334,7 +3335,7 @@
   function getSedeFieldValue(wrapId, roleSelId) {
     const role = document.getElementById(roleSelId)?.value || 'teacher';
     if (role === 'rector' || role === 'superadmin') return { sede_id: null, sede_ids: null };
-    if (role === 'admin') {
+    if (role === 'admin' || role === 'counselor') {
       const checks = document.querySelectorAll(`input[name="${wrapId}-sede"]:checked`);
       const ids = [...checks].map(c => c.value).filter(Boolean);
       return { sede_id: null, sede_ids: ids };
