@@ -844,6 +844,93 @@ CREATE INDEX IF NOT EXISTS idx_grade_history_changed_by ON raice_student_grade_h
 
 
 -- =====================================================================
+-- SECCIÓN 3.5: HISTORIA CLÍNICA PSICOLÓGICA
+-- =====================================================================
+
+CREATE TABLE IF NOT EXISTS psych_histories (
+  id                       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id               UUID NOT NULL REFERENCES raice_students(id) ON DELETE CASCADE,
+  sede_id                  UUID REFERENCES raice_sedes(id),
+  created_by               UUID REFERENCES raice_users(id),
+  created_at               TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at               TIMESTAMPTZ NOT NULL DEFAULT now(),
+  first_session_date       DATE,
+  referral_source          TEXT,
+  consultation_reason      TEXT,
+  consent_signed           BOOLEAN NOT NULL DEFAULT false,
+  consent_signed_by        TEXT,
+  consent_date             DATE,
+  family_background        TEXT,
+  personal_background      TEXT,
+  family_composition       TEXT,
+  socioeconomic_status     TEXT,
+  support_network          TEXT,
+  cognitive_area           TEXT,
+  emotional_area           TEXT,
+  behavioral_area          TEXT,
+  social_area              TEXT,
+  diagnostic_hypothesis    TEXT,
+  initial_intervention_plan TEXT,
+  status                   TEXT NOT NULL DEFAULT 'active',
+  close_date               DATE,
+  close_reason             TEXT,
+  close_summary            TEXT,
+  close_recommendations    TEXT,
+  referred_to              TEXT
+);
+
+CREATE TABLE IF NOT EXISTS psych_sessions (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  history_id    UUID NOT NULL REFERENCES psych_histories(id) ON DELETE CASCADE,
+  student_id    UUID NOT NULL REFERENCES raice_students(id),
+  created_by    UUID REFERENCES raice_users(id),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  session_date  DATE NOT NULL,
+  session_time  TIME,
+  duration_min  INTEGER,
+  session_type  TEXT,
+  reason        TEXT,
+  development   TEXT,
+  strategies    TEXT,
+  commitments   TEXT,
+  next_date     DATE,
+  notes         TEXT
+);
+
+CREATE TABLE IF NOT EXISTS psych_instruments (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  history_id       UUID NOT NULL REFERENCES psych_histories(id) ON DELETE CASCADE,
+  student_id       UUID NOT NULL REFERENCES raice_students(id),
+  created_by       UUID REFERENCES raice_users(id),
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  application_date DATE NOT NULL,
+  instrument_name  TEXT NOT NULL,
+  results          TEXT,
+  interpretation   TEXT,
+  file_url         TEXT
+);
+
+CREATE TABLE IF NOT EXISTS psych_goals (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  history_id   UUID NOT NULL REFERENCES psych_histories(id) ON DELETE CASCADE,
+  created_by   UUID REFERENCES raice_users(id),
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  objective    TEXT NOT NULL,
+  strategies   TEXT,
+  indicators   TEXT,
+  review_date  DATE,
+  status       TEXT NOT NULL DEFAULT 'pending'
+);
+
+CREATE INDEX IF NOT EXISTS idx_psych_histories_student  ON psych_histories(student_id);
+CREATE INDEX IF NOT EXISTS idx_psych_histories_sede     ON psych_histories(sede_id);
+CREATE INDEX IF NOT EXISTS idx_psych_sessions_history   ON psych_sessions(history_id);
+CREATE INDEX IF NOT EXISTS idx_psych_instruments_history ON psych_instruments(history_id);
+CREATE INDEX IF NOT EXISTS idx_psych_goals_history      ON psych_goals(history_id);
+
+-- =====================================================================
 -- SECCIÓN 4: FUNCIONES
 -- =====================================================================
 

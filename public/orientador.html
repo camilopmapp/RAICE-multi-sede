@@ -315,6 +315,34 @@
   #modal-ficha .sched-subj{font-weight:600;color:var(--navy);}
   #modal-ficha .sched-teacher{color:var(--gray);font-size:.67rem;}
 
+  /* ── HISTORIA CLÍNICA ── */
+  .hc-tab{padding:.65rem 1.1rem;border:none;background:none;cursor:pointer;font-size:.82rem;font-weight:600;color:var(--gray);border-bottom:3px solid transparent;transition:all .15s;white-space:nowrap;font-family:'DM Sans',sans-serif;}
+  .hc-tab:hover{color:var(--violet);}
+  .hc-tab.active{color:var(--violet);border-bottom-color:var(--violet);}
+  .hc-tab-panel{display:none;}
+  .hc-tab-panel.active{display:block;}
+  .hc-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:.85rem;}
+  .hc-field{display:flex;flex-direction:column;gap:.28rem;}
+  .hc-field label{font-size:.77rem;font-weight:600;color:var(--navy);}
+  .hc-field input,.hc-field select,.hc-field textarea{border:1.5px solid var(--border);border-radius:9px;padding:.48rem .72rem;font-size:.84rem;font-family:'DM Sans',sans-serif;outline:none;transition:border-color .15s;color:var(--navy);resize:vertical;}
+  .hc-field input:focus,.hc-field select:focus,.hc-field textarea:focus{border-color:var(--violet2);}
+  .hc-history-card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:1rem 1.2rem;cursor:pointer;transition:box-shadow .15s,border-color .15s;display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin-bottom:.6rem;}
+  .hc-history-card:hover{box-shadow:0 4px 16px rgba(109,40,217,.12);border-color:var(--violet2);}
+  .hc-status-pill{font-size:.68rem;padding:.2rem .6rem;border-radius:20px;font-weight:700;}
+  .hc-status-active{background:rgba(22,163,74,.1);color:#15803d;}
+  .hc-status-monitoring{background:rgba(234,179,8,.1);color:#a16207;}
+  .hc-status-closed{background:rgba(100,116,139,.12);color:#475569;}
+  .hc-status-referred{background:rgba(99,102,241,.1);color:#4338ca;}
+  .hc-session-item,.hc-instrument-item,.hc-goal-item{border:1px solid var(--border);border-radius:10px;padding:.8rem 1rem;margin-bottom:.5rem;position:relative;}
+  .hc-session-item:hover,.hc-instrument-item:hover,.hc-goal-item:hover{border-color:var(--violet2);}
+  .hc-item-actions{position:absolute;top:.6rem;right:.7rem;display:flex;gap:.35rem;}
+  .hc-item-btn{background:none;border:none;cursor:pointer;padding:.2rem .35rem;border-radius:5px;font-size:.75rem;color:var(--gray);}
+  .hc-item-btn:hover{background:var(--bg);color:var(--violet);}
+  .hc-goal-pending{border-left:3px solid #94a3b8;}
+  .hc-goal-in_progress{border-left:3px solid #f59e0b;}
+  .hc-goal-achieved{border-left:3px solid #22c55e;}
+  @media(max-width:640px){.hc-form-grid{grid-template-columns:1fr;} .hc-field[style*="grid-column:1/-1"]{grid-column:1!important;}}
+
   /* ── PERFIL SECTION ── */
   .perfil-card{background:white;border-radius:var(--radius);box-shadow:var(--shadow);max-width:480px;}
   .perfil-header{padding:1.4rem 1.5rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:1rem;}
@@ -389,6 +417,10 @@
     </button>
     <button class="nav-item" onclick="showSection('horarios',this,'Horarios')">
       <span class="nav-ico">🗓️</span> Horarios
+    </button>
+
+    <button class="nav-item" onclick="showSection('histclinica',this,'Historia Clínica')">
+      <span class="nav-ico">🧾</span> Historia Clínica
     </button>
 
     <div class="nav-group-title">Cuenta</div>
@@ -618,6 +650,324 @@
       </div>
     </section>
 
+    <!-- ── HISTORIA CLÍNICA ── -->
+    <section class="section" id="section-histclinica">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.4rem;flex-wrap:wrap;gap:.7rem;">
+        <div>
+          <div style="font-size:1.2rem;font-weight:800;color:var(--navy);">🧾 Historia Clínica Psicológica</div>
+          <div style="font-size:.78rem;color:var(--gray);margin-top:.15rem;">Registro y seguimiento de acompañamiento psicológico</div>
+        </div>
+        <button class="btn-primary" onclick="openNewHistoryModal()" style="display:flex;align-items:center;gap:.4rem;">
+          <span>+</span> Nueva Historia
+        </button>
+      </div>
+
+      <!-- Filtros -->
+      <div class="card" style="margin-bottom:1.2rem;">
+        <div class="card-body" style="padding:.85rem 1.1rem;">
+          <div style="display:flex;gap:.7rem;flex-wrap:wrap;align-items:center;">
+            <input type="search" id="hc-search" placeholder="Buscar por nombre o documento…"
+              style="flex:1;min-width:180px;padding:.5rem .75rem;border:1px solid var(--border);border-radius:8px;font-size:.84rem;outline:none;"
+              oninput="filterHistories()">
+            <select id="hc-status" onchange="filterHistories()"
+              style="padding:.5rem .75rem;border:1px solid var(--border);border-radius:8px;font-size:.84rem;background:#fff;outline:none;">
+              <option value="">Todos los estados</option>
+              <option value="active">Activo</option>
+              <option value="monitoring">Seguimiento</option>
+              <option value="closed">Cerrado</option>
+              <option value="referred">Remitido</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lista de historias -->
+      <div id="hc-list-wrap">
+        <div class="empty" style="padding:2.5rem;">Cargando historias clínicas…</div>
+      </div>
+    </section>
+
+    <!-- ══ MODAL HISTORIA CLÍNICA ══ -->
+    <div id="hc-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:1000;overflow-y:auto;padding:1.5rem .75rem;">
+      <div style="background:#fff;border-radius:16px;max-width:820px;margin:0 auto;box-shadow:0 20px 60px rgba(0,0,0,.18);overflow:hidden;">
+        <!-- Header del modal -->
+        <div style="background:linear-gradient(135deg,var(--violet) 0%,var(--violet2) 100%);padding:1.35rem 1.6rem;display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="color:#fff;font-weight:800;font-size:1.05rem;" id="hcm-student-name">Historia Clínica</div>
+            <div style="color:rgba(255,255,255,.75);font-size:.78rem;" id="hcm-student-info"></div>
+          </div>
+          <div style="display:flex;gap:.5rem;align-items:center;">
+            <span id="hcm-status-badge" style="font-size:.72rem;padding:.25rem .65rem;border-radius:20px;font-weight:700;"></span>
+            <button onclick="printHistory()" style="background:rgba(255,255,255,.18);border:none;color:#fff;padding:.4rem .8rem;border-radius:8px;cursor:pointer;font-size:.8rem;">🖨️ Imprimir</button>
+            <button onclick="closeHcModal()" style="background:rgba(255,255,255,.18);border:none;color:#fff;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:1rem;">✕</button>
+          </div>
+        </div>
+
+        <!-- Tabs -->
+        <div style="display:flex;border-bottom:1px solid var(--border);overflow-x:auto;background:#fafbff;">
+          <button class="hc-tab active" data-tab="ingreso" onclick="switchHcTab('ingreso',this)">Ingreso</button>
+          <button class="hc-tab" data-tab="anamnesis" onclick="switchHcTab('anamnesis',this)">Anamnesis</button>
+          <button class="hc-tab" data-tab="valoracion" onclick="switchHcTab('valoracion',this)">Valoración</button>
+          <button class="hc-tab" data-tab="sesiones" onclick="switchHcTab('sesiones',this)">Sesiones</button>
+          <button class="hc-tab" data-tab="plan" onclick="switchHcTab('plan',this)">Plan</button>
+          <button class="hc-tab" data-tab="instrumentos" onclick="switchHcTab('instrumentos',this)">Instrumentos</button>
+          <button class="hc-tab" data-tab="cierre" onclick="switchHcTab('cierre',this)">Cierre</button>
+        </div>
+
+        <!-- Tab: Ingreso -->
+        <div class="hc-tab-panel active" id="hct-ingreso" style="padding:1.4rem 1.6rem;">
+          <div class="hc-form-grid">
+            <div class="hc-field"><label>Fecha primera sesión</label><input type="date" id="hcf-first_session_date"></div>
+            <div class="hc-field"><label>Motivo de consulta</label><textarea id="hcf-consultation_reason" rows="3"></textarea></div>
+            <div class="hc-field"><label>Fuente de remisión</label>
+              <select id="hcf-referral_source">
+                <option value="">— Seleccionar —</option>
+                <option value="docente">Docente</option>
+                <option value="acudiente">Acudiente</option>
+                <option value="autorremision">Autorremisión</option>
+                <option value="rector">Rector / Coordinador</option>
+                <option value="otro">Otro</option>
+              </select>
+            </div>
+            <div class="hc-field" style="grid-column:1/-1;">
+              <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;">
+                <input type="checkbox" id="hcf-consent_signed" style="width:16px;height:16px;"> Consentimiento informado firmado
+              </label>
+            </div>
+            <div class="hc-field"><label>Firmado por</label><input type="text" id="hcf-consent_signed_by" placeholder="Nombre del acudiente"></div>
+            <div class="hc-field"><label>Fecha de firma</label><input type="date" id="hcf-consent_date"></div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;margin-top:1.1rem;gap:.6rem;">
+            <button class="btn-secondary" onclick="closeHcModal()">Cancelar</button>
+            <button class="btn-primary" onclick="saveHcSection('ingreso')">Guardar cambios</button>
+          </div>
+        </div>
+
+        <!-- Tab: Anamnesis -->
+        <div class="hc-tab-panel" id="hct-anamnesis" style="padding:1.4rem 1.6rem;display:none;">
+          <div class="hc-form-grid">
+            <div class="hc-field" style="grid-column:1/-1;"><label>Antecedentes familiares</label><textarea id="hcf-family_background" rows="3"></textarea></div>
+            <div class="hc-field" style="grid-column:1/-1;"><label>Antecedentes personales</label><textarea id="hcf-personal_background" rows="3"></textarea></div>
+            <div class="hc-field" style="grid-column:1/-1;"><label>Composición familiar</label><textarea id="hcf-family_composition" rows="3"></textarea></div>
+            <div class="hc-field"><label>Nivel socioeconómico</label>
+              <select id="hcf-socioeconomic_status">
+                <option value="">— Seleccionar —</option>
+                <option value="estrato1">Estrato 1</option>
+                <option value="estrato2">Estrato 2</option>
+                <option value="estrato3">Estrato 3</option>
+                <option value="estrato4">Estrato 4+</option>
+              </select>
+            </div>
+            <div class="hc-field" style="grid-column:1/-1;"><label>Red de apoyo</label><textarea id="hcf-support_network" rows="2"></textarea></div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;margin-top:1.1rem;gap:.6rem;">
+            <button class="btn-secondary" onclick="closeHcModal()">Cancelar</button>
+            <button class="btn-primary" onclick="saveHcSection('anamnesis')">Guardar cambios</button>
+          </div>
+        </div>
+
+        <!-- Tab: Valoración -->
+        <div class="hc-tab-panel" id="hct-valoracion" style="padding:1.4rem 1.6rem;display:none;">
+          <div class="hc-form-grid">
+            <div class="hc-field" style="grid-column:1/-1;"><label>Área cognitiva</label><textarea id="hcf-cognitive_area" rows="3"></textarea></div>
+            <div class="hc-field" style="grid-column:1/-1;"><label>Área emocional</label><textarea id="hcf-emotional_area" rows="3"></textarea></div>
+            <div class="hc-field" style="grid-column:1/-1;"><label>Área comportamental</label><textarea id="hcf-behavioral_area" rows="3"></textarea></div>
+            <div class="hc-field" style="grid-column:1/-1;"><label>Área social</label><textarea id="hcf-social_area" rows="3"></textarea></div>
+            <div class="hc-field" style="grid-column:1/-1;"><label>Hipótesis diagnóstica</label><textarea id="hcf-diagnostic_hypothesis" rows="3"></textarea></div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;margin-top:1.1rem;gap:.6rem;">
+            <button class="btn-secondary" onclick="closeHcModal()">Cancelar</button>
+            <button class="btn-primary" onclick="saveHcSection('valoracion')">Guardar cambios</button>
+          </div>
+        </div>
+
+        <!-- Tab: Sesiones -->
+        <div class="hc-tab-panel" id="hct-sesiones" style="padding:1.4rem 1.6rem;display:none;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+            <div style="font-weight:700;font-size:.88rem;color:var(--navy);">Registro de sesiones</div>
+            <button class="btn-primary" style="font-size:.78rem;padding:.35rem .8rem;" onclick="openSessionForm()">+ Nueva sesión</button>
+          </div>
+          <div id="hc-sessions-list"><div class="empty">Sin sesiones registradas.</div></div>
+        </div>
+
+        <!-- Tab: Plan -->
+        <div class="hc-tab-panel" id="hct-plan" style="padding:1.4rem 1.6rem;display:none;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+            <div style="font-weight:700;font-size:.88rem;color:var(--navy);">Plan de intervención</div>
+            <button class="btn-primary" style="font-size:.78rem;padding:.35rem .8rem;" onclick="openGoalForm()">+ Nuevo objetivo</button>
+          </div>
+          <div class="hc-field" style="margin-bottom:1rem;"><label>Plan de intervención inicial</label><textarea id="hcf-initial_intervention_plan" rows="4"></textarea></div>
+          <div id="hc-goals-list"><div class="empty">Sin objetivos registrados.</div></div>
+          <div style="display:flex;justify-content:flex-end;margin-top:1rem;">
+            <button class="btn-primary" onclick="saveHcSection('plan')">Guardar plan</button>
+          </div>
+        </div>
+
+        <!-- Tab: Instrumentos -->
+        <div class="hc-tab-panel" id="hct-instrumentos" style="padding:1.4rem 1.6rem;display:none;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+            <div style="font-weight:700;font-size:.88rem;color:var(--navy);">Instrumentos y pruebas aplicadas</div>
+            <button class="btn-primary" style="font-size:.78rem;padding:.35rem .8rem;" onclick="openInstrumentForm()">+ Nuevo instrumento</button>
+          </div>
+          <div id="hc-instruments-list"><div class="empty">Sin instrumentos registrados.</div></div>
+        </div>
+
+        <!-- Tab: Cierre -->
+        <div class="hc-tab-panel" id="hct-cierre" style="padding:1.4rem 1.6rem;display:none;">
+          <div class="hc-form-grid">
+            <div class="hc-field"><label>Estado del proceso</label>
+              <select id="hcf-status">
+                <option value="active">Activo</option>
+                <option value="monitoring">Seguimiento</option>
+                <option value="closed">Cerrado</option>
+                <option value="referred">Remitido</option>
+              </select>
+            </div>
+            <div class="hc-field"><label>Fecha de cierre</label><input type="date" id="hcf-close_date"></div>
+            <div class="hc-field"><label>Motivo de cierre</label>
+              <select id="hcf-close_reason">
+                <option value="">— Seleccionar —</option>
+                <option value="logro_objetivos">Logro de objetivos</option>
+                <option value="solicitud_familia">Solicitud de la familia</option>
+                <option value="egreso">Egreso del estudiante</option>
+                <option value="remision">Remisión externa</option>
+                <option value="otro">Otro</option>
+              </select>
+            </div>
+            <div class="hc-field" style="grid-column:1/-1;"><label>Resumen del proceso</label><textarea id="hcf-close_summary" rows="4"></textarea></div>
+            <div class="hc-field" style="grid-column:1/-1;"><label>Recomendaciones finales</label><textarea id="hcf-close_recommendations" rows="3"></textarea></div>
+            <div class="hc-field"><label>Remitido a</label><input type="text" id="hcf-referred_to" placeholder="Institución / especialista"></div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;margin-top:1.1rem;gap:.6rem;">
+            <button class="btn-secondary" onclick="closeHcModal()">Cancelar</button>
+            <button class="btn-primary" onclick="saveHcSection('cierre')">Guardar cierre</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ MODAL NUEVA HISTORIA ══ -->
+    <div id="hc-new-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:1010;display:none;align-items:center;justify-content:center;padding:1rem;">
+      <div style="background:#fff;border-radius:14px;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,.18);overflow:hidden;">
+        <div style="background:linear-gradient(135deg,var(--violet) 0%,var(--violet2) 100%);padding:1.1rem 1.4rem;display:flex;justify-content:space-between;align-items:center;">
+          <div style="color:#fff;font-weight:700;font-size:.95rem;">Nueva Historia Clínica</div>
+          <button onclick="closeNewHistoryModal()" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:28px;height:28px;border-radius:7px;cursor:pointer;">✕</button>
+        </div>
+        <div style="padding:1.4rem;">
+          <div class="hc-field"><label>Buscar estudiante *</label>
+            <input type="search" id="nh-student-search" placeholder="Nombre o documento…" oninput="searchStudentForHistory()" style="width:100%;padding:.5rem .75rem;border:1px solid var(--border);border-radius:8px;font-size:.84rem;outline:none;">
+            <div id="nh-student-results" style="border:1px solid var(--border);border-radius:8px;max-height:180px;overflow-y:auto;margin-top:.35rem;display:none;"></div>
+            <div id="nh-selected-student" style="display:none;margin-top:.5rem;padding:.55rem .75rem;background:rgba(167,139,250,.1);border-radius:8px;font-size:.83rem;font-weight:600;color:var(--violet);"></div>
+          </div>
+          <div class="hc-field"><label>Fecha primera sesión</label><input type="date" id="nh-first_session_date"></div>
+          <div class="hc-field"><label>Motivo de consulta *</label><textarea id="nh-consultation_reason" rows="3" placeholder="Breve descripción del motivo de consulta…"></textarea></div>
+          <div class="hc-field"><label>Fuente de remisión</label>
+            <select id="nh-referral_source">
+              <option value="">— Seleccionar —</option>
+              <option value="docente">Docente</option>
+              <option value="acudiente">Acudiente</option>
+              <option value="autorremision">Autorremisión</option>
+              <option value="rector">Rector / Coordinador</option>
+              <option value="otro">Otro</option>
+            </select>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:.6rem;margin-top:1.2rem;">
+            <button class="btn-secondary" onclick="closeNewHistoryModal()">Cancelar</button>
+            <button class="btn-primary" id="nh-save-btn" onclick="createNewHistory()">Crear historia</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ MODAL SESIÓN ══ -->
+    <div id="hc-session-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:1020;align-items:center;justify-content:center;padding:1rem;">
+      <div style="background:#fff;border-radius:14px;width:100%;max-width:560px;box-shadow:0 20px 60px rgba(0,0,0,.18);overflow:hidden;">
+        <div style="background:linear-gradient(135deg,#0ea5e9 0%,#38bdf8 100%);padding:1.1rem 1.4rem;display:flex;justify-content:space-between;align-items:center;">
+          <div style="color:#fff;font-weight:700;font-size:.95rem;" id="sess-modal-title">Nueva sesión</div>
+          <button onclick="closeSessionModal()" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:28px;height:28px;border-radius:7px;cursor:pointer;">✕</button>
+        </div>
+        <div style="padding:1.4rem;">
+          <input type="hidden" id="sess-id">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;">
+            <div class="hc-field"><label>Fecha *</label><input type="date" id="sess-date"></div>
+            <div class="hc-field"><label>Hora</label><input type="time" id="sess-time"></div>
+            <div class="hc-field"><label>Duración (min)</label><input type="number" id="sess-duration" min="10" max="120" placeholder="45"></div>
+            <div class="hc-field"><label>Tipo de sesión</label>
+              <select id="sess-type">
+                <option value="individual">Individual</option>
+                <option value="grupal">Grupal</option>
+                <option value="familia">Con familia</option>
+                <option value="docente">Con docente</option>
+              </select>
+            </div>
+          </div>
+          <div class="hc-field"><label>Motivo / tema</label><textarea id="sess-reason" rows="2"></textarea></div>
+          <div class="hc-field"><label>Desarrollo de la sesión</label><textarea id="sess-development" rows="4"></textarea></div>
+          <div class="hc-field"><label>Estrategias / técnicas utilizadas</label><textarea id="sess-strategies" rows="2"></textarea></div>
+          <div class="hc-field"><label>Compromisos</label><textarea id="sess-commitments" rows="2"></textarea></div>
+          <div class="hc-field"><label>Próxima sesión</label><input type="date" id="sess-next_date"></div>
+          <div class="hc-field"><label>Observaciones</label><textarea id="sess-notes" rows="2"></textarea></div>
+          <div style="display:flex;justify-content:flex-end;gap:.6rem;margin-top:1rem;">
+            <button class="btn-secondary" onclick="closeSessionModal()">Cancelar</button>
+            <button class="btn-primary" onclick="saveSession()">Guardar sesión</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ MODAL INSTRUMENTO ══ -->
+    <div id="hc-instrument-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:1020;align-items:center;justify-content:center;padding:1rem;">
+      <div style="background:#fff;border-radius:14px;width:100%;max-width:520px;box-shadow:0 20px 60px rgba(0,0,0,.18);overflow:hidden;">
+        <div style="background:linear-gradient(135deg,#10b981 0%,#34d399 100%);padding:1.1rem 1.4rem;display:flex;justify-content:space-between;align-items:center;">
+          <div style="color:#fff;font-weight:700;font-size:.95rem;" id="instr-modal-title">Nuevo instrumento</div>
+          <button onclick="closeInstrumentModal()" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:28px;height:28px;border-radius:7px;cursor:pointer;">✕</button>
+        </div>
+        <div style="padding:1.4rem;">
+          <input type="hidden" id="instr-id">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;">
+            <div class="hc-field" style="grid-column:1/-1;"><label>Nombre del instrumento / prueba *</label><input type="text" id="instr-name" placeholder="Ej: Test de Bender, Raven, Conners…"></div>
+            <div class="hc-field"><label>Fecha de aplicación *</label><input type="date" id="instr-date"></div>
+          </div>
+          <div class="hc-field"><label>Resultados</label><textarea id="instr-results" rows="3"></textarea></div>
+          <div class="hc-field"><label>Interpretación</label><textarea id="instr-interpretation" rows="3"></textarea></div>
+          <div style="display:flex;justify-content:flex-end;gap:.6rem;margin-top:1rem;">
+            <button class="btn-secondary" onclick="closeInstrumentModal()">Cancelar</button>
+            <button class="btn-primary" onclick="saveInstrument()">Guardar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ MODAL OBJETIVO ══ -->
+    <div id="hc-goal-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:1020;align-items:center;justify-content:center;padding:1rem;">
+      <div style="background:#fff;border-radius:14px;width:100%;max-width:500px;box-shadow:0 20px 60px rgba(0,0,0,.18);overflow:hidden;">
+        <div style="background:linear-gradient(135deg,#f59e0b 0%,#fbbf24 100%);padding:1.1rem 1.4rem;display:flex;justify-content:space-between;align-items:center;">
+          <div style="color:#fff;font-weight:700;font-size:.95rem;" id="goal-modal-title">Nuevo objetivo</div>
+          <button onclick="closeGoalModal()" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:28px;height:28px;border-radius:7px;cursor:pointer;">✕</button>
+        </div>
+        <div style="padding:1.4rem;">
+          <input type="hidden" id="goal-id">
+          <div class="hc-field"><label>Objetivo *</label><textarea id="goal-objective" rows="2"></textarea></div>
+          <div class="hc-field"><label>Estrategias</label><textarea id="goal-strategies" rows="2"></textarea></div>
+          <div class="hc-field"><label>Indicadores de logro</label><textarea id="goal-indicators" rows="2"></textarea></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;">
+            <div class="hc-field"><label>Fecha de revisión</label><input type="date" id="goal-review_date"></div>
+            <div class="hc-field"><label>Estado</label>
+              <select id="goal-status">
+                <option value="pending">Pendiente</option>
+                <option value="in_progress">En progreso</option>
+                <option value="achieved">Logrado</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:.6rem;margin-top:1rem;">
+            <button class="btn-secondary" onclick="closeGoalModal()">Cancelar</button>
+            <button class="btn-primary" onclick="saveGoal()">Guardar objetivo</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ── PERFIL ── -->
     <section class="section" id="section-perfil">
       <div class="perfil-card">
@@ -703,6 +1053,7 @@ function showSection(id, btn, title) {
   // Trigger lazy renders on section enter
   if (id === 'asistencia' && _insights) renderAttByGrade();
   if (id === 'casos' && !_allCases.length) loadCases();
+  if (id === 'histclinica') loadHistories();
 }
 function openSidebar()  { document.getElementById('sidebar').classList.add('open'); document.getElementById('sidebar-overlay').classList.add('open'); }
 function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebar-overlay').classList.remove('open'); }
@@ -1564,6 +1915,580 @@ loadCases();
 loadInsights();
 loadScheduleOverview();
 window.addEventListener('load',()=>{setTimeout(initRealtime,2000);});
+
+// =====================================================
+// HISTORIA CLÍNICA PSICOLÓGICA
+// =====================================================
+let _hcAll = [];          // all loaded histories
+let _hcCurrent = null;    // history detail currently open
+let _nhSelectedStudent = null; // student selected in new-history modal
+
+const HC_STATUS_LABELS = { active:'Activo', monitoring:'Seguimiento', closed:'Cerrado', referred:'Remitido' };
+const HC_STATUS_CLASS  = { active:'hc-status-active', monitoring:'hc-status-monitoring', closed:'hc-status-closed', referred:'hc-status-referred' };
+const REFERRAL_LABELS  = { docente:'Docente', acudiente:'Acudiente', autorremision:'Autorremisión', rector:'Rector/Coordinador', otro:'Otro' };
+const SESSION_TYPE_LABELS = { individual:'Individual', grupal:'Grupal', familia:'Con familia', docente:'Con docente' };
+const GOAL_STATUS_LABELS = { pending:'Pendiente', in_progress:'En progreso', achieved:'Logrado' };
+
+async function loadHistories() {
+  const statusVal = document.getElementById('hc-status')?.value || '';
+  let url = '/api/raice/psych/histories';
+  if (statusVal) url += '?status=' + encodeURIComponent(statusVal);
+  const data = await api(url);
+  _hcAll = Array.isArray(data) ? data : [];
+  filterHistories();
+}
+
+function filterHistories() {
+  const q = (document.getElementById('hc-search')?.value || '').toLowerCase();
+  const statusVal = document.getElementById('hc-status')?.value || '';
+  let list = _hcAll.filter(h => {
+    if (statusVal && h.status !== statusVal) return false;
+    if (q) {
+      const s = h.student || {};
+      const name = ((s.first_name||'') + ' ' + (s.last_name||'')).toLowerCase();
+      const doc  = (s.doc_number||'').toLowerCase();
+      if (!name.includes(q) && !doc.includes(q)) return false;
+    }
+    return true;
+  });
+  renderHistoriesList(list);
+}
+
+function renderHistoriesList(list) {
+  const el = document.getElementById('hc-list-wrap');
+  if (!el) return;
+  if (!list.length) {
+    el.innerHTML = '<div class="card"><div class="card-body empty" style="padding:2.5rem;"><div class="ei">🧾</div>No hay historias clínicas.<br><small>Usa "+ Nueva Historia" para crear la primera.</small></div></div>';
+    return;
+  }
+  el.innerHTML = list.map(h => {
+    const s = h.student || {};
+    const name = `${s.first_name||''} ${s.last_name||''}`.trim() || '—';
+    const grade = s.grade ? `${s.grade}°${s.course||''}` : '';
+    const date = h.first_session_date ? new Date(h.first_session_date+'T12:00:00').toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'}) : 'Sin fecha';
+    const statusClass = HC_STATUS_CLASS[h.status] || 'hc-status-closed';
+    const statusLabel = HC_STATUS_LABELS[h.status] || h.status;
+    const updated = h.updated_at ? new Date(h.updated_at).toLocaleDateString('es-CO',{day:'2-digit',month:'short'}) : '';
+    return `<div class="hc-history-card" onclick="openHistoryDetail('${h.id}')">
+      <div style="display:flex;align-items:center;gap:.85rem;min-width:0;">
+        <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--violet),var(--violet2));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.88rem;flex-shrink:0;">${(s.first_name||'?')[0]}${(s.last_name||'?')[0]}</div>
+        <div style="min-width:0;">
+          <div style="font-weight:700;font-size:.88rem;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(name)}</div>
+          <div style="font-size:.75rem;color:var(--gray);">${esc(grade)} · Doc: ${esc(s.doc_number||'—')} · Primera sesión: ${esc(date)}</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:.65rem;flex-shrink:0;">
+        <span class="hc-status-pill ${statusClass}">${esc(statusLabel)}</span>
+        <span style="font-size:.7rem;color:var(--gray);">Act: ${esc(updated)}</span>
+        <span style="color:var(--gray);font-size:.8rem;">›</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function openHistoryDetail(id) {
+  const data = await api(`/api/raice/psych/histories/${id}`);
+  if (!data || data.error) { alert('No se pudo cargar la historia.'); return; }
+  _hcCurrent = data;
+  populateHcModal(data);
+  document.getElementById('hc-modal').style.display = 'block';
+  document.body.style.overflow = 'hidden';
+  switchHcTab('ingreso', document.querySelector('.hc-tab[data-tab="ingreso"]'));
+}
+
+function populateHcModal(h) {
+  const s = h.student || {};
+  const name = `${s.first_name||''} ${s.last_name||''}`.trim() || 'Estudiante';
+  const grade = s.grade ? ` · ${s.grade}°${s.course||''}` : '';
+  const doc   = s.doc_number ? ` · Doc: ${s.doc_number}` : '';
+  document.getElementById('hcm-student-name').textContent = name;
+  document.getElementById('hcm-student-info').textContent = `${grade}${doc}`.replace(/^·\s*/,'');
+  const badge = document.getElementById('hcm-status-badge');
+  badge.textContent = HC_STATUS_LABELS[h.status] || h.status;
+  badge.className = 'hc-status-pill ' + (HC_STATUS_CLASS[h.status] || '');
+  badge.style.cssText = 'font-size:.72rem;padding:.25rem .65rem;border-radius:20px;font-weight:700;';
+  // Ingreso
+  _setVal('hcf-first_session_date', h.first_session_date||'');
+  _setVal('hcf-consultation_reason', h.consultation_reason||'');
+  _setVal('hcf-referral_source', h.referral_source||'');
+  document.getElementById('hcf-consent_signed').checked = !!h.consent_signed;
+  _setVal('hcf-consent_signed_by', h.consent_signed_by||'');
+  _setVal('hcf-consent_date', h.consent_date||'');
+  // Anamnesis
+  _setVal('hcf-family_background', h.family_background||'');
+  _setVal('hcf-personal_background', h.personal_background||'');
+  _setVal('hcf-family_composition', h.family_composition||'');
+  _setVal('hcf-socioeconomic_status', h.socioeconomic_status||'');
+  _setVal('hcf-support_network', h.support_network||'');
+  // Valoración
+  _setVal('hcf-cognitive_area', h.cognitive_area||'');
+  _setVal('hcf-emotional_area', h.emotional_area||'');
+  _setVal('hcf-behavioral_area', h.behavioral_area||'');
+  _setVal('hcf-social_area', h.social_area||'');
+  _setVal('hcf-diagnostic_hypothesis', h.diagnostic_hypothesis||'');
+  // Plan
+  _setVal('hcf-initial_intervention_plan', h.initial_intervention_plan||'');
+  // Cierre
+  _setVal('hcf-status', h.status||'active');
+  _setVal('hcf-close_date', h.close_date||'');
+  _setVal('hcf-close_reason', h.close_reason||'');
+  _setVal('hcf-close_summary', h.close_summary||'');
+  _setVal('hcf-close_recommendations', h.close_recommendations||'');
+  _setVal('hcf-referred_to', h.referred_to||'');
+  // Sub-collections
+  renderSessions(h.sessions || []);
+  renderGoals(h.goals || []);
+  renderInstruments(h.instruments || []);
+}
+
+function _setVal(id, val) { const el = document.getElementById(id); if (el) el.value = val; }
+
+function switchHcTab(tab, btn) {
+  document.querySelectorAll('.hc-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.hc-tab-panel').forEach(p => { p.classList.remove('active'); p.style.display = 'none'; });
+  if (btn) btn.classList.add('active');
+  const panel = document.getElementById('hct-' + tab);
+  if (panel) { panel.classList.add('active'); panel.style.display = 'block'; }
+}
+
+function closeHcModal() {
+  document.getElementById('hc-modal').style.display = 'none';
+  document.body.style.overflow = '';
+  _hcCurrent = null;
+}
+
+const HC_SECTION_FIELDS = {
+  ingreso:    ['first_session_date','consultation_reason','referral_source','consent_signed_by','consent_date'],
+  anamnesis:  ['family_background','personal_background','family_composition','socioeconomic_status','support_network'],
+  valoracion: ['cognitive_area','emotional_area','behavioral_area','social_area','diagnostic_hypothesis'],
+  plan:       ['initial_intervention_plan'],
+  cierre:     ['status','close_date','close_reason','close_summary','close_recommendations','referred_to'],
+};
+
+async function saveHcSection(section) {
+  if (!_hcCurrent) return;
+  const fields = HC_SECTION_FIELDS[section] || [];
+  const body = {};
+  for (const f of fields) {
+    const el = document.getElementById('hcf-' + f);
+    if (!el) continue;
+    body[f] = el.type === 'checkbox' ? el.checked : (el.value || null);
+  }
+  if (section === 'ingreso') body.consent_signed = document.getElementById('hcf-consent_signed')?.checked || false;
+  const res = await api(`/api/raice/psych/histories/${_hcCurrent.id}`, { method:'PUT', body: JSON.stringify(body) });
+  if (res && !res.error) {
+    Object.assign(_hcCurrent, res);
+    // Update badge
+    const badge = document.getElementById('hcm-status-badge');
+    if (badge) { badge.textContent = HC_STATUS_LABELS[res.status]||res.status; badge.className = 'hc-status-pill '+(HC_STATUS_CLASS[res.status]||''); }
+    // Refresh list entry
+    const idx = _hcAll.findIndex(h => h.id === _hcCurrent.id);
+    if (idx >= 0) { _hcAll[idx].status = res.status; _hcAll[idx].updated_at = res.updated_at; }
+    showToast('Cambios guardados');
+  } else { alert('Error al guardar: ' + (res?.error || 'desconocido')); }
+}
+
+// ── Sessions ──
+function renderSessions(sessions) {
+  const el = document.getElementById('hc-sessions-list');
+  if (!el) return;
+  if (!sessions.length) { el.innerHTML = '<div class="empty" style="padding:1.5rem;">Sin sesiones registradas.</div>'; return; }
+  el.innerHTML = sessions.map(s => {
+    const d = s.session_date ? new Date(s.session_date+'T12:00:00').toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'}) : '—';
+    const typeLabel = SESSION_TYPE_LABELS[s.session_type] || s.session_type || '';
+    return `<div class="hc-session-item">
+      <div class="hc-item-actions">
+        <button class="hc-item-btn" onclick="editSession('${s.id}')" title="Editar">✏️</button>
+        <button class="hc-item-btn" onclick="deleteSession('${s.id}')" title="Eliminar">🗑️</button>
+      </div>
+      <div style="font-weight:700;font-size:.85rem;color:var(--navy);">${esc(d)} ${s.session_time?'· '+s.session_time:''} ${typeLabel?'· '+esc(typeLabel):''} ${s.duration_min?'· '+s.duration_min+' min':''}</div>
+      ${s.reason?`<div style="font-size:.78rem;color:var(--gray);margin-top:.2rem;">Motivo: ${esc(s.reason)}</div>`:''}
+      ${s.development?`<div style="font-size:.8rem;margin-top:.4rem;color:var(--navy);white-space:pre-line;">${esc(s.development.slice(0,200))}${s.development.length>200?'…':''}</div>`:''}
+      ${s.next_date?`<div style="font-size:.74rem;color:var(--violet);margin-top:.3rem;font-weight:600;">Próxima sesión: ${new Date(s.next_date+'T12:00:00').toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'})}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function openSessionForm(sessionId) {
+  const modal = document.getElementById('hc-session-modal');
+  document.getElementById('sess-id').value = sessionId || '';
+  document.getElementById('sess-modal-title').textContent = sessionId ? 'Editar sesión' : 'Nueva sesión';
+  if (sessionId) {
+    const s = (_hcCurrent?.sessions||[]).find(x=>x.id===sessionId);
+    if (s) {
+      _setVal('sess-date', s.session_date||''); _setVal('sess-time', s.session_time||'');
+      _setVal('sess-duration', s.duration_min||''); _setVal('sess-type', s.session_type||'individual');
+      _setVal('sess-reason', s.reason||''); _setVal('sess-development', s.development||'');
+      _setVal('sess-strategies', s.strategies||''); _setVal('sess-commitments', s.commitments||'');
+      _setVal('sess-next_date', s.next_date||''); _setVal('sess-notes', s.notes||'');
+    }
+  } else {
+    ['sess-date','sess-time','sess-duration','sess-reason','sess-development','sess-strategies','sess-commitments','sess-next_date','sess-notes'].forEach(id => _setVal(id,''));
+    _setVal('sess-type', 'individual');
+    _setVal('sess-date', new Date().toISOString().slice(0,10));
+  }
+  modal.style.display = 'flex';
+}
+function editSession(id) { openSessionForm(id); }
+function closeSessionModal() { document.getElementById('hc-session-modal').style.display = 'none'; }
+
+async function saveSession() {
+  const id = document.getElementById('sess-id').value;
+  const body = {
+    history_id: _hcCurrent.id, student_id: _hcCurrent.student_id,
+    session_date: document.getElementById('sess-date').value,
+    session_time: document.getElementById('sess-time').value || null,
+    duration_min: document.getElementById('sess-duration').value || null,
+    session_type: document.getElementById('sess-type').value,
+    reason: document.getElementById('sess-reason').value || null,
+    development: document.getElementById('sess-development').value || null,
+    strategies: document.getElementById('sess-strategies').value || null,
+    commitments: document.getElementById('sess-commitments').value || null,
+    next_date: document.getElementById('sess-next_date').value || null,
+    notes: document.getElementById('sess-notes').value || null,
+  };
+  if (!body.session_date) { alert('La fecha de sesión es obligatoria.'); return; }
+  const url = id ? `/api/raice/psych/sessions/${id}` : '/api/raice/psych/sessions';
+  const method = id ? 'PUT' : 'POST';
+  const res = await api(url, { method, body: JSON.stringify(body) });
+  if (res && !res.error) {
+    closeSessionModal();
+    const detail = await api(`/api/raice/psych/histories/${_hcCurrent.id}`);
+    if (detail && !detail.error) { _hcCurrent = detail; renderSessions(detail.sessions||[]); }
+    showToast('Sesión guardada');
+  } else { alert('Error: ' + (res?.error || 'desconocido')); }
+}
+
+async function deleteSession(id) {
+  if (!confirm('¿Eliminar esta sesión?')) return;
+  const res = await api(`/api/raice/psych/sessions/${id}`, { method:'DELETE' });
+  if (res && !res.error) {
+    _hcCurrent.sessions = (_hcCurrent.sessions||[]).filter(s=>s.id!==id);
+    renderSessions(_hcCurrent.sessions);
+    showToast('Sesión eliminada');
+  }
+}
+
+// ── Goals ──
+function renderGoals(goals) {
+  const el = document.getElementById('hc-goals-list');
+  if (!el) return;
+  if (!goals.length) { el.innerHTML = '<div class="empty" style="padding:1rem;">Sin objetivos registrados.</div>'; return; }
+  el.innerHTML = goals.map(g => {
+    const statusLabel = GOAL_STATUS_LABELS[g.status] || g.status;
+    const statusColor = g.status==='achieved'?'#16a34a':g.status==='in_progress'?'#ca8a04':'#64748b';
+    return `<div class="hc-goal-item hc-goal-${g.status}">
+      <div class="hc-item-actions">
+        <button class="hc-item-btn" onclick="editGoal('${g.id}')" title="Editar">✏️</button>
+        <button class="hc-item-btn" onclick="deleteGoal('${g.id}')" title="Eliminar">🗑️</button>
+      </div>
+      <div style="font-weight:700;font-size:.84rem;color:var(--navy);padding-right:4rem;">${esc(g.objective)}</div>
+      ${g.strategies?`<div style="font-size:.77rem;color:var(--gray);margin-top:.25rem;">Estrategias: ${esc(g.strategies)}</div>`:''}
+      ${g.indicators?`<div style="font-size:.77rem;color:var(--gray);">Indicadores: ${esc(g.indicators)}</div>`:''}
+      <div style="display:flex;gap:.6rem;margin-top:.4rem;align-items:center;">
+        <span style="font-size:.7rem;font-weight:700;color:${statusColor};">${esc(statusLabel)}</span>
+        ${g.review_date?`<span style="font-size:.7rem;color:var(--gray);">Revisión: ${new Date(g.review_date+'T12:00:00').toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'})}</span>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openGoalForm(goalId) {
+  document.getElementById('goal-id').value = goalId || '';
+  document.getElementById('goal-modal-title').textContent = goalId ? 'Editar objetivo' : 'Nuevo objetivo';
+  if (goalId) {
+    const g = (_hcCurrent?.goals||[]).find(x=>x.id===goalId);
+    if (g) {
+      _setVal('goal-objective',g.objective||''); _setVal('goal-strategies',g.strategies||'');
+      _setVal('goal-indicators',g.indicators||''); _setVal('goal-review_date',g.review_date||'');
+      _setVal('goal-status',g.status||'pending');
+    }
+  } else {
+    ['goal-objective','goal-strategies','goal-indicators','goal-review_date'].forEach(id=>_setVal(id,''));
+    _setVal('goal-status','pending');
+  }
+  document.getElementById('hc-goal-modal').style.display = 'flex';
+}
+function editGoal(id) { openGoalForm(id); }
+function closeGoalModal() { document.getElementById('hc-goal-modal').style.display = 'none'; }
+
+async function saveGoal() {
+  const id = document.getElementById('goal-id').value;
+  const body = {
+    history_id: _hcCurrent.id,
+    objective: document.getElementById('goal-objective').value,
+    strategies: document.getElementById('goal-strategies').value || null,
+    indicators: document.getElementById('goal-indicators').value || null,
+    review_date: document.getElementById('goal-review_date').value || null,
+    status: document.getElementById('goal-status').value || 'pending',
+  };
+  if (!body.objective) { alert('El objetivo es obligatorio.'); return; }
+  const url = id ? `/api/raice/psych/goals/${id}` : '/api/raice/psych/goals';
+  const method = id ? 'PUT' : 'POST';
+  const res = await api(url, { method, body: JSON.stringify(body) });
+  if (res && !res.error) {
+    closeGoalModal();
+    const detail = await api(`/api/raice/psych/histories/${_hcCurrent.id}`);
+    if (detail && !detail.error) { _hcCurrent = detail; renderGoals(detail.goals||[]); }
+    showToast('Objetivo guardado');
+  } else { alert('Error: ' + (res?.error || 'desconocido')); }
+}
+
+async function deleteGoal(id) {
+  if (!confirm('¿Eliminar este objetivo?')) return;
+  const res = await api(`/api/raice/psych/goals/${id}`, { method:'DELETE' });
+  if (res && !res.error) {
+    _hcCurrent.goals = (_hcCurrent.goals||[]).filter(g=>g.id!==id);
+    renderGoals(_hcCurrent.goals);
+    showToast('Objetivo eliminado');
+  }
+}
+
+// ── Instruments ──
+function renderInstruments(instruments) {
+  const el = document.getElementById('hc-instruments-list');
+  if (!el) return;
+  if (!instruments.length) { el.innerHTML = '<div class="empty" style="padding:1rem;">Sin instrumentos registrados.</div>'; return; }
+  el.innerHTML = instruments.map(i => {
+    const d = i.application_date ? new Date(i.application_date+'T12:00:00').toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+    return `<div class="hc-instrument-item">
+      <div class="hc-item-actions">
+        <button class="hc-item-btn" onclick="editInstrument('${i.id}')" title="Editar">✏️</button>
+        <button class="hc-item-btn" onclick="deleteInstrument('${i.id}')" title="Eliminar">🗑️</button>
+      </div>
+      <div style="font-weight:700;font-size:.85rem;color:var(--navy);padding-right:4rem;">${esc(i.instrument_name)}</div>
+      <div style="font-size:.75rem;color:var(--gray);margin-top:.15rem;">Aplicado: ${esc(d)}</div>
+      ${i.results?`<div style="font-size:.78rem;margin-top:.3rem;color:var(--navy);"><strong>Resultados:</strong> ${esc(i.results.slice(0,150))}${i.results.length>150?'…':''}</div>`:''}
+      ${i.interpretation?`<div style="font-size:.78rem;color:var(--gray);margin-top:.15rem;"><strong>Interpretación:</strong> ${esc(i.interpretation.slice(0,120))}${i.interpretation.length>120?'…':''}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function openInstrumentForm(instrId) {
+  document.getElementById('instr-id').value = instrId || '';
+  document.getElementById('instr-modal-title').textContent = instrId ? 'Editar instrumento' : 'Nuevo instrumento';
+  if (instrId) {
+    const i = (_hcCurrent?.instruments||[]).find(x=>x.id===instrId);
+    if (i) {
+      _setVal('instr-name',i.instrument_name||''); _setVal('instr-date',i.application_date||'');
+      _setVal('instr-results',i.results||''); _setVal('instr-interpretation',i.interpretation||'');
+    }
+  } else {
+    ['instr-name','instr-results','instr-interpretation'].forEach(id=>_setVal(id,''));
+    _setVal('instr-date', new Date().toISOString().slice(0,10));
+  }
+  document.getElementById('hc-instrument-modal').style.display = 'flex';
+}
+function editInstrument(id) { openInstrumentForm(id); }
+function closeInstrumentModal() { document.getElementById('hc-instrument-modal').style.display = 'none'; }
+
+async function saveInstrument() {
+  const id = document.getElementById('instr-id').value;
+  const body = {
+    history_id: _hcCurrent.id, student_id: _hcCurrent.student_id,
+    instrument_name: document.getElementById('instr-name').value,
+    application_date: document.getElementById('instr-date').value,
+    results: document.getElementById('instr-results').value || null,
+    interpretation: document.getElementById('instr-interpretation').value || null,
+  };
+  if (!body.instrument_name || !body.application_date) { alert('Nombre e instrumento y fecha son obligatorios.'); return; }
+  const url = id ? `/api/raice/psych/instruments/${id}` : '/api/raice/psych/instruments';
+  const method = id ? 'PUT' : 'POST';
+  const res = await api(url, { method, body: JSON.stringify(body) });
+  if (res && !res.error) {
+    closeInstrumentModal();
+    const detail = await api(`/api/raice/psych/histories/${_hcCurrent.id}`);
+    if (detail && !detail.error) { _hcCurrent = detail; renderInstruments(detail.instruments||[]); }
+    showToast('Instrumento guardado');
+  } else { alert('Error: ' + (res?.error || 'desconocido')); }
+}
+
+async function deleteInstrument(id) {
+  if (!confirm('¿Eliminar este instrumento?')) return;
+  const res = await api(`/api/raice/psych/instruments/${id}`, { method:'DELETE' });
+  if (res && !res.error) {
+    _hcCurrent.instruments = (_hcCurrent.instruments||[]).filter(i=>i.id!==id);
+    renderInstruments(_hcCurrent.instruments);
+    showToast('Instrumento eliminado');
+  }
+}
+
+// ── Nueva historia ──
+function openNewHistoryModal() {
+  _nhSelectedStudent = null;
+  _setVal('nh-student-search',''); _setVal('nh-first_session_date',''); _setVal('nh-consultation_reason',''); _setVal('nh-referral_source','');
+  document.getElementById('nh-student-results').style.display = 'none';
+  document.getElementById('nh-student-results').innerHTML = '';
+  document.getElementById('nh-selected-student').style.display = 'none';
+  document.getElementById('nh-selected-student').textContent = '';
+  _setVal('nh-first_session_date', new Date().toISOString().slice(0,10));
+  document.getElementById('hc-new-modal').style.display = 'flex';
+}
+function closeNewHistoryModal() { document.getElementById('hc-new-modal').style.display = 'none'; }
+
+let _nhSearchTimer = null;
+async function searchStudentForHistory() {
+  clearTimeout(_nhSearchTimer);
+  const q = document.getElementById('nh-student-search').value.trim();
+  const resultsEl = document.getElementById('nh-student-results');
+  if (q.length < 2) { resultsEl.style.display = 'none'; return; }
+  _nhSearchTimer = setTimeout(async () => {
+    const data = await api(`/api/raice/search?q=${encodeURIComponent(q)}&type=students`);
+    const students = Array.isArray(data?.students) ? data.students : (Array.isArray(data) ? data : []);
+    if (!students.length) { resultsEl.innerHTML = '<div style="padding:.6rem .9rem;font-size:.82rem;color:var(--gray);">Sin resultados.</div>'; resultsEl.style.display='block'; return; }
+    resultsEl.innerHTML = students.slice(0,8).map(s =>
+      `<div onclick="selectStudentForHistory('${s.id}','${esc(s.first_name)} ${esc(s.last_name)}','${esc(s.doc_number||'')}','${s.grade||''}','${s.course||''}')"
+        style="padding:.55rem .9rem;cursor:pointer;font-size:.83rem;border-bottom:1px solid var(--border);"
+        onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">
+        <strong>${esc(s.first_name)} ${esc(s.last_name)}</strong>
+        <span style="color:var(--gray);font-size:.76rem;"> · Doc: ${esc(s.doc_number||'—')} · ${s.grade||''}°${s.course||''}</span>
+      </div>`
+    ).join('');
+    resultsEl.style.display = 'block';
+  }, 350);
+}
+
+function selectStudentForHistory(id, name, doc, grade, course) {
+  _nhSelectedStudent = { id, name, doc, grade, course };
+  document.getElementById('nh-student-search').value = name;
+  document.getElementById('nh-student-results').style.display = 'none';
+  const sel = document.getElementById('nh-selected-student');
+  sel.textContent = `✓ ${name} · Doc: ${doc} · ${grade}°${course}`;
+  sel.style.display = 'block';
+}
+
+async function createNewHistory() {
+  if (!_nhSelectedStudent) { alert('Selecciona un estudiante.'); return; }
+  const reason = document.getElementById('nh-consultation_reason').value.trim();
+  if (!reason) { alert('El motivo de consulta es obligatorio.'); return; }
+  const body = {
+    student_id: _nhSelectedStudent.id,
+    first_session_date: document.getElementById('nh-first_session_date').value || null,
+    consultation_reason: reason,
+    referral_source: document.getElementById('nh-referral_source').value || null,
+  };
+  const btn = document.getElementById('nh-save-btn');
+  btn.disabled = true; btn.textContent = 'Creando…';
+  const res = await api('/api/raice/psych/histories', { method:'POST', body: JSON.stringify(body) });
+  btn.disabled = false; btn.textContent = 'Crear historia';
+  if (res && !res.error) {
+    closeNewHistoryModal();
+    await loadHistories();
+    openHistoryDetail(res.id);
+    showToast('Historia clínica creada');
+  } else { alert('Error: ' + (res?.error || 'desconocido')); }
+}
+
+// ── Print ──
+function printHistory() {
+  if (!_hcCurrent) return;
+  const h = _hcCurrent;
+  const s = h.student || {};
+  const name = `${s.first_name||''} ${s.last_name||''}`.trim();
+  const grade = s.grade ? `${s.grade}° ${s.course||''}` : '';
+  const today = new Date().toLocaleDateString('es-CO', { day:'2-digit', month:'long', year:'numeric' });
+  const sessions = (h.sessions||[]).map(sess => `
+    <div style="border:1px solid #e2e8f0;border-radius:8px;padding:.85rem 1rem;margin-bottom:.6rem;">
+      <div style="font-weight:700;font-size:.88rem;">${sess.session_date||''} ${sess.session_time?'· '+sess.session_time:''} ${sess.session_type?'· '+(SESSION_TYPE_LABELS[sess.session_type]||sess.session_type):''} ${sess.duration_min?'· '+sess.duration_min+' min':''}</div>
+      ${sess.reason?`<div style="font-size:.82rem;color:#475569;margin-top:.25rem;">Motivo: ${escHtml(sess.reason)}</div>`:''}
+      ${sess.development?`<div style="font-size:.82rem;margin-top:.3rem;white-space:pre-line;">${escHtml(sess.development)}</div>`:''}
+      ${sess.strategies?`<div style="font-size:.8rem;margin-top:.25rem;color:#374151;"><strong>Estrategias:</strong> ${escHtml(sess.strategies)}</div>`:''}
+      ${sess.commitments?`<div style="font-size:.8rem;margin-top:.2rem;"><strong>Compromisos:</strong> ${escHtml(sess.commitments)}</div>`:''}
+      ${sess.next_date?`<div style="font-size:.78rem;color:#6d28d9;margin-top:.2rem;">Próxima sesión: ${sess.next_date}</div>`:''}
+    </div>`).join('');
+  const goals = (h.goals||[]).map(g =>
+    `<tr><td>${escHtml(g.objective)}</td><td>${escHtml(g.strategies||'—')}</td><td>${escHtml(g.indicators||'—')}</td><td>${GOAL_STATUS_LABELS[g.status]||g.status}</td><td>${g.review_date||'—'}</td></tr>`
+  ).join('');
+  const instruments = (h.instruments||[]).map(i =>
+    `<tr><td>${escHtml(i.instrument_name)}</td><td>${i.application_date||'—'}</td><td>${escHtml(i.results||'—')}</td><td>${escHtml(i.interpretation||'—')}</td></tr>`
+  ).join('');
+
+  const win = window.open('', '_blank', 'width=900,height=800');
+  win.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+  <title>Historia Clínica – ${name}</title>
+  <style>
+    body{font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#1e293b;margin:0;padding:2cm;}
+    h1{font-size:18px;margin:0 0 .2rem;}
+    h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:#6d28d9;border-bottom:2px solid #6d28d9;padding-bottom:.3rem;margin:1.5rem 0 .7rem;}
+    .header{border-bottom:2px solid #1e293b;padding-bottom:.75rem;margin-bottom:1.2rem;}
+    .meta{display:grid;grid-template-columns:1fr 1fr;gap:.35rem .8rem;font-size:12px;}
+    .meta strong{color:#475569;}
+    table{width:100%;border-collapse:collapse;font-size:12px;margin-top:.5rem;}
+    th{background:#f1f5f9;padding:.4rem .6rem;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;}
+    td{padding:.4rem .6rem;border-bottom:1px solid #e2e8f0;vertical-align:top;}
+    .field-block{margin-bottom:.8rem;}
+    .field-label{font-size:11px;font-weight:700;text-transform:uppercase;color:#475569;margin-bottom:.2rem;}
+    .field-val{font-size:13px;white-space:pre-line;}
+    @media print{body{padding:1cm;}}
+  </style></head><body>
+  <div class="header">
+    <h1>Historia Clínica Psicológica</h1>
+    <div style="font-size:12px;color:#475569;">${name} · ${grade} · Doc: ${s.doc_number||'—'} · Generado: ${today}</div>
+  </div>
+
+  <h2>1. Datos de ingreso</h2>
+  <div class="meta">
+    <div><strong>Primera sesión:</strong> ${h.first_session_date||'—'}</div>
+    <div><strong>Fuente de remisión:</strong> ${REFERRAL_LABELS[h.referral_source]||h.referral_source||'—'}</div>
+    <div><strong>Consentimiento:</strong> ${h.consent_signed?'Firmado':'No firmado'}</div>
+    <div><strong>Firmado por:</strong> ${h.consent_signed_by||'—'}</div>
+    <div><strong>Estado:</strong> ${HC_STATUS_LABELS[h.status]||h.status}</div>
+  </div>
+  ${h.consultation_reason?`<div class="field-block" style="margin-top:.6rem;"><div class="field-label">Motivo de consulta</div><div class="field-val">${escHtml(h.consultation_reason)}</div></div>`:''}
+
+  <h2>2. Anamnesis</h2>
+  ${h.family_background?`<div class="field-block"><div class="field-label">Antecedentes familiares</div><div class="field-val">${escHtml(h.family_background)}</div></div>`:''}
+  ${h.personal_background?`<div class="field-block"><div class="field-label">Antecedentes personales</div><div class="field-val">${escHtml(h.personal_background)}</div></div>`:''}
+  ${h.family_composition?`<div class="field-block"><div class="field-label">Composición familiar</div><div class="field-val">${escHtml(h.family_composition)}</div></div>`:''}
+  ${h.socioeconomic_status?`<div class="field-block"><div class="field-label">Nivel socioeconómico</div><div class="field-val">${escHtml(h.socioeconomic_status)}</div></div>`:''}
+  ${h.support_network?`<div class="field-block"><div class="field-label">Red de apoyo</div><div class="field-val">${escHtml(h.support_network)}</div></div>`:''}
+
+  <h2>3. Valoración psicológica</h2>
+  ${h.cognitive_area?`<div class="field-block"><div class="field-label">Área cognitiva</div><div class="field-val">${escHtml(h.cognitive_area)}</div></div>`:''}
+  ${h.emotional_area?`<div class="field-block"><div class="field-label">Área emocional</div><div class="field-val">${escHtml(h.emotional_area)}</div></div>`:''}
+  ${h.behavioral_area?`<div class="field-block"><div class="field-label">Área comportamental</div><div class="field-val">${escHtml(h.behavioral_area)}</div></div>`:''}
+  ${h.social_area?`<div class="field-block"><div class="field-label">Área social</div><div class="field-val">${escHtml(h.social_area)}</div></div>`:''}
+  ${h.diagnostic_hypothesis?`<div class="field-block"><div class="field-label">Hipótesis diagnóstica</div><div class="field-val">${escHtml(h.diagnostic_hypothesis)}</div></div>`:''}
+
+  <h2>4. Plan de intervención</h2>
+  ${h.initial_intervention_plan?`<div class="field-block"><div class="field-val">${escHtml(h.initial_intervention_plan)}</div></div>`:'<p style="color:#94a3b8;">Sin plan registrado.</p>'}
+  ${goals?`<table><thead><tr><th>Objetivo</th><th>Estrategias</th><th>Indicadores</th><th>Estado</th><th>Revisión</th></tr></thead><tbody>${goals}</tbody></table>`:''}
+
+  <h2>5. Sesiones (${h.sessions?.length||0})</h2>
+  ${sessions || '<p style="color:#94a3b8;">Sin sesiones registradas.</p>'}
+
+  <h2>6. Instrumentos aplicados</h2>
+  ${instruments?`<table><thead><tr><th>Instrumento</th><th>Fecha</th><th>Resultados</th><th>Interpretación</th></tr></thead><tbody>${instruments}</tbody></table>`:'<p style="color:#94a3b8;">Sin instrumentos.</p>'}
+
+  ${h.status==='closed'||h.status==='referred'?`
+  <h2>7. Cierre</h2>
+  <div class="meta">
+    <div><strong>Fecha de cierre:</strong> ${h.close_date||'—'}</div>
+    <div><strong>Motivo:</strong> ${h.close_reason||'—'}</div>
+  </div>
+  ${h.close_summary?`<div class="field-block" style="margin-top:.5rem;"><div class="field-label">Resumen del proceso</div><div class="field-val">${escHtml(h.close_summary)}</div></div>`:''}
+  ${h.close_recommendations?`<div class="field-block"><div class="field-label">Recomendaciones finales</div><div class="field-val">${escHtml(h.close_recommendations)}</div></div>`:''}
+  ${h.referred_to?`<div class="field-block"><div class="field-label">Remitido a</div><div class="field-val">${escHtml(h.referred_to)}</div></div>`:''}
+  `:''}
+
+  <script>window.onload=()=>{window.print();}<\/script>
+  </body></html>`);
+  win.document.close();
+}
+
+function escHtml(str) { return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function showToast(msg) {
+  let t = document.getElementById('_toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = '_toast';
+    t.style.cssText='position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);background:#1e293b;color:#fff;padding:.55rem 1.2rem;border-radius:10px;font-size:.83rem;font-weight:600;z-index:9999;transition:opacity .3s;pointer-events:none;';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg; t.style.opacity = '1';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.style.opacity = '0'; }, 2400);
+}
 </script>
 <script>
 if ('serviceWorker' in navigator) {
