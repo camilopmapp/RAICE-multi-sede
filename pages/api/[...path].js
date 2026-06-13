@@ -8641,6 +8641,8 @@ async function handleBackupImport(req, res, user) {
     await sb.from('raice_faltas_catalogo').delete().neq('id', '00000000-0000-0000-0000-000000000000');
   }
   results.faltas_catalogo = await upsertBatch('raice_faltas_catalogo', t.faltas_catalogo);
+  // Bell schedule: wipe before rebuild to remove deleted hours
+  await sb.from('raice_bell_schedule').delete().neq('id', '00000000-0000-0000-0000-000000000000');
   results.bell_schedule   = await upsertBatch('raice_bell_schedule',   t.bell_schedule);
   // Períodos: borrar los del mismo año antes de importar para evitar conflicto UNIQUE(year,period_num)
   if (t.periods?.length) {
@@ -8715,6 +8717,27 @@ async function handleBackupImport(req, res, user) {
     results.users = t.teachers.length;
   }
 
+  // ── 3b. Limpiar tablas que se reconstruirán y eliminar usuarios fantasma ──
+  // Wipe previo de tablas dependientes de users para evitar FK al borrar fantasmas
+  await Promise.all([
+    sb.from('raice_teacher_courses').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+    sb.from('raice_teacher_absences').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+    sb.from('raice_absence_replacements').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+  ]);
+  // Usuarios en BD que no están en el backup → eliminar (excepto el superadmin activo)
+  {
+    const backupUserIds = new Set((t.teachers || []).map(u => u.id));
+    backupUserIds.add(adminRow.id); // siempre preservar al superadmin que ejecuta la restauración
+    const { data: allDbUsers } = await sb.from('raice_users').select('id');
+    const ghostIds = (allDbUsers || []).map(u => u.id).filter(id => !backupUserIds.has(id));
+    if (ghostIds.length) {
+      for (let i = 0; i < ghostIds.length; i += 100) {
+        await sb.from('raice_users').delete().in('id', ghostIds.slice(i, i + 100));
+      }
+      results.ghost_users_removed = ghostIds.length;
+    }
+  }
+
   // ── 4. Actualizar director_id — 1 upsert en vez de N updates ─────────────
   const coursesWithDir = (t.courses || []).filter(c => c.director_id);
   if (coursesWithDir.length) {
@@ -8734,6 +8757,7 @@ async function handleBackupImport(req, res, user) {
   const safeTeacherCourses = (t.teacher_courses || []).filter(
     tc => importedUserIds.has(tc.teacher_id) && validCourseIdsTc.has(tc.course_id)
   );
+  // teacher_courses ya fue vaciado en 3b → upsert idempotente
   results.teacher_courses = await upsertBatch('raice_teacher_courses', safeTeacherCourses);
 
   // schedules: validar teacher_course_id contra los que REALMENTE quedaron en BD
@@ -8756,22 +8780,23 @@ async function handleBackupImport(req, res, user) {
   const schedDropped = (t.schedules || []).length - safeSchedules.length;
   if (schedDropped > 0) errors.push(`raice_schedules: ${schedDropped} omitidos (tc inexistente o duplicado)`);
 
-  // Paralelo: absences y replacements (sin FK a schedules)
+  // Absences y replacements: ya fueron vaciados en 3b → insertar directamente
   const [teacherAbsR, absReplR] = await Promise.all([
     upsertBatch('raice_teacher_absences',     t.teacher_absences),
     upsertBatch('raice_absence_replacements', t.absence_replacements),
   ]);
-  results.teacher_absences = teacherAbsR; results.absence_replacements = absReplR;
+  results.teacher_absences     = teacherAbsR;
+  results.absence_replacements = absReplR;
 
-  // ── 6. Asignaciones de sedes a coordinadores ─────────────────────────────
+  // ── 6. Asignaciones de sedes — wipe completo y reconstruir desde backup ──
+  // neq('user_id', nil-uuid) actúa como DELETE ALL en tablas sin columna id
+  await sb.from('raice_user_sedes').delete().neq('user_id', '00000000-0000-0000-0000-000000000000');
   if (t.user_sedes?.length) {
-    // raice_user_sedes tiene PK compuesta (user_id, sede_id)
     const validUserIds = new Set((t.teachers || []).map(u => u.id));
     const validSedeIds = new Set((t.sedes    || []).map(s => s.id));
     const safeUserSedes = t.user_sedes.filter(r => validUserIds.has(r.user_id) && validSedeIds.has(r.sede_id));
     if (safeUserSedes.length) {
-      const { error } = await sb.from('raice_user_sedes')
-        .upsert(safeUserSedes, { onConflict: 'user_id,sede_id', ignoreDuplicates: true });
+      const { error } = await sb.from('raice_user_sedes').insert(safeUserSedes);
       if (error) errors.push('user_sedes: ' + error.message);
       else results.user_sedes = safeUserSedes.length;
     }
