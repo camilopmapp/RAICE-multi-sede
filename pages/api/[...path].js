@@ -186,6 +186,7 @@ export default async function handler(req, res) {
     // ---- MENSAJES INSTITUCIONALES ----
     if (route === 'raice/messages/unread-count') return await getMsgUnreadCount(req, res, user);
     if (route === 'raice/messages/read')         return await markMsgsRead(req, res, user);
+    if (route === 'raice/messages/dismiss')      return await dismissMessage(req, res, user);
     if (pathParts[0]==='raice' && pathParts[1]==='messages' && pathParts[2])
       return await handleMessageDetail(req, res, user);
     if (route === 'raice/messages')              return await handleMessages(req, res, user);
@@ -10102,7 +10103,7 @@ async function handleMessages(req, res, user) {
 
   if (req.method === 'GET') {
     if (user.role === 'teacher') {
-      // Inbox: messages where this teacher is a recipient
+      // Inbox: messages where this teacher is a recipient and not dismissed
       const { data: rows, error } = await sb
         .from('raice_message_reads')
         .select(`
@@ -10113,6 +10114,7 @@ async function handleMessages(req, res, user) {
           )
         `)
         .eq('teacher_id', user.id)
+        .is('dismissed_at', null)
         .order('created_at', { ascending: false, foreignTable: 'raice_messages' });
       if (error) return res.status(500).json({ error: error.message });
       const now = new Date();
@@ -10268,6 +10270,21 @@ async function getMsgUnreadCount(req, res, user) {
   const { count } = await sb.from('raice_message_reads')
     .select('*', { count: 'exact', head: true })
     .eq('teacher_id', user.id)
-    .is('read_at', null);
+    .is('read_at', null)
+    .is('dismissed_at', null);
   return res.status(200).json({ count: count || 0 });
+}
+
+// POST /raice/messages/dismiss — docente oculta un mensaje de su bandeja
+async function dismissMessage(req, res, user) {
+  if (req.method !== 'POST') return res.status(405).end();
+  if (user.role !== 'teacher') return res.status(403).json({ error: 'Solo docentes' });
+  const { message_id } = req.body || {};
+  if (!message_id) return res.status(400).json({ error: 'message_id requerido' });
+  const sb = getSupabase();
+  await sb.from('raice_message_reads')
+    .update({ dismissed_at: new Date().toISOString() })
+    .eq('message_id', message_id)
+    .eq('teacher_id', user.id);
+  return res.status(200).json({ ok: true });
 }
