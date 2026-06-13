@@ -10232,18 +10232,18 @@ async function handleMessages(req, res, user) {
 // DELETE /raice/messages/:id
 async function handleMessageDetail(req, res, user) {
   if (req.method !== 'DELETE') return res.status(405).end();
-  const msgId = pathParts[2]; // closure over pathParts not available here; use req directly
-  // Extract id from URL
   const urlParts = (req.url || '').split('?')[0].split('/').filter(Boolean);
   const id = urlParts[urlParts.length - 1];
   if (!id) return res.status(400).json({ error: 'ID requerido' });
 
   const sb = getSupabase();
-  const { data: msg } = await sb.from('raice_messages').select('sender_id').eq('id', id).maybeSingle();
+  const { data: msg, error: fetchErr } = await sb.from('raice_messages').select('sender_id').eq('id', id).maybeSingle();
+  if (fetchErr) return res.status(500).json({ error: fetchErr.message });
   if (!msg) return res.status(404).json({ error: 'Mensaje no encontrado' });
   if (msg.sender_id !== user.id) return res.status(403).json({ error: 'No puedes eliminar este mensaje' });
 
-  await sb.from('raice_messages').delete().eq('id', id);
+  const { error: delErr } = await sb.from('raice_messages').delete().eq('id', id);
+  if (delErr) return res.status(500).json({ error: delErr.message });
   return res.status(200).json({ ok: true });
 }
 

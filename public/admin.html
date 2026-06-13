@@ -11133,8 +11133,7 @@ const _MSG_TYPE_LABEL = { info:'Informativo', urgent:'Urgente', reminder:'Record
 const _MSG_TYPE_CLASS = { info:'#dbeafe|#1e40af', urgent:'#fee2e2|#991b1b', reminder:'#fef3c7|#92400e' };
 
 function msgTargetLabel(target, audience) {
-  const who = audience === 'acudientes' ? 'familias' : 'docentes';
-  if (!target || target === 'all') return `Todas las ${who}`;
+  if (!target || target === 'all') return audience === 'acudientes' ? 'Todas las familias' : 'Todos los docentes';
   if (target.startsWith('grades_')) return 'Grado(s) ' + target.replace('grades_','').split(',').map(g=>g+'°').join(', ');
   if (target.startsWith('grade_'))  return 'Grado ' + target.replace('grade_','') + '°';
   if (target.startsWith('course_')) return 'Curso específico';
