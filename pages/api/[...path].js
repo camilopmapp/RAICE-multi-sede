@@ -10057,7 +10057,7 @@ async function _resolveMsgRecipients(sb, target, sedeId) {
   }
 
   // 'all'
-  let q = sb.from('raice_users').select('id').eq('role', 'teacher').eq('is_active', true);
+  let q = sb.from('raice_users').select('id').eq('role', 'teacher').eq('active', true);
   if (sedeId) q = q.eq('sede_id', sedeId);
   const { data } = await q;
   return (data || []).map(r => r.id);
