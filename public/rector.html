@@ -789,14 +789,33 @@
           </div>
           <div>
             <div style="font-size:.75rem;font-weight:700;color:var(--gray2,#64748b);margin-bottom:.3rem;">Destinatarios</div>
-            <select id="rmsg-target" style="width:100%;padding:.45rem .65rem;border:1.5px solid var(--border,#e2e8f0);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:.82rem;">
-              <option value="all">Todos los docentes</option>
-              <optgroup label="Por grado">
-                <option value="grade_6">Grado 6°</option><option value="grade_7">Grado 7°</option>
-                <option value="grade_8">Grado 8°</option><option value="grade_9">Grado 9°</option>
-                <option value="grade_10">Grado 10°</option><option value="grade_11">Grado 11°</option>
-              </optgroup>
-            </select>
+            <div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.45rem;">
+              <label style="display:flex;align-items:center;gap:.28rem;font-size:.79rem;cursor:pointer;padding:.28rem .55rem;border:1.5px solid var(--border,#e2e8f0);border-radius:7px;background:rgba(255,255,255,.06);">
+                <input type="radio" name="rmsg-mode" value="all" checked onchange="onRectorMsgModeChange()"> Todos
+              </label>
+              <label style="display:flex;align-items:center;gap:.28rem;font-size:.79rem;cursor:pointer;padding:.28rem .55rem;border:1.5px solid var(--border,#e2e8f0);border-radius:7px;background:rgba(255,255,255,.06);">
+                <input type="radio" name="rmsg-mode" value="grades" onchange="onRectorMsgModeChange()"> Por grado
+              </label>
+              <label style="display:flex;align-items:center;gap:.28rem;font-size:.79rem;cursor:pointer;padding:.28rem .55rem;border:1.5px solid var(--border,#e2e8f0);border-radius:7px;background:rgba(255,255,255,.06);">
+                <input type="radio" name="rmsg-mode" value="course" onchange="onRectorMsgModeChange()"> Por curso
+              </label>
+            </div>
+            <div id="rmsg-grades-panel" style="display:none;background:rgba(255,255,255,.05);border:1.5px solid var(--border,#e2e8f0);border-radius:9px;padding:.5rem .65rem;margin-bottom:.35rem;">
+              <div style="font-size:.7rem;color:#94a3b8;margin-bottom:.35rem;font-weight:600;">Selecciona grados:</div>
+              <div style="display:flex;flex-wrap:wrap;gap:.45rem;">
+                <label style="display:flex;align-items:center;gap:.28rem;font-size:.8rem;cursor:pointer;"><input type="checkbox" class="rmsg-grade-cb" value="6"> 6°</label>
+                <label style="display:flex;align-items:center;gap:.28rem;font-size:.8rem;cursor:pointer;"><input type="checkbox" class="rmsg-grade-cb" value="7"> 7°</label>
+                <label style="display:flex;align-items:center;gap:.28rem;font-size:.8rem;cursor:pointer;"><input type="checkbox" class="rmsg-grade-cb" value="8"> 8°</label>
+                <label style="display:flex;align-items:center;gap:.28rem;font-size:.8rem;cursor:pointer;"><input type="checkbox" class="rmsg-grade-cb" value="9"> 9°</label>
+                <label style="display:flex;align-items:center;gap:.28rem;font-size:.8rem;cursor:pointer;"><input type="checkbox" class="rmsg-grade-cb" value="10"> 10°</label>
+                <label style="display:flex;align-items:center;gap:.28rem;font-size:.8rem;cursor:pointer;"><input type="checkbox" class="rmsg-grade-cb" value="11"> 11°</label>
+              </div>
+            </div>
+            <div id="rmsg-course-panel" style="display:none;">
+              <select id="rmsg-course-sel" style="width:100%;padding:.45rem .65rem;border:1.5px solid var(--border,#e2e8f0);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:.82rem;">
+                <option value="">— Cargando cursos… —</option>
+              </select>
+            </div>
           </div>
           <div>
             <div style="font-size:.75rem;font-weight:700;color:var(--gray2,#64748b);margin-bottom:.3rem;">Asunto *</div>
@@ -2136,7 +2155,15 @@ var showUpdateBanner = window.RAICE.showUpdateBanner;
 // ── MENSAJES RECTOR ──
 const _RMSG_TYPE_LABEL = { info:'Informativo', urgent:'Urgente', reminder:'Recordatorio' };
 const _RMSG_TYPE_COLOR = { info:'#dbeafe|#1e40af', urgent:'#fee2e2|#991b1b', reminder:'#fef3c7|#92400e' };
-const _RMSG_TARGET_LBL = { all:'Todos los docentes', grade_6:'Grado 6°', grade_7:'Grado 7°', grade_8:'Grado 8°', grade_9:'Grado 9°', grade_10:'Grado 10°', grade_11:'Grado 11°' };
+
+function rmsgTargetLabel(target) {
+  if (!target || target === 'all') return 'Todos los docentes';
+  if (target.startsWith('grades_')) return 'Grado(s) ' + target.replace('grades_','').split(',').map(g=>g+'°').join(', ');
+  if (target.startsWith('grade_'))  return 'Grado ' + target.replace('grade_','') + '°';
+  if (target.startsWith('course_')) return 'Curso específico';
+  if (target.startsWith('user_'))   return 'Docente individual';
+  return target;
+}
 
 function openMensajes() {
   document.getElementById('modal-mensajes').classList.add('open');
@@ -2155,14 +2182,53 @@ function populateRmsgSedes() {
   });
 }
 
+function onRectorMsgModeChange() {
+  const mode = document.querySelector('input[name="rmsg-mode"]:checked')?.value || 'all';
+  document.getElementById('rmsg-grades-panel').style.display = mode === 'grades' ? '' : 'none';
+  document.getElementById('rmsg-course-panel').style.display = mode === 'course' ? '' : 'none';
+  if (mode === 'course' && document.getElementById('rmsg-course-sel').options.length <= 1)
+    loadRectorCoursesForMsg();
+}
+
+async function loadRectorCoursesForMsg() {
+  const sel = document.getElementById('rmsg-course-sel');
+  const sedeId = document.getElementById('rmsg-sede')?.value || null;
+  sel.innerHTML = '<option value="">— Cargando… —</option>';
+  const url = sedeId ? `/raice/courses?sede_id=${sedeId}` : '/raice/courses';
+  const r = await api(url);
+  const courses = r.ok ? (r.data?.courses || r.data || []) : [];
+  sel.innerHTML = '<option value="">— Seleccionar curso —</option>'
+    + courses.filter(c => c.type !== 'subgroup')
+      .sort((a,b) => (a.grade-b.grade)||(a.number-b.number))
+      .map(c => `<option value="${c.id}">Grado ${c.grade}° - Curso ${c.number||c.name||''}</option>`)
+      .join('');
+}
+
+function buildRectorMsgTarget() {
+  const mode = document.querySelector('input[name="rmsg-mode"]:checked')?.value || 'all';
+  if (mode === 'all') return 'all';
+  if (mode === 'grades') {
+    const checked = [...document.querySelectorAll('.rmsg-grade-cb:checked')].map(cb=>cb.value);
+    if (!checked.length) { showToast('Selecciona al menos un grado','error'); return null; }
+    return 'grades_' + checked.join(',');
+  }
+  if (mode === 'course') {
+    const id = document.getElementById('rmsg-course-sel')?.value;
+    if (!id) { showToast('Selecciona un curso','error'); return null; }
+    return 'course_' + id;
+  }
+  return 'all';
+}
+
 async function sendRectorMessage() {
   const subject = document.getElementById('rmsg-subject').value.trim();
   const body    = document.getElementById('rmsg-body').value.trim();
   const type    = document.querySelector('input[name="rmsg-type"]:checked')?.value || 'info';
-  const target  = document.getElementById('rmsg-target').value;
   const sede_id = document.getElementById('rmsg-sede').value || null;
   if (!subject) { showToast('Escribe un asunto', 'error'); return; }
   if (!body)    { showToast('Escribe el mensaje', 'error'); return; }
+  const target = buildRectorMsgTarget();
+  if (target === null) return;
   const btn = document.getElementById('btn-rmsg-send');
   btn.disabled = true; btn.textContent = 'Enviando…';
   const r = await api('/raice/messages', { method:'POST', body: JSON.stringify({ type, subject, body, target, sede_id }) });
@@ -2171,6 +2237,8 @@ async function sendRectorMessage() {
   showToast(`Mensaje enviado a ${r.data.recipients} docente(s)`, 'success');
   document.getElementById('rmsg-subject').value = '';
   document.getElementById('rmsg-body').value = '';
+  document.querySelector('input[name="rmsg-mode"][value="all"]').checked = true;
+  onRectorMsgModeChange();
   loadRectorSentMessages();
 }
 
@@ -2186,13 +2254,12 @@ async function loadRectorSentMessages() {
   }
   box.innerHTML = msgs.map(m => {
     const [bg, col] = (_RMSG_TYPE_COLOR[m.type] || '#f1f5f9|#475569').split('|');
-    const tLbl = m.target.startsWith('user_') ? 'Docente individual' : (_RMSG_TARGET_LBL[m.target] || m.target);
     const fecha = new Date(m.created_at).toLocaleDateString('es-CO', { day:'2-digit', month:'short' });
     const pct = m.total_count ? Math.round(m.read_count / m.total_count * 100) : 0;
     return `<div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;padding:.75rem .9rem;margin-bottom:.5rem;">
       <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-bottom:.3rem;">
         <span style="background:${bg};color:${col};padding:.12rem .45rem;border-radius:20px;font-size:.7rem;font-weight:700;">${_RMSG_TYPE_LABEL[m.type]||m.type}</span>
-        <span style="font-size:.71rem;color:#64748b;">→ ${tLbl}</span>
+        <span style="font-size:.71rem;color:#64748b;">→ ${rmsgTargetLabel(m.target)}</span>
         <span style="margin-left:auto;font-size:.7rem;color:#64748b;">${fecha}</span>
         <button onclick="deleteRectorMessage('${m.id}',this)" style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:.78rem;padding:0 .2rem;">✕</button>
       </div>

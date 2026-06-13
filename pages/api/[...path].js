@@ -90,9 +90,10 @@ export default async function handler(req, res) {
     const user = await verifyToken(req);
     if (!user) return res.status(401).json({ error: 'No autorizado. Inicia sesión.' });
 
-    // Rector and counselor are read-only EXCEPT psych routes (historia clínica)
-    const _isPsychRoute = pathParts[0]==='raice' && pathParts[1]==='psych';
-    if (['rector','counselor'].includes(user.role) && req.method !== 'GET' && !_isPsychRoute) {
+    // Rector and counselor are read-only EXCEPT psych routes and sede-switch
+    const _isPsychRoute    = pathParts[0]==='raice' && pathParts[1]==='psych';
+    const _isSwitchSede    = pathParts[0]==='raice' && pathParts[1]==='switch-sede';
+    if (['rector','counselor'].includes(user.role) && req.method !== 'GET' && !_isPsychRoute && !_isSwitchSede) {
       return res.status(403).json({ error: 'Este rol solo tiene acceso de lectura. Esta acción no está permitida.' });
     }
 
@@ -179,6 +180,15 @@ export default async function handler(req, res) {
     if (route === 'raice/observations')         return await handleObservations(req, res, user);
     if (route === 'raice/my-cases')             return await getMyCases(req, res, user);
     if (route === 'raice/change-password')      return await changePassword(req, res, user);
+    if (route === 'raice/my-sedes')             return await getMySedes(req, res, user);
+    if (route === 'raice/switch-sede')          return await switchSede(req, res, user);
+
+    // ---- MENSAJES INSTITUCIONALES ----
+    if (route === 'raice/messages/unread-count') return await getMsgUnreadCount(req, res, user);
+    if (route === 'raice/messages/read')         return await markMsgsRead(req, res, user);
+    if (pathParts[0]==='raice' && pathParts[1]==='messages' && pathParts[2])
+      return await handleMessageDetail(req, res, user);
+    if (route === 'raice/messages')              return await handleMessages(req, res, user);
     if (route === 'raice/grade-cases')          return await getGradeCases(req, res, user);
     if (route === 'raice/evasions')             return await getEvasions(req, res, user);
     if (route === 'raice/evasions/resolve')     return await resolveEvasion(req, res, user);
@@ -347,13 +357,45 @@ async function login(req, res) {
     } catch (_) { /* tabla aún no migrada — se ignora */ }
   }
 
+  // Cargar sedes del orientador (counselor puede tener varias)
+  let counselor_sede_ids   = null;
+  let counselor_sede_names = null;
+  let counselor_active_sede_id   = null;
+  let counselor_active_sede_name = null;
+  if (user.role === 'counselor') {
+    try {
+      const { data: cSedes } = await sb
+        .from('raice_counselor_sedes')
+        .select('sede_id')
+        .eq('counselor_id', user.id);
+      if (cSedes && cSedes.length > 0) {
+        counselor_sede_ids = cSedes.map(s => s.sede_id);
+        const { data: sList } = await sb.from('raice_sedes').select('id, name').in('id', counselor_sede_ids);
+        const sMap = {};
+        (sList || []).forEach(s => { sMap[s.id] = s.name; });
+        counselor_sede_names = counselor_sede_ids.map(sid => sMap[sid]).filter(Boolean);
+        // Active sede: prefer raice_users.sede_id if valid, else first assigned
+        const validActive = counselor_sede_ids.includes(user.sede_id) ? user.sede_id : counselor_sede_ids[0];
+        counselor_active_sede_id   = validActive;
+        counselor_active_sede_name = sMap[validActive] || null;
+      } else if (user.sede_id) {
+        // Single sede (legacy — no row in raice_counselor_sedes)
+        counselor_active_sede_id = user.sede_id;
+        if (single_sede_name) counselor_active_sede_name = single_sede_name;
+      }
+    } catch (_) { /* tabla aún no migrada — se ignora */ }
+  }
+
   // Generate token
   const token = jwt.sign(
     {
       id: user.id, role: user.role, username: user.username,
-      // Teachers: single sede_id. Admins: sede_ids array. Rector/superadmin: null
-      sede_id:  user.role === 'teacher' ? (user.sede_id || null) : null,
-      sede_ids: user.role === 'admin'   ? (sede_ids || [])       : null,
+      // Teachers: single sede_id. Admins: sede_ids array. Counselors: active sede + all sedes.
+      sede_id:             user.role === 'teacher'  ? (user.sede_id || null)
+                         : user.role === 'counselor' ? (counselor_active_sede_id || null)
+                         : null,
+      sede_ids:            user.role === 'admin'    ? (sede_ids || []) : null,
+      counselor_sede_ids:  user.role === 'counselor' ? (counselor_sede_ids || []) : null,
     },
     _JWT_SECRET,
     { expiresIn: '8h' }
@@ -371,12 +413,16 @@ async function login(req, res) {
       name: `${user.first_name} ${user.last_name}`,
       role:  user.role,
       subject: user.subject,
-      // sede_id solo para docentes; admins usan sede_ids
-      sede_id:    user.role === 'teacher' ? (user.sede_id || null) : null,
-      sede_name:  user.role === 'teacher' ? (single_sede_name || null)
+      sede_id:    user.role === 'teacher'  ? (user.sede_id || null)
+                : user.role === 'counselor' ? (counselor_active_sede_id || null)
+                : null,
+      sede_name:  user.role === 'teacher'  ? (single_sede_name || null)
+                : user.role === 'counselor' ? (counselor_active_sede_name || null)
                 : (sede_names && sede_names.length > 0 ? sede_names.join(' · ') : null),
-      sede_ids:   sede_ids,
-      sede_names: sede_names,
+      sede_ids:              sede_ids,
+      sede_names:            sede_names,
+      counselor_sede_ids:    counselor_sede_ids,
+      counselor_sede_names:  counselor_sede_names,
       must_change_password: user.must_change_password || false
     }
   });
@@ -1027,30 +1073,45 @@ async function handleUsers(req, res, user) {
     }
 
     // Cargar asignaciones de sedes para coordinadores (admin)
-    // Protegido con try-catch por si raice_user_sedes aún no se ha migrado
     const adminIds = (data || []).filter(u => u.role === 'admin').map(u => u.id);
     const userSedesMap = {};
     if (adminIds.length) {
       try {
         const { data: usRows } = await sb.from('raice_user_sedes')
-          .select('user_id, sede_id')
-          .in('user_id', adminIds);
+          .select('user_id, sede_id').in('user_id', adminIds);
         (usRows || []).forEach(s => {
           if (!userSedesMap[s.user_id]) userSedesMap[s.user_id] = [];
           userSedesMap[s.user_id].push({ id: s.sede_id, name: sedesMap[s.sede_id] });
         });
-      } catch (_) { /* tabla aún no migrada */ }
+      } catch (_) {}
+    }
+
+    // Cargar sedes de orientadores
+    const counselorIds = (data || []).filter(u => u.role === 'counselor').map(u => u.id);
+    const counselorSedesMap = {};
+    if (counselorIds.length) {
+      try {
+        const { data: csRows } = await sb.from('raice_counselor_sedes')
+          .select('counselor_id, sede_id').in('counselor_id', counselorIds);
+        (csRows || []).forEach(s => {
+          if (!counselorSedesMap[s.counselor_id]) counselorSedesMap[s.counselor_id] = [];
+          counselorSedesMap[s.counselor_id].push({ id: s.sede_id, name: sedesMap[s.sede_id] });
+        });
+      } catch (_) {}
     }
 
     const withCounts = (data || []).map(u => {
-      const sedeEntries = u.role === 'admin' ? (userSedesMap[u.id] || []) : [];
+      const sedeEntries = u.role === 'admin'     ? (userSedesMap[u.id]     || [])
+                        : u.role === 'counselor'  ? (counselorSedesMap[u.id] || [])
+                        : [];
+      const isMultiSede = u.role === 'admin' || u.role === 'counselor';
       return {
         ...u,
-        sede_name:  u.role === 'admin'
+        sede_name:  isMultiSede
           ? (sedeEntries.length === 1 ? sedeEntries[0].name : (sedeEntries.length > 1 ? `${sedeEntries.length} sedes` : null))
           : (sedesMap[u.sede_id] || null),
-        sede_ids:   u.role === 'admin' ? sedeEntries.map(s => s.id)   : null,
-        sede_names: u.role === 'admin' ? sedeEntries.map(s => s.name) : null,
+        sede_ids:   isMultiSede ? sedeEntries.map(s => s.id)   : null,
+        sede_names: isMultiSede ? sedeEntries.map(s => s.name) : null,
         courses_count: courseCountMap[u.id] || 0,
       };
     });
@@ -1081,6 +1142,22 @@ async function handleUsers(req, res, user) {
       const sedeArr = Array.isArray(newUserSedeIds) ? newUserSedeIds.filter(Boolean) : [];
       if (sedeArr.length) {
         try { await sb.from('raice_user_sedes').insert(sedeArr.map(sid => ({ user_id: newUser.id, sede_id: sid }))); } catch (_) {}
+      }
+      await logActivity(sb, user.id, 'create_user', `Usuario creado: @${username}`);
+      return res.status(200).json({ success: true, user: newUser });
+    }
+
+    if (assignedRole === 'counselor') {
+      // Orientador: sede activa = primera sede; todas las sedes en raice_counselor_sedes
+      const sedeArr = Array.isArray(newUserSedeIds) ? newUserSedeIds.filter(Boolean) : (newUserSede ? [newUserSede] : []);
+      const activeSede = sedeArr[0] || null;
+      const { data: newUser, error } = await sb.from('raice_users').insert({
+        first_name, last_name, username: username.toLowerCase(), email, role: assignedRole,
+        password_hash, active: true, sede_id: activeSede
+      }).select().single();
+      if (error) return res.status(500).json({ error: error.code === '23505' ? 'El nombre de usuario ya existe' : 'Error al crear usuario' });
+      if (sedeArr.length) {
+        try { await sb.from('raice_counselor_sedes').insert(sedeArr.map(sid => ({ counselor_id: newUser.id, sede_id: sid }))); } catch (_) {}
       }
       await logActivity(sb, user.id, 'create_user', `Usuario creado: @${username}`);
       return res.status(200).json({ success: true, user: newUser });
@@ -1145,7 +1222,7 @@ async function handleUsers(req, res, user) {
     const { error } = await sb.from('raice_users').update(updates).eq('id', id);
     if (error) return res.status(500).json({ error: error.code === '23505' ? 'El nombre de usuario ya existe' : 'Error al actualizar' });
 
-    // Actualizar asignaciones de sedes para coordinadores (solo superadmin puede)
+    // Actualizar asignaciones de sedes para coordinadores y orientadores (solo superadmin puede)
     if (user.role === 'superadmin' && newSedeIds !== undefined) {
       try {
         const targetRole = effectiveRole || role;
@@ -1154,6 +1231,14 @@ async function handleUsers(req, res, user) {
           const sedeArr = Array.isArray(newSedeIds) ? newSedeIds.filter(Boolean) : [];
           if (sedeArr.length) {
             await sb.from('raice_user_sedes').insert(sedeArr.map(sid => ({ user_id: id, sede_id: sid })));
+          }
+        } else if (targetRole === 'counselor') {
+          await sb.from('raice_counselor_sedes').delete().eq('counselor_id', id);
+          const sedeArr = Array.isArray(newSedeIds) ? newSedeIds.filter(Boolean) : [];
+          if (sedeArr.length) {
+            await sb.from('raice_counselor_sedes').insert(sedeArr.map(sid => ({ counselor_id: id, sede_id: sid })));
+            // Update active sede to first assigned
+            await sb.from('raice_users').update({ sede_id: sedeArr[0] }).eq('id', id);
           }
         } else {
           await sb.from('raice_user_sedes').delete().eq('user_id', id);
@@ -2528,6 +2613,7 @@ async function handleAttendance(req, res, user) {
       // Special day blocks: teacher is temporarily assigned via raice_special_day_blocks,
       // not necessarily in raice_teacher_courses. Skip strict course+schedule check.
       if (is_special_block) {
+        // Only verify the special day block exists for this teacher+course today
         const today = todayCO();
         const { data: sdToday } = await sb.from('raice_special_days')
           .select('id').eq('sede_id', user.sede_id).eq('fecha', today).eq('estado','activo').maybeSingle();
@@ -9829,4 +9915,261 @@ async function getSpecialDayToday(req, res, user) {
 
   const { data: blocks } = await blocksQuery;
   return res.status(200).json({ ...day, blocks: blocks || [] });
+}
+
+// =====================================================
+// COUNSELOR MULTI-SEDE
+// =====================================================
+
+// GET /raice/my-sedes — lista las sedes a las que el orientador tiene acceso
+async function getMySedes(req, res, user) {
+  if (req.method !== 'GET') return res.status(405).end();
+  if (user.role !== 'counselor') return res.status(403).json({ error: 'Solo orientadores' });
+  const sb = getSupabase();
+  const { data: rows } = await sb
+    .from('raice_counselor_sedes')
+    .select('sede_id, raice_sedes(id, name, type)')
+    .eq('counselor_id', user.id);
+  const sedes = (rows || []).map(r => r.raice_sedes).filter(Boolean);
+  return res.status(200).json({ sedes });
+}
+
+// POST /raice/switch-sede — cambia la sede activa del orientador y emite nuevo JWT
+async function switchSede(req, res, user) {
+  if (req.method !== 'POST') return res.status(405).end();
+  if (user.role !== 'counselor') return res.status(403).json({ error: 'Solo orientadores' });
+  const { sede_id } = req.body || {};
+  if (!sede_id) return res.status(400).json({ error: 'sede_id requerido' });
+  const sb = getSupabase();
+
+  // Verify counselor has access to this sede
+  const { data: row } = await sb
+    .from('raice_counselor_sedes')
+    .select('sede_id')
+    .eq('counselor_id', user.id)
+    .eq('sede_id', sede_id)
+    .maybeSingle();
+  if (!row) return res.status(403).json({ error: 'No tienes acceso a esta sede' });
+
+  // Fetch sede name
+  const { data: sedeData } = await sb.from('raice_sedes').select('name').eq('id', sede_id).maybeSingle();
+
+  // Update active sede in raice_users
+  await sb.from('raice_users').update({ sede_id }).eq('id', user.id);
+
+  // Fetch all assigned sedes for the new token
+  const { data: allRows } = await sb
+    .from('raice_counselor_sedes').select('sede_id').eq('counselor_id', user.id);
+  const counselor_sede_ids = (allRows || []).map(r => r.sede_id);
+
+  // Issue new token
+  const newToken = jwt.sign(
+    {
+      id: user.id, role: user.role, username: user.username,
+      sede_id,
+      counselor_sede_ids,
+    },
+    _JWT_SECRET,
+    { expiresIn: '8h' }
+  );
+
+  return res.status(200).json({
+    token: newToken,
+    sede_id,
+    sede_name: sedeData?.name || '',
+    counselor_sede_ids,
+  });
+}
+
+// =====================================================
+// MENSAJES INSTITUCIONALES
+// =====================================================
+
+async function _resolveMsgRecipients(sb, target, sedeId) {
+  // Individual teacher
+  if (target.startsWith('user_')) return [target.replace('user_', '')];
+
+  // Specific course
+  if (target.startsWith('course_')) {
+    const courseId = target.replace('course_', '');
+    const { data: tc } = await sb.from('raice_teacher_courses')
+      .select('teacher_id').eq('course_id', courseId);
+    return [...new Set((tc || []).map(r => r.teacher_id))];
+  }
+
+  // Single grade (legacy: grade_6) or multiple grades (grades_6,7,9)
+  let grades = [];
+  if (target.startsWith('grade_'))  grades = [parseInt(target.replace('grade_', ''), 10)];
+  if (target.startsWith('grades_')) grades = target.replace('grades_', '').split(',').map(Number).filter(Boolean);
+
+  if (grades.length) {
+    let cq = sb.from('raice_courses').select('id').in('grade', grades);
+    if (sedeId) cq = cq.eq('sede_id', sedeId);
+    const { data: courses } = await cq;
+    const cids = (courses || []).map(c => c.id);
+    if (!cids.length) return [];
+    const { data: tc } = await sb.from('raice_teacher_courses').select('teacher_id').in('course_id', cids);
+    return [...new Set((tc || []).map(r => r.teacher_id))];
+  }
+
+  // 'all'
+  let q = sb.from('raice_users').select('id').eq('role', 'teacher').eq('is_active', true);
+  if (sedeId) q = q.eq('sede_id', sedeId);
+  const { data } = await q;
+  return (data || []).map(r => r.id);
+}
+
+// GET + POST /raice/messages
+async function handleMessages(req, res, user) {
+  const sb = getSupabase();
+  const SENDER_ROLES = ['admin', 'rector', 'counselor'];
+
+  if (req.method === 'GET') {
+    if (user.role === 'teacher') {
+      // Inbox: messages where this teacher is a recipient
+      const { data: rows, error } = await sb
+        .from('raice_message_reads')
+        .select(`
+          read_at,
+          raice_messages(
+            id, type, subject, body, target, created_at, expires_at, sede_id,
+            sender:raice_users!raice_messages_sender_id_fkey(first_name, last_name, role)
+          )
+        `)
+        .eq('teacher_id', user.id)
+        .order('created_at', { ascending: false, foreignTable: 'raice_messages' });
+      if (error) return res.status(500).json({ error: error.message });
+      const now = new Date();
+      const msgs = (rows || [])
+        .filter(r => r.raice_messages)
+        .filter(r => !r.raice_messages.expires_at || new Date(r.raice_messages.expires_at) > now)
+        .map(r => ({
+          ...r.raice_messages,
+          read_at: r.read_at,
+          unread: !r.read_at,
+        }));
+      return res.status(200).json({ messages: msgs });
+    }
+
+    if (SENDER_ROLES.includes(user.role)) {
+      // Sent box + read stats
+      const { data: msgs, error } = await sb
+        .from('raice_messages')
+        .select('*')
+        .eq('sender_id', user.id)
+        .order('created_at', { ascending: false });
+      if (error) return res.status(500).json({ error: error.message });
+
+      // Attach read counts
+      const ids = (msgs || []).map(m => m.id);
+      let readMap = {};
+      if (ids.length) {
+        const { data: reads } = await sb
+          .from('raice_message_reads')
+          .select('message_id, read_at')
+          .in('message_id', ids);
+        for (const r of (reads || [])) {
+          if (!readMap[r.message_id]) readMap[r.message_id] = { total: 0, read: 0 };
+          readMap[r.message_id].total++;
+          if (r.read_at) readMap[r.message_id].read++;
+        }
+      }
+      const result = (msgs || []).map(m => ({
+        ...m,
+        read_count: readMap[m.id]?.read || 0,
+        total_count: readMap[m.id]?.total || 0,
+      }));
+      return res.status(200).json({ messages: result });
+    }
+
+    return res.status(403).json({ error: 'Sin acceso' });
+  }
+
+  if (req.method === 'POST') {
+    if (!SENDER_ROLES.includes(user.role))
+      return res.status(403).json({ error: 'Solo coordinadores, rectores u orientadores pueden enviar mensajes' });
+
+    const { type, subject, body, target, sede_id: bodySede, expires_at } = req.body || {};
+    if (!subject?.trim() || !body?.trim())
+      return res.status(400).json({ error: 'Asunto y mensaje son requeridos' });
+
+    const finalType   = ['info','urgent','reminder'].includes(type) ? type : 'info';
+    const finalTarget = target || 'all';
+    const sedeId      = user.role === 'rector' ? (bodySede || null) : (user.sede_id || null);
+
+    const { data: msg, error: insErr } = await sb
+      .from('raice_messages')
+      .insert({
+        sender_id: user.id,
+        sender_role: user.role,
+        type: finalType,
+        subject: subject.trim(),
+        body: body.trim(),
+        target: finalTarget,
+        sede_id: sedeId,
+        expires_at: expires_at || null,
+      })
+      .select()
+      .single();
+    if (insErr) return res.status(500).json({ error: insErr.message });
+
+    const recipientIds = await _resolveMsgRecipients(sb, finalTarget, sedeId);
+    if (recipientIds.length) {
+      const readRows = recipientIds.map(tid => ({
+        message_id: msg.id,
+        teacher_id: tid,
+        read_at: null,
+      }));
+      await sb.from('raice_message_reads').insert(readRows);
+    }
+
+    return res.status(201).json({ message: msg, recipients: recipientIds.length });
+  }
+
+  return res.status(405).end();
+}
+
+// DELETE /raice/messages/:id
+async function handleMessageDetail(req, res, user) {
+  if (req.method !== 'DELETE') return res.status(405).end();
+  const msgId = pathParts[2]; // closure over pathParts not available here; use req directly
+  // Extract id from URL
+  const urlParts = (req.url || '').split('?')[0].split('/').filter(Boolean);
+  const id = urlParts[urlParts.length - 1];
+  if (!id) return res.status(400).json({ error: 'ID requerido' });
+
+  const sb = getSupabase();
+  const { data: msg } = await sb.from('raice_messages').select('sender_id').eq('id', id).maybeSingle();
+  if (!msg) return res.status(404).json({ error: 'Mensaje no encontrado' });
+  if (msg.sender_id !== user.id) return res.status(403).json({ error: 'No puedes eliminar este mensaje' });
+
+  await sb.from('raice_messages').delete().eq('id', id);
+  return res.status(200).json({ ok: true });
+}
+
+// POST /raice/messages/read — mark messages as read for the current teacher
+async function markMsgsRead(req, res, user) {
+  if (req.method !== 'POST') return res.status(405).end();
+  if (user.role !== 'teacher') return res.status(403).json({ error: 'Solo docentes' });
+  const { message_id } = req.body || {};
+  if (!message_id) return res.status(400).json({ error: 'message_id requerido' });
+  const sb = getSupabase();
+  await sb.from('raice_message_reads')
+    .update({ read_at: new Date().toISOString() })
+    .eq('message_id', message_id)
+    .eq('teacher_id', user.id)
+    .is('read_at', null);
+  return res.status(200).json({ ok: true });
+}
+
+// GET /raice/messages/unread-count — unread count for teacher's bell badge
+async function getMsgUnreadCount(req, res, user) {
+  if (req.method !== 'GET') return res.status(405).end();
+  if (user.role !== 'teacher') return res.status(200).json({ count: 0 });
+  const sb = getSupabase();
+  const { count } = await sb.from('raice_message_reads')
+    .select('*', { count: 'exact', head: true })
+    .eq('teacher_id', user.id)
+    .is('read_at', null);
+  return res.status(200).json({ count: count || 0 });
 }

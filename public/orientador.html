@@ -1357,14 +1357,30 @@
             </div>
             <div>
               <label style="font-size:.75rem;font-weight:700;color:var(--gray);display:block;margin-bottom:.35rem;">Destinatarios</label>
-              <select id="omsg-target" style="width:100%;padding:.5rem .7rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.82rem;">
-                <option value="all">Todos los docentes</option>
-                <optgroup label="Por grado">
-                  <option value="grade_6">Grado 6°</option><option value="grade_7">Grado 7°</option>
-                  <option value="grade_8">Grado 8°</option><option value="grade_9">Grado 9°</option>
-                  <option value="grade_10">Grado 10°</option><option value="grade_11">Grado 11°</option>
-                </optgroup>
-              </select>
+              <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.5rem;">
+                <label style="display:flex;align-items:center;gap:.25rem;font-size:.8rem;cursor:pointer;background:#f1f5f9;padding:.28rem .6rem;border-radius:20px;">
+                  <input type="radio" name="omsg-mode" value="all" checked onchange="onOrientadorMsgModeChange()"> Todos
+                </label>
+                <label style="display:flex;align-items:center;gap:.25rem;font-size:.8rem;cursor:pointer;background:#f1f5f9;padding:.28rem .6rem;border-radius:20px;">
+                  <input type="radio" name="omsg-mode" value="grades" onchange="onOrientadorMsgModeChange()"> Por grado
+                </label>
+                <label style="display:flex;align-items:center;gap:.25rem;font-size:.8rem;cursor:pointer;background:#f1f5f9;padding:.28rem .6rem;border-radius:20px;">
+                  <input type="radio" name="omsg-mode" value="course" onchange="onOrientadorMsgModeChange()"> Por curso
+                </label>
+              </div>
+              <div id="omsg-grades-panel" style="display:none;display:flex;flex-wrap:wrap;gap:.4rem .8rem;padding:.5rem .6rem;background:#f8fafc;border-radius:10px;border:1.5px solid var(--border);">
+                <label style="font-size:.8rem;cursor:pointer;display:flex;align-items:center;gap:.25rem;"><input type="checkbox" class="omsg-grade-cb" value="6"> 6°</label>
+                <label style="font-size:.8rem;cursor:pointer;display:flex;align-items:center;gap:.25rem;"><input type="checkbox" class="omsg-grade-cb" value="7"> 7°</label>
+                <label style="font-size:.8rem;cursor:pointer;display:flex;align-items:center;gap:.25rem;"><input type="checkbox" class="omsg-grade-cb" value="8"> 8°</label>
+                <label style="font-size:.8rem;cursor:pointer;display:flex;align-items:center;gap:.25rem;"><input type="checkbox" class="omsg-grade-cb" value="9"> 9°</label>
+                <label style="font-size:.8rem;cursor:pointer;display:flex;align-items:center;gap:.25rem;"><input type="checkbox" class="omsg-grade-cb" value="10"> 10°</label>
+                <label style="font-size:.8rem;cursor:pointer;display:flex;align-items:center;gap:.25rem;"><input type="checkbox" class="omsg-grade-cb" value="11"> 11°</label>
+              </div>
+              <div id="omsg-course-panel" style="display:none;">
+                <select id="omsg-course-sel" style="width:100%;padding:.5rem .7rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.82rem;">
+                  <option value="">— Seleccionar curso —</option>
+                </select>
+              </div>
             </div>
             <div>
               <label style="font-size:.75rem;font-weight:700;color:var(--gray);display:block;margin-bottom:.35rem;">Asunto *</label>
@@ -3543,15 +3559,60 @@ var showUpdateBanner = window.RAICE.showUpdateBanner;
 // ── MENSAJES ORIENTADOR ──
 const _OMSG_TYPE_LABEL = { info:'Informativo', urgent:'Urgente', reminder:'Recordatorio' };
 const _OMSG_TYPE_COLOR = { info:'#dbeafe|#1e40af', urgent:'#fee2e2|#991b1b', reminder:'#fef3c7|#92400e' };
-const _OMSG_TARGET_LBL = { all:'Todos los docentes', grade_6:'Grado 6°', grade_7:'Grado 7°', grade_8:'Grado 8°', grade_9:'Grado 9°', grade_10:'Grado 10°', grade_11:'Grado 11°' };
+
+function omsgTargetLabel(target) {
+  if (!target || target === 'all') return 'Todos los docentes';
+  if (target.startsWith('grades_')) return 'Grado(s) ' + target.replace('grades_','').split(',').map(g=>g+'°').join(', ');
+  if (target.startsWith('grade_'))  return 'Grado ' + target.replace('grade_','') + '°';
+  if (target.startsWith('course_')) return 'Curso específico';
+  if (target.startsWith('user_'))   return 'Docente individual';
+  return target;
+}
+
+function onOrientadorMsgModeChange() {
+  const mode = document.querySelector('input[name="omsg-mode"]:checked')?.value || 'all';
+  document.getElementById('omsg-grades-panel').style.display = mode === 'grades' ? 'flex' : 'none';
+  document.getElementById('omsg-course-panel').style.display = mode === 'course' ? '' : 'none';
+  if (mode === 'course' && document.getElementById('omsg-course-sel').options.length <= 1)
+    loadOrientadorCoursesForMsg();
+}
+
+async function loadOrientadorCoursesForMsg() {
+  const sel = document.getElementById('omsg-course-sel');
+  sel.innerHTML = '<option value="">— Cargando… —</option>';
+  const r = await api('/raice/courses');
+  const courses = r.ok ? (r.data?.courses || r.data || []) : [];
+  sel.innerHTML = '<option value="">— Seleccionar curso —</option>'
+    + courses.filter(c => c.type !== 'subgroup')
+      .sort((a,b) => (a.grade-b.grade)||(a.number-b.number))
+      .map(c => `<option value="${c.id}">Grado ${c.grade}° - Curso ${c.number||c.name||''}</option>`)
+      .join('');
+}
+
+function buildOrientadorMsgTarget() {
+  const mode = document.querySelector('input[name="omsg-mode"]:checked')?.value || 'all';
+  if (mode === 'all') return 'all';
+  if (mode === 'grades') {
+    const checked = [...document.querySelectorAll('.omsg-grade-cb:checked')].map(cb=>cb.value);
+    if (!checked.length) { window.RAICE.showToast('Selecciona al menos un grado','error'); return null; }
+    return 'grades_' + checked.join(',');
+  }
+  if (mode === 'course') {
+    const id = document.getElementById('omsg-course-sel')?.value;
+    if (!id) { window.RAICE.showToast('Selecciona un curso','error'); return null; }
+    return 'course_' + id;
+  }
+  return 'all';
+}
 
 async function sendOrientadorMessage() {
   const subject = document.getElementById('omsg-subject').value.trim();
   const body    = document.getElementById('omsg-body').value.trim();
   const type    = document.querySelector('input[name="omsg-type"]:checked')?.value || 'info';
-  const target  = document.getElementById('omsg-target').value;
   if (!subject) { window.RAICE.showToast('Escribe un asunto', 'error'); return; }
   if (!body)    { window.RAICE.showToast('Escribe el mensaje', 'error'); return; }
+  const target = buildOrientadorMsgTarget();
+  if (target === null) return;
   const btn = document.getElementById('btn-omsg-send');
   btn.disabled = true; btn.textContent = 'Enviando…';
   const r = await api('/raice/messages', { method:'POST', body: JSON.stringify({ type, subject, body, target }) });
@@ -3560,7 +3621,8 @@ async function sendOrientadorMessage() {
   window.RAICE.showToast(`Mensaje enviado a ${r.data.recipients} docente(s)`, 'success');
   document.getElementById('omsg-subject').value = '';
   document.getElementById('omsg-body').value = '';
-  document.getElementById('omsg-target').value = 'all';
+  document.querySelector('input[name="omsg-mode"][value="all"]').checked = true;
+  onOrientadorMsgModeChange();
   loadOrientadorSentMessages();
 }
 
@@ -3576,13 +3638,12 @@ async function loadOrientadorSentMessages() {
   }
   box.innerHTML = msgs.map(m => {
     const [bg, col] = (_OMSG_TYPE_COLOR[m.type] || '#f1f5f9|#475569').split('|');
-    const tLbl = m.target.startsWith('user_') ? 'Docente individual' : (_OMSG_TARGET_LBL[m.target] || m.target);
     const fecha = new Date(m.created_at).toLocaleDateString('es-CO', { day:'2-digit', month:'short' });
     const pct = m.total_count ? Math.round(m.read_count / m.total_count * 100) : 0;
     return `<div style="background:var(--white,#fff);border:1.5px solid var(--border);border-radius:12px;padding:.8rem .95rem;margin-bottom:.55rem;">
       <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-bottom:.35rem;">
         <span style="background:${bg};color:${col};padding:.12rem .45rem;border-radius:20px;font-size:.7rem;font-weight:700;">${_OMSG_TYPE_LABEL[m.type]||m.type}</span>
-        <span style="font-size:.71rem;color:var(--gray);">→ ${tLbl}</span>
+        <span style="font-size:.71rem;color:var(--gray);">→ ${omsgTargetLabel(m.target)}</span>
         <span style="margin-left:auto;font-size:.7rem;color:var(--gray);">${fecha}</span>
         <button onclick="deleteOrientadorMessage('${m.id}',this)" style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:.78rem;padding:0 .2rem;">✕</button>
       </div>

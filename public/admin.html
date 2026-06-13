@@ -1771,22 +1771,46 @@
             </div>
             <div>
               <label class="form-label">Destinatarios</label>
-              <select id="msg-target" onchange="onMsgTargetChange(this)"
-                style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.83rem;">
-                <option value="all">Todos los docentes</option>
-                <optgroup label="Por grado">
-                  <option value="grade_6">Grado 6°</option>
-                  <option value="grade_7">Grado 7°</option>
-                  <option value="grade_8">Grado 8°</option>
-                  <option value="grade_9">Grado 9°</option>
-                  <option value="grade_10">Grado 10°</option>
-                  <option value="grade_11">Grado 11°</option>
-                </optgroup>
-                <option value="individual">Un docente específico</option>
-              </select>
-              <select id="msg-teacher-sel" style="display:none;width:100%;margin-top:.45rem;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.83rem;">
-                <option value="">— Seleccionar docente —</option>
-              </select>
+              <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.5rem;">
+                <label style="display:flex;align-items:center;gap:.3rem;font-size:.8rem;cursor:pointer;padding:.3rem .6rem;border:1.5px solid var(--border);border-radius:8px;background:var(--bg);">
+                  <input type="radio" name="msg-mode" value="all" checked onchange="onAdminMsgModeChange()"> Todos
+                </label>
+                <label style="display:flex;align-items:center;gap:.3rem;font-size:.8rem;cursor:pointer;padding:.3rem .6rem;border:1.5px solid var(--border);border-radius:8px;background:var(--bg);">
+                  <input type="radio" name="msg-mode" value="grades" onchange="onAdminMsgModeChange()"> Por grado
+                </label>
+                <label style="display:flex;align-items:center;gap:.3rem;font-size:.8rem;cursor:pointer;padding:.3rem .6rem;border:1.5px solid var(--border);border-radius:8px;background:var(--bg);">
+                  <input type="radio" name="msg-mode" value="course" onchange="onAdminMsgModeChange()"> Por curso
+                </label>
+                <label style="display:flex;align-items:center;gap:.3rem;font-size:.8rem;cursor:pointer;padding:.3rem .6rem;border:1.5px solid var(--border);border-radius:8px;background:var(--bg);">
+                  <input type="radio" name="msg-mode" value="individual" onchange="onAdminMsgModeChange()"> Individual
+                </label>
+              </div>
+              <!-- Grades checkboxes -->
+              <div id="msg-grades-panel" style="display:none;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:.55rem .75rem;">
+                <div style="font-size:.72rem;color:var(--gray);margin-bottom:.4rem;font-weight:600;">Selecciona uno o más grados:</div>
+                <div style="display:flex;flex-wrap:wrap;gap:.5rem;">
+                  <label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;cursor:pointer;"><input type="checkbox" class="msg-grade-cb" value="6"> 6°</label>
+                  <label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;cursor:pointer;"><input type="checkbox" class="msg-grade-cb" value="7"> 7°</label>
+                  <label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;cursor:pointer;"><input type="checkbox" class="msg-grade-cb" value="8"> 8°</label>
+                  <label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;cursor:pointer;"><input type="checkbox" class="msg-grade-cb" value="9"> 9°</label>
+                  <label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;cursor:pointer;"><input type="checkbox" class="msg-grade-cb" value="10"> 10°</label>
+                  <label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;cursor:pointer;"><input type="checkbox" class="msg-grade-cb" value="11"> 11°</label>
+                </div>
+              </div>
+              <!-- Course selector -->
+              <div id="msg-course-panel" style="display:none;">
+                <select id="msg-course-sel"
+                  style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.83rem;">
+                  <option value="">— Cargando cursos… —</option>
+                </select>
+              </div>
+              <!-- Individual teacher -->
+              <div id="msg-teacher-panel" style="display:none;">
+                <select id="msg-teacher-sel"
+                  style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.83rem;">
+                  <option value="">— Seleccionar docente —</option>
+                </select>
+              </div>
             </div>
             <div>
               <label class="form-label">Mensaje *</label>
@@ -11097,23 +11121,41 @@ async function deleteBlock(blockId, btn) {
 // ── MENSAJES A DOCENTES ──
 const _MSG_TYPE_LABEL = { info:'Informativo', urgent:'Urgente', reminder:'Recordatorio' };
 const _MSG_TYPE_CLASS = { info:'#dbeafe|#1e40af', urgent:'#fee2e2|#991b1b', reminder:'#fef3c7|#92400e' };
-const _MSG_TARGET_LABEL = {
-  all:'Todos los docentes', grade_6:'Grado 6°', grade_7:'Grado 7°',
-  grade_8:'Grado 8°', grade_9:'Grado 9°', grade_10:'Grado 10°', grade_11:'Grado 11°',
-};
 
-function onMsgTargetChange(sel) {
-  const tSel = document.getElementById('msg-teacher-sel');
-  if (sel.value === 'individual') {
-    tSel.style.display = '';
-    if (!tSel.options.length || tSel.options.length === 1) {
-      // Populate from _sdTeachers
-      if (!_sdTeachers.length) loadTeachersForMsg();
-      else populateMsgTeacherSel();
-    }
-  } else {
-    tSel.style.display = 'none';
+function msgTargetLabel(target) {
+  if (!target || target === 'all') return 'Todos los docentes';
+  if (target.startsWith('grades_')) {
+    const gs = target.replace('grades_', '').split(',');
+    return 'Grado(s) ' + gs.map(g => g + '°').join(', ');
   }
+  if (target.startsWith('grade_')) return 'Grado ' + target.replace('grade_', '') + '°';
+  if (target.startsWith('course_')) return 'Curso específico';
+  if (target.startsWith('user_'))   return 'Docente individual';
+  return target;
+}
+
+function onAdminMsgModeChange() {
+  const mode = document.querySelector('input[name="msg-mode"]:checked')?.value || 'all';
+  document.getElementById('msg-grades-panel').style.display  = mode === 'grades'     ? '' : 'none';
+  document.getElementById('msg-course-panel').style.display  = mode === 'course'     ? '' : 'none';
+  document.getElementById('msg-teacher-panel').style.display = mode === 'individual' ? '' : 'none';
+  if (mode === 'course' && document.getElementById('msg-course-sel').options.length <= 1)
+    loadAdminCoursesForMsg();
+  if (mode === 'individual' && document.getElementById('msg-teacher-sel').options.length <= 1) {
+    if (!_sdTeachers.length) loadTeachersForMsg(); else populateMsgTeacherSel();
+  }
+}
+
+async function loadAdminCoursesForMsg() {
+  const sel = document.getElementById('msg-course-sel');
+  sel.innerHTML = '<option value="">— Cargando… —</option>';
+  const r = await fetchAPI('/raice/courses');
+  const courses = r.ok ? (r.data?.courses || r.data || []) : [];
+  sel.innerHTML = '<option value="">— Seleccionar curso —</option>'
+    + courses.filter(c => c.type !== 'subgroup')
+      .sort((a,b) => (a.grade - b.grade) || (a.number - b.number))
+      .map(c => `<option value="${c.id}">Grado ${c.grade}° - Curso ${c.number || c.name || ''}</option>`)
+      .join('');
 }
 
 async function loadTeachersForMsg() {
@@ -11128,6 +11170,27 @@ function populateMsgTeacherSel() {
     + _sdTeachers.map(t => `<option value="${t.id}">${t.first_name} ${t.last_name}</option>`).join('');
 }
 
+function buildAdminMsgTarget() {
+  const mode = document.querySelector('input[name="msg-mode"]:checked')?.value || 'all';
+  if (mode === 'all') return 'all';
+  if (mode === 'grades') {
+    const checked = [...document.querySelectorAll('.msg-grade-cb:checked')].map(cb => cb.value);
+    if (!checked.length) { showToast('Selecciona al menos un grado', 'error'); return null; }
+    return 'grades_' + checked.join(',');
+  }
+  if (mode === 'course') {
+    const id = document.getElementById('msg-course-sel')?.value;
+    if (!id) { showToast('Selecciona un curso', 'error'); return null; }
+    return 'course_' + id;
+  }
+  if (mode === 'individual') {
+    const id = document.getElementById('msg-teacher-sel')?.value;
+    if (!id) { showToast('Selecciona un docente', 'error'); return null; }
+    return 'user_' + id;
+  }
+  return 'all';
+}
+
 document.getElementById('msg-body')?.addEventListener('input', function() {
   const cnt = document.getElementById('msg-char-count');
   if (cnt) cnt.textContent = this.value.length + ' / 1000';
@@ -11137,37 +11200,27 @@ async function sendAdminMessage() {
   const subject = document.getElementById('msg-subject').value.trim();
   const body    = document.getElementById('msg-body').value.trim();
   const type    = document.querySelector('input[name="msg-type"]:checked')?.value || 'info';
-  const target  = document.getElementById('msg-target').value;
   const expires = document.getElementById('msg-expires').value;
-  const teacherSel = document.getElementById('msg-teacher-sel');
-
   if (!subject) { showToast('Escribe un asunto', 'error'); return; }
   if (!body)    { showToast('Escribe el mensaje', 'error'); return; }
-
-  let finalTarget = target;
-  if (target === 'individual') {
-    const tid = teacherSel?.value;
-    if (!tid) { showToast('Selecciona un docente', 'error'); return; }
-    finalTarget = 'user_' + tid;
-  }
+  const target = buildAdminMsgTarget();
+  if (target === null) return;
 
   const btn = document.getElementById('btn-send-msg');
   btn.disabled = true; btn.textContent = 'Enviando…';
-
   const r = await fetchAPI('/raice/messages', {
     method: 'POST',
-    body: JSON.stringify({ type, subject, body, target: finalTarget, expires_at: expires || null }),
+    body: JSON.stringify({ type, subject, body, target, expires_at: expires || null }),
   });
   btn.disabled = false; btn.textContent = '📤 Enviar mensaje';
-
   if (!r.ok) { showToast(r.data?.error || 'Error al enviar', 'error'); return; }
   showToast(`Mensaje enviado a ${r.data.recipients} docente(s)`, 'success');
   document.getElementById('msg-subject').value = '';
   document.getElementById('msg-body').value = '';
   document.getElementById('msg-expires').value = '';
-  document.getElementById('msg-target').value = 'all';
-  document.getElementById('msg-teacher-sel').style.display = 'none';
   document.getElementById('msg-char-count').textContent = '0 / 1000';
+  document.querySelector('input[name="msg-mode"][value="all"]').checked = true;
+  onAdminMsgModeChange();
   loadSentMessages();
 }
 
@@ -11183,14 +11236,12 @@ async function loadSentMessages() {
   }
   box.innerHTML = msgs.map(m => {
     const [bg, col] = (_MSG_TYPE_CLASS[m.type] || '#f1f5f9|#475569').split('|');
-    const targetLabel = m.target.startsWith('user_') ? 'Docente individual'
-      : (_MSG_TARGET_LABEL[m.target] || m.target);
-    const fecha = new Date(m.created_at).toLocaleDateString('es-CO', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    const fecha = new Date(m.created_at).toLocaleDateString('es-CO', { day:'2-digit', month:'short', year:'numeric' });
     const readPct = m.total_count ? Math.round((m.read_count / m.total_count) * 100) : 0;
     return `<div style="background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:.85rem 1rem;margin-bottom:.6rem;">
       <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.4rem;">
         <span style="background:${bg};color:${col};padding:.14rem .5rem;border-radius:20px;font-size:.72rem;font-weight:700;">${_MSG_TYPE_LABEL[m.type] || m.type}</span>
-        <span style="font-size:.73rem;color:var(--gray);">→ ${escapeHtml(targetLabel)}</span>
+        <span style="font-size:.73rem;color:var(--gray);">→ ${escapeHtml(msgTargetLabel(m.target))}</span>
         <span style="margin-left:auto;font-size:.72rem;color:var(--gray);">${fecha}</span>
         <button onclick="deleteAdminMessage('${m.id}',this)" title="Eliminar" style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:.82rem;padding:.1rem .3rem;">✕</button>
       </div>
@@ -11198,7 +11249,7 @@ async function loadSentMessages() {
       <div style="font-size:.8rem;color:#334155;margin-bottom:.5rem;white-space:pre-wrap;">${escapeHtml(m.body.length > 120 ? m.body.slice(0,120)+'…' : m.body)}</div>
       <div style="display:flex;align-items:center;gap:.5rem;">
         <div style="flex:1;height:5px;background:var(--border);border-radius:99px;overflow:hidden;">
-          <div style="height:100%;width:${readPct}%;background:var(--teal);border-radius:99px;transition:width .4s;"></div>
+          <div style="height:100%;width:${readPct}%;background:var(--teal);border-radius:99px;"></div>
         </div>
         <span style="font-size:.73rem;color:var(--gray);white-space:nowrap;">Leído ${m.read_count} / ${m.total_count}</span>
       </div>
