@@ -549,7 +549,7 @@
 
     <div class="nav-group-title">Comunicaciones</div>
     <button class="nav-item" onclick="showSection('mensajes',this)">
-      <span class="nav-ico">💬</span> Mensajes a docentes
+      <span class="nav-ico">💬</span> Mensajes
     </button>
 
     <div class="nav-group-title">Mi cuenta</div>
@@ -2364,7 +2364,7 @@ function showSection(name, btn) {
     excusas:'Excusas de estudiantes', subgrupos:'Subgrupos',
     'mapa-escolar':'Mapa escolar',
     'horarios-especiales':'Horarios especiales',
-    'mensajes':'Mensajes a docentes'
+    'mensajes':'Mensajes'
   };
   document.getElementById('page-title').textContent = titles[name] || name;
   if (name === 'dashboard')    loadDashboard();
