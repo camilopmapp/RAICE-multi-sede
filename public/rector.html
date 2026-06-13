@@ -392,8 +392,20 @@
   #modal-ficha .acud-item:last-child{border-bottom:none;}
   #modal-ficha .acud-ico{width:32px;height:32px;border-radius:50%;background:#ede9fe;color:#7c3aed;display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0;margin-top:.1rem;}
   #modal-ficha .empty-state{text-align:center;padding:2rem 1rem;color:var(--gray);font-size:.88rem;}
+  /* ── Historial ausencias docentes ── */
+  .absq-btn{padding:.32rem .85rem;border-radius:8px;border:1.5px solid var(--border);background:white;color:var(--gray);font-size:.78rem;font-weight:600;cursor:pointer;transition:all .15s;font-family:'DM Sans',sans-serif;}
+  .absq-btn:hover{border-color:var(--teal2);color:var(--teal);}
+  .absq-btn.active{background:var(--teal);border-color:var(--teal);color:white;}
+  .absh-date{display:inline-block;font-size:.72rem;background:#e0f2fe;color:#0369a1;border-radius:5px;padding:.1rem .45rem;font-weight:700;}
+  .absh-table{width:100%;border-collapse:separate;border-spacing:0;font-size:.82rem;margin-top:.5rem;}
+  .absh-table th{text-align:left;font-weight:600;color:var(--gray);font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;padding:.45rem .6rem;border-bottom:1.5px solid var(--border);}
+  .absh-table td{padding:.6rem .6rem;border-bottom:1px solid var(--border);vertical-align:top;}
+  .absh-table tr:last-child td{border-bottom:none;}
+  .absh-rep{font-size:.74rem;color:var(--gray);margin-top:.2rem;}
+  .absh-rep span{display:inline-block;background:#f0fdf4;color:#15803d;border-radius:4px;padding:.05rem .35rem;margin:.1rem .15rem 0 0;font-weight:600;}
 </style>
 <script src="/js/chart.umd.min.js"></script>
+<script src="/js/xlsx.full.min.js"></script>
 <script src="/shared/constants/index.js"></script>
 <script src="/shared/utils/index.js"></script>
 <script src="/shared/data/apiClient.js"></script>
@@ -647,6 +659,39 @@
         <div id="sched-teacher-table" style="overflow-x:auto;">
           <div class="empty"><div class="ei">&#128197;</div>Selecciona un docente</div>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== HISTORIAL DE AUSENCIAS DOCENTES ===== -->
+<div class="section-label animate-in"><span class="section-label-text">Historial de ausencias docentes</span><div class="section-label-line"></div></div>
+<div class="full-section">
+  <div class="card">
+    <div class="card-hd">
+      <h3>📅 Ausencias por período</h3>
+      <button onclick="exportAbsenceHistoryExcel()" style="padding:.3rem .8rem;border-radius:8px;border:1.5px solid var(--border);background:white;color:var(--navy);font-size:.76rem;font-weight:600;cursor:pointer;">📥 Excel</button>
+    </div>
+    <div class="card-bd">
+      <!-- Filtros -->
+      <div style="display:flex;flex-wrap:wrap;gap:.45rem;align-items:center;margin-bottom:.85rem;">
+        <button class="absq-btn active" id="absq-week"  onclick="absenceQuickFilter('week',this)">Esta semana</button>
+        <button class="absq-btn"        id="absq-month" onclick="absenceQuickFilter('month',this)">Este mes</button>
+        <button class="absq-btn"        id="absq-year"  onclick="absenceQuickFilter('year',this)">Este año</button>
+        <span style="color:var(--border);padding:0 .1rem;">|</span>
+        <input type="date" id="absq-from" style="padding:.3rem .55rem;border:1.5px solid var(--border);border-radius:8px;font-size:.8rem;font-family:'DM Sans',sans-serif;color:var(--navy);">
+        <span style="font-size:.8rem;color:var(--gray);">a</span>
+        <input type="date" id="absq-to"   style="padding:.3rem .55rem;border:1.5px solid var(--border);border-radius:8px;font-size:.8rem;font-family:'DM Sans',sans-serif;color:var(--navy);">
+        <select id="absq-teacher" style="padding:.3rem .55rem;border:1.5px solid var(--border);border-radius:8px;font-size:.8rem;font-family:'DM Sans',sans-serif;color:var(--navy);background:white;max-width:200px;">
+          <option value="">Todos los docentes</option>
+        </select>
+        <button onclick="loadAbsenceHistory()" style="padding:.32rem .9rem;border-radius:8px;border:none;background:var(--teal);color:white;font-size:.8rem;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">Consultar</button>
+      </div>
+      <!-- Tarjetas resumen -->
+      <div id="absh-summary" style="display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem;margin-bottom:.85rem;"></div>
+      <!-- Tabla -->
+      <div id="absh-table-wrap">
+        <div class="empty"><div class="ei">📅</div>Selecciona un período y presiona Consultar</div>
       </div>
     </div>
   </div>
@@ -1876,6 +1921,7 @@ async function loadScheduleOverview() {
 
   renderGradeSchedule();
   renderRectorAhora();
+  _populateAbsTeacherDropdown();
 
   // Auto-refresco "Ahora mismo" cada 2 minutos
   if (window._rectorAhoraTimer) clearInterval(window._rectorAhoraTimer);
@@ -2135,6 +2181,7 @@ loadDashboard();
 loadStudents();
 loadInsights();
 loadScheduleOverview();
+absenceQuickFilter('week', document.getElementById('absq-week'));
 window.addEventListener('load', () => { setTimeout(initRealtime, 2000); });
 </script>
 <script>
@@ -2307,6 +2354,135 @@ async function deleteRectorMessage(id, btn) {
   if (!r.ok) { showToast('Error al eliminar', 'error'); btn.disabled = false; return; }
   showToast('Mensaje eliminado', 'success');
   loadRectorSentMessages();
+}
+
+// =====================================================================
+// HISTORIAL DE AUSENCIAS DOCENTES
+// =====================================================================
+
+let _absHistData = [];
+
+function _isoDate(d) { return d.toISOString().split('T')[0]; }
+
+function absenceQuickFilter(range, btn) {
+  document.querySelectorAll('.absq-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const now  = new Date();
+  let from, to;
+  if (range === 'week') {
+    const day  = now.getDay() || 7;
+    const mon  = new Date(now); mon.setDate(now.getDate() - day + 1);
+    from = _isoDate(mon); to = _isoDate(now);
+  } else if (range === 'month') {
+    from = _isoDate(new Date(now.getFullYear(), now.getMonth(), 1));
+    to   = _isoDate(now);
+  } else {
+    from = `${now.getFullYear()}-01-01`;
+    to   = _isoDate(now);
+  }
+  document.getElementById('absq-from').value = from;
+  document.getElementById('absq-to').value   = to;
+  loadAbsenceHistory();
+}
+
+function _populateAbsTeacherDropdown() {
+  if (!_schedData) return;
+  const teachers = {};
+  _schedData.forEach(s => {
+    if (s.teacher_id && s.teacher_name && s.teacher_name !== '—')
+      teachers[s.teacher_id] = s.teacher_name;
+  });
+  const sel = document.getElementById('absq-teacher');
+  if (!sel) return;
+  const sorted = Object.entries(teachers).sort((a, b) => a[1].localeCompare(b[1]));
+  sel.innerHTML = '<option value="">Todos los docentes</option>' +
+    sorted.map(([id, name]) => `<option value="${id}">${esc(name)}</option>`).join('');
+}
+
+async function loadAbsenceHistory() {
+  const from      = document.getElementById('absq-from').value;
+  const to        = document.getElementById('absq-to').value;
+  const teacherId = document.getElementById('absq-teacher').value;
+  if (!from || !to) { showToast('Selecciona un rango de fechas', 'warning'); return; }
+
+  const wrap = document.getElementById('absh-table-wrap');
+  wrap.innerHTML = '<div class="empty"><div class="ei">⏳</div>Cargando…</div>';
+  document.getElementById('absh-summary').innerHTML = '';
+
+  let url = `/raice/teacher-absences?from=${from}&to=${to}`;
+  if (teacherId) url += `&teacher_id=${teacherId}`;
+  const { ok, data } = await api(url);
+  if (!ok) { wrap.innerHTML = '<div class="empty"><div class="ei">⚠️</div>Error al cargar los datos</div>'; return; }
+
+  _absHistData = data.absences || [];
+  renderAbsenceHistory(data);
+}
+
+function renderAbsenceHistory({ absences, summary }) {
+  // ── Tarjetas resumen ──────────────────────────────────────────────
+  const sum = summary || {};
+  const topName  = sum.top_teacher?.name  || '—';
+  const topCount = sum.top_teacher?.count || 0;
+  const pct      = sum.covered_pct ?? 0;
+  const pctColor = pct >= 80 ? '#15803d' : pct >= 50 ? '#b45309' : '#b91c1c';
+  document.getElementById('absh-summary').innerHTML = `
+    <div style="background:var(--light);border-radius:12px;padding:.75rem 1rem;text-align:center;">
+      <div style="font-size:1.7rem;font-weight:800;color:var(--navy);font-family:'Fraunces',serif;">${sum.total || 0}</div>
+      <div style="font-size:.75rem;color:var(--gray);margin-top:.1rem;">Total ausencias</div>
+    </div>
+    <div style="background:var(--light);border-radius:12px;padding:.75rem 1rem;text-align:center;">
+      <div style="font-size:1rem;font-weight:700;color:var(--navy);font-family:'Fraunces',serif;line-height:1.2;">${esc(topName)}</div>
+      <div style="font-size:.75rem;color:var(--gray);margin-top:.25rem;">${topCount ? topCount + ' ausencia' + (topCount !== 1 ? 's' : '') : '—'} · Más ausente</div>
+    </div>
+    <div style="background:var(--light);border-radius:12px;padding:.75rem 1rem;text-align:center;">
+      <div style="font-size:1.7rem;font-weight:800;color:${pctColor};font-family:'Fraunces',serif;">${pct}%</div>
+      <div style="font-size:.75rem;color:var(--gray);margin-top:.1rem;">Horas con reemplazo</div>
+    </div>`;
+
+  // ── Tabla ─────────────────────────────────────────────────────────
+  const wrap = document.getElementById('absh-table-wrap');
+  if (!absences?.length) {
+    wrap.innerHTML = '<div class="empty"><div class="ei">✅</div>Sin ausencias en el período seleccionado</div>';
+    return;
+  }
+  const rows = absences.map(a => {
+    const hrs = Array.isArray(a.hours_absent) && a.hours_absent.length
+      ? a.hours_absent.map(h => `H${h}`).join(', ')
+      : 'Día completo';
+    const reps = a.replacements?.length
+      ? a.replacements.map(r => `<span>${esc(r.replacement_name || '—')}${r.class_hour ? ' H' + r.class_hour : ''}</span>`).join('')
+      : '<span style="background:#fee2e2;color:#b91c1c;">Sin reemplazo</span>';
+    return `<tr>
+      <td><span class="absh-date">${formatDateCO ? formatDateCO(a.date) : a.date}</span></td>
+      <td style="font-weight:600;">${esc(a.teacher_name)}</td>
+      <td style="color:var(--gray);">${hrs}</td>
+      <td style="color:var(--gray);font-size:.8rem;">${esc(a.reason || '—')}</td>
+      <td><div class="absh-rep">${reps}</div></td>
+    </tr>`;
+  }).join('');
+  wrap.innerHTML = `
+    <table class="absh-table">
+      <thead><tr>
+        <th>Fecha</th><th>Docente</th><th>Horas</th><th>Motivo</th><th>Reemplazos</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function exportAbsenceHistoryExcel() {
+  if (!_absHistData.length) { showToast('No hay datos para exportar', 'warning'); return; }
+  if (typeof XLSX === 'undefined') { showToast('Librería Excel no disponible', 'error'); return; }
+  const rows = _absHistData.map(a => ({
+    Fecha:      a.date,
+    Docente:    a.teacher_name,
+    Horas:      Array.isArray(a.hours_absent) && a.hours_absent.length ? a.hours_absent.join(',') : 'Día completo',
+    Motivo:     a.reason || '',
+    Reemplazos: (a.replacements || []).map(r => r.replacement_name).join(' / ') || 'Sin reemplazo',
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Ausencias');
+  XLSX.writeFile(wb, `ausencias_docentes_${document.getElementById('absq-from').value}_${document.getElementById('absq-to').value}.xlsx`);
 }
 </script>
 </body>

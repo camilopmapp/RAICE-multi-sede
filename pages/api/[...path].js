@@ -6615,6 +6615,60 @@ async function handleTeacherAbsences(req, res, user) {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
   if (req.method === 'GET') {
+    const from       = url.searchParams.get('from');
+    const to         = url.searchParams.get('to');
+    const teacherId  = url.searchParams.get('teacher_id');
+
+    // ── Modo rango: historial para el rector ──────────────────────────────
+    if (from && to) {
+      let q = sb.from('raice_teacher_absences')
+        .select('id, teacher_id, date, hours_absent, reason, created_at')
+        .gte('date', from).lte('date', to).order('date', { ascending: false });
+      if (teacherId) q = q.eq('teacher_id', teacherId);
+      const { data: absences, error } = await q;
+      if (error) return res.status(500).json({ error: _dbErr(error) });
+      if (!absences?.length) return res.status(200).json({ absences: [], summary: { total: 0, top_teacher: null, covered_pct: 0 } });
+
+      const teacherIds = [...new Set(absences.map(a => a.teacher_id))];
+      const { data: teachers } = await sb.from('raice_users').select('id, first_name, last_name').in('id', teacherIds);
+      const teacherMap = Object.fromEntries((teachers || []).map(t => [t.id, `${t.first_name} ${t.last_name}`]));
+
+      const absenceIds = absences.map(a => a.id);
+      const { data: replacements } = await sb.from('raice_absence_replacements')
+        .select('id, absence_id, replacement_teacher_id, class_hour, course_id').in('absence_id', absenceIds);
+      const repByAbsence = {};
+      (replacements || []).forEach(r => {
+        if (!repByAbsence[r.absence_id]) repByAbsence[r.absence_id] = [];
+        repByAbsence[r.absence_id].push(r);
+      });
+
+      const result = absences.map(a => ({
+        ...a,
+        teacher_name: teacherMap[a.teacher_id] || '—',
+        replacements: repByAbsence[a.id] || []
+      }));
+
+      // Resumen: total, docente con más ausencias, % horas con reemplazo
+      const countByTeacher = {};
+      let totalHours = 0, coveredHours = 0;
+      result.forEach(a => {
+        countByTeacher[a.teacher_id] = (countByTeacher[a.teacher_id] || { name: a.teacher_name, count: 0 });
+        countByTeacher[a.teacher_id].count++;
+        const hrs = Array.isArray(a.hours_absent) ? a.hours_absent.length : 7;
+        totalHours   += hrs;
+        coveredHours += Math.min(a.replacements.length, hrs);
+      });
+      const topEntry = Object.values(countByTeacher).sort((a, b) => b.count - a.count)[0] || null;
+      return res.status(200).json({
+        absences: result,
+        summary: {
+          total:       absences.length,
+          top_teacher: topEntry ? { name: topEntry.name, count: topEntry.count } : null,
+          covered_pct: totalHours ? Math.round(coveredHours / totalHours * 100) : 0
+        }
+      });
+    }
+
     const date = url.searchParams.get('date') || todayCO();
 
     // Get absences for the day with teacher name
