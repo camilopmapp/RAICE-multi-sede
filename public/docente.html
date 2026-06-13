@@ -5095,13 +5095,31 @@
     _setBadge('topbar-bell-badge', unread);
   }
 
+  let _lastMsgCount = -1;
+
   async function loadMsgBadgeCount() {
     const r = await fetchAPI('/raice/messages/unread-count');
     if (!r.ok) return;
     const count = r.data?.count || 0;
+    _lastMsgCount = count;
     _setBadge('nav-msg-badge', count);
     _setBadge('topbar-bell-badge', count);
   }
+
+  async function _pollMessages() {
+    const r = await fetchAPI('/raice/messages/unread-count');
+    if (!r.ok) return;
+    const count = r.data?.count || 0;
+    if (count === _lastMsgCount) return;
+    _lastMsgCount = count;
+    _setBadge('nav-msg-badge', count);
+    _setBadge('topbar-bell-badge', count);
+    // Si el docente está viendo la bandeja, recargar la lista silenciosamente
+    const sec = document.getElementById('sec-mensajes');
+    if (sec && sec.style.display !== 'none') loadMessages();
+  }
+
+  setInterval(_pollMessages, 45000);
 
   function goToMessages() {
     const btn = document.querySelector('.nav-item[onclick*="mensajes"]');
