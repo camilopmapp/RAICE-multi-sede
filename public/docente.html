@@ -152,6 +152,17 @@
   .cc-stats { display:flex; gap:.4rem; flex-wrap:wrap; margin-top:.5rem; }
   .cc-stat { font-size:.73rem; background:var(--light); border-radius:6px; padding:.18rem .45rem; color:var(--navy); font-weight:600; }
 
+  /* Mensajes institucionales */
+  .msg-card{background:var(--white);border:1.5px solid var(--border);border-radius:12px;padding:.85rem 1rem;margin-bottom:.6rem;cursor:pointer;transition:background .15s;}
+  .msg-card:hover{background:var(--bg);}
+  .msg-card.msg-unread{border-left:4px solid var(--teal);background:rgba(20,184,176,.04);}
+  .msg-type{display:inline-block;padding:.14rem .5rem;border-radius:20px;font-size:.72rem;font-weight:700;margin-bottom:.45rem;}
+  .msg-type-info{background:#dbeafe;color:#1e40af;}
+  .msg-type-urgent{background:#fee2e2;color:#991b1b;}
+  .msg-type-reminder{background:#fef3c7;color:#92400e;}
+  .msg-subject{font-size:.93rem;font-weight:700;color:var(--navy);margin-bottom:.18rem;}
+  .msg-meta{font-size:.75rem;color:var(--gray);margin-bottom:.4rem;}
+  .msg-body-text{font-size:.85rem;color:#334155;line-height:1.55;white-space:pre-wrap;}
   /* Status badge */
   .cc-status { flex-shrink:0; display:flex; flex-direction:column; align-items:flex-end; gap:.3rem; }
   .cc-pill {
@@ -490,6 +501,12 @@
     </button>
     <button class="nav-item director-only" id="nav-btn-excusas" style="display:none;" onclick="showSection('excusas-grado',this)">
       <span class="nav-ico">📋</span> Excusas de mi grado
+    </button>
+
+    <div class="nav-group-title">Comunicaciones</div>
+    <button class="nav-item" id="nav-mensajes" onclick="showSection('mensajes',this)">
+      <span class="nav-ico">💬</span> Mensajes
+      <span id="nav-msg-badge" style="display:none;margin-left:auto;background:#ef4444;color:#fff;border-radius:99px;font-size:.68rem;font-weight:700;padding:.05rem .45rem;min-width:18px;text-align:center;">0</span>
     </button>
 
     <div class="nav-group-title">Mi perfil</div>
@@ -1128,6 +1145,22 @@
       </div>
     </section>
 
+    <!-- ── MENSAJES ── -->
+    <section class="section" id="sec-mensajes">
+      <div class="card">
+        <div class="card-header" style="justify-content:space-between;">
+          <h3>💬 Mensajes institucionales</h3>
+          <span id="msg-unread-label" style="font-size:.75rem;font-weight:700;color:var(--gray);"></span>
+        </div>
+        <div class="card-body" id="msg-inbox" style="min-height:120px;">
+          <div style="text-align:center;padding:2.5rem;color:var(--gray);">
+            <div style="font-size:2rem;margin-bottom:.5rem;">💬</div>
+            Cargando mensajes…
+          </div>
+        </div>
+      </div>
+    </section>
+
   </div><!-- /content -->
 </main>
 
@@ -1366,7 +1399,8 @@
       'reportar':'Reportar caso', 'historial':'Historial de casos',
       'perfil':'Mi perfil', 'mi-horario':'Mi horario',
       'mi-grado':'Casos de mi grado', 'historial-att':'Historial de asistencia',
-      'excusas-grado':'Excusas de mi grado', 'mis-estudiantes':'Mis estudiantes'
+      'excusas-grado':'Excusas de mi grado', 'mis-estudiantes':'Mis estudiantes',
+      'mensajes':'Mensajes institucionales'
     };
     document.getElementById('page-title').textContent = titles[name] || name;
     if (name === 'mis-cursos')    loadMyCourses();
@@ -1378,6 +1412,7 @@
     if (name === 'excusas-grado') initExcusas();
     if (name === 'historial-att') initAttHistory();
     if (name === 'mis-estudiantes') initMisEstudiantes();
+    if (name === 'mensajes')        loadMessages();
   }
 
   // ---- MODAL ----
@@ -3905,6 +3940,7 @@
   handleMustChangePassword();
   // Verificar festivo Y día especial en paralelo ANTES de renderizar cursos
   Promise.all([checkTodayHoliday(), checkTodaySpecialDay()]).then(() => loadMyCourses());
+  loadMsgBadgeCount();
   // =============================================
   // DIRECTOR DE GRADO — casos de mi grado (solo lectura)
   // =============================================
@@ -4971,6 +5007,79 @@
   // escapeHtml, _printObservadorWindow → importados desde shared/utils
   function _printObservadorWindow(d, cfg) { window.RAICE.printObservadorWindow(d, cfg); }
 
+  // ── MENSAJES INSTITUCIONALES ──
+  let _messages = [];
+
+  async function loadMessages() {
+    const box = document.getElementById('msg-inbox');
+    box.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--gray);"><div class="spin"></div></div>';
+    const r = await fetchAPI('/raice/messages');
+    _messages = r.ok ? (r.data?.messages || []) : [];
+    renderMessages();
+    updateMsgBadge();
+  }
+
+  function renderMessages() {
+    const box = document.getElementById('msg-inbox');
+    const lbl = document.getElementById('msg-unread-label');
+    if (!_messages.length) {
+      box.innerHTML = '<div style="text-align:center;padding:2.5rem;color:var(--gray);"><div style="font-size:2rem;margin-bottom:.5rem;">📭</div>No tienes mensajes.</div>';
+      if (lbl) lbl.textContent = '';
+      return;
+    }
+    const unread = _messages.filter(m => m.unread).length;
+    if (lbl) lbl.textContent = unread ? `${unread} sin leer` : 'Todos leídos ✓';
+    const typeLabel = { info:'Informativo', urgent:'Urgente', reminder:'Recordatorio' };
+    const typeClass = { info:'msg-type-info', urgent:'msg-type-urgent', reminder:'msg-type-reminder' };
+    box.innerHTML = _messages.map(m => {
+      const s = m.sender || {};
+      const senderName = [s.first_name, s.last_name].filter(Boolean).join(' ') || 'Sistema';
+      const roleLabel = { admin:'Coordinador', rector:'Rector', counselor:'Orientador' }[s.role] || s.role;
+      const fecha = new Date(m.created_at).toLocaleDateString('es-CO', { day:'2-digit', month:'short', year:'numeric' });
+      return `<div class="msg-card${m.unread ? ' msg-unread' : ''}" onclick="openMessage('${m.id}',this)">
+        <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
+          <span class="msg-type ${typeClass[m.type] || 'msg-type-info'}">${typeLabel[m.type] || m.type}</span>
+          ${m.unread ? '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#ef4444;flex-shrink:0;" title="Sin leer"></span>' : ''}
+          <span style="margin-left:auto;font-size:.73rem;color:var(--gray);">${fecha}</span>
+        </div>
+        <div class="msg-subject">${escapeHtml(m.subject)}</div>
+        <div class="msg-meta">Por: ${escapeHtml(senderName)} · ${roleLabel}</div>
+        <div class="msg-body-text">${escapeHtml(m.body)}</div>
+      </div>`;
+    }).join('');
+  }
+
+  async function openMessage(id, card) {
+    const msg = _messages.find(m => m.id === id);
+    if (!msg || !msg.unread) return;
+    await fetchAPI('/raice/messages/read', { method:'POST', body: JSON.stringify({ message_id: id }) });
+    msg.unread = false;
+    msg.read_at = new Date().toISOString();
+    card.classList.remove('msg-unread');
+    card.querySelector('span[title="Sin leer"]')?.remove();
+    updateMsgBadge();
+    const lbl = document.getElementById('msg-unread-label');
+    const unread = _messages.filter(m => m.unread).length;
+    if (lbl) lbl.textContent = unread ? `${unread} sin leer` : 'Todos leídos ✓';
+  }
+
+  function updateMsgBadge() {
+    const unread = _messages.filter(m => m.unread).length;
+    const badge = document.getElementById('nav-msg-badge');
+    if (!badge) return;
+    if (unread > 0) { badge.textContent = unread; badge.style.display = 'inline-block'; }
+    else badge.style.display = 'none';
+  }
+
+  async function loadMsgBadgeCount() {
+    const r = await fetchAPI('/raice/messages/unread-count');
+    if (!r.ok) return;
+    const count = r.data?.count || 0;
+    const badge = document.getElementById('nav-msg-badge');
+    if (!badge) return;
+    if (count > 0) { badge.textContent = count; badge.style.display = 'inline-block'; }
+    else badge.style.display = 'none';
+  }
 
 </script>
 

@@ -424,6 +424,9 @@
       <div class="u-avatar" id="r-av">RE</div>
       <span class="u-name" id="r-name">Rector</span>
     </div>
+    <button class="btn-logout" onclick="openMensajes()" style="position:relative;">
+      💬 Mensajes
+    </button>
     <button class="btn-logout" onclick="openPerfil()">Mi perfil</button>
     <button class="btn-logout" onclick="logout()">Salir</button>
   </div>
@@ -757,6 +760,70 @@
 </div>
 
 <div class="t-wrap" id="t-wrap"></div>
+
+<!-- MENSAJES MODAL -->
+<div class="modal-ov" id="modal-mensajes" onclick="if(event.target===this)closeMensajes()">
+  <div class="modal" style="max-width:860px;width:95%;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;">
+    <div class="modal-hd">
+      <div><h3>💬 Mensajes a docentes</h3><div class="modal-sub">Comunicados institucionales unidireccionales</div></div>
+      <button class="m-close" onclick="closeMensajes()">&#10005;</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;padding:1.1rem;overflow-y:auto;flex:1;">
+      <!-- Redactar -->
+      <div>
+        <div style="font-size:.78rem;font-weight:700;color:var(--gray2,#64748b);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.7rem;">Nuevo mensaje</div>
+        <div style="display:flex;flex-direction:column;gap:.65rem;">
+          <div>
+            <div style="font-size:.75rem;font-weight:700;color:var(--gray2,#64748b);margin-bottom:.3rem;">Tipo</div>
+            <div style="display:flex;gap:.6rem;flex-wrap:wrap;">
+              <label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;cursor:pointer;"><input type="radio" name="rmsg-type" value="info" checked> Informativo</label>
+              <label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;cursor:pointer;"><input type="radio" name="rmsg-type" value="urgent"> Urgente</label>
+              <label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;cursor:pointer;"><input type="radio" name="rmsg-type" value="reminder"> Recordatorio</label>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:.75rem;font-weight:700;color:var(--gray2,#64748b);margin-bottom:.3rem;">Sede *</div>
+            <select id="rmsg-sede" style="width:100%;padding:.45rem .65rem;border:1.5px solid var(--border,#e2e8f0);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:.82rem;">
+              <option value="">Todas las sedes</option>
+            </select>
+          </div>
+          <div>
+            <div style="font-size:.75rem;font-weight:700;color:var(--gray2,#64748b);margin-bottom:.3rem;">Destinatarios</div>
+            <select id="rmsg-target" style="width:100%;padding:.45rem .65rem;border:1.5px solid var(--border,#e2e8f0);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:.82rem;">
+              <option value="all">Todos los docentes</option>
+              <optgroup label="Por grado">
+                <option value="grade_6">Grado 6°</option><option value="grade_7">Grado 7°</option>
+                <option value="grade_8">Grado 8°</option><option value="grade_9">Grado 9°</option>
+                <option value="grade_10">Grado 10°</option><option value="grade_11">Grado 11°</option>
+              </optgroup>
+            </select>
+          </div>
+          <div>
+            <div style="font-size:.75rem;font-weight:700;color:var(--gray2,#64748b);margin-bottom:.3rem;">Asunto *</div>
+            <input type="text" id="rmsg-subject" maxlength="100" placeholder="Asunto…"
+              style="width:100%;padding:.45rem .65rem;border:1.5px solid var(--border,#e2e8f0);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:.82rem;box-sizing:border-box;">
+          </div>
+          <div>
+            <div style="font-size:.75rem;font-weight:700;color:var(--gray2,#64748b);margin-bottom:.3rem;">Mensaje *</div>
+            <textarea id="rmsg-body" rows="5" maxlength="1000" placeholder="Texto del mensaje…"
+              style="width:100%;padding:.45rem .65rem;border:1.5px solid var(--border,#e2e8f0);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:.82rem;resize:vertical;box-sizing:border-box;"></textarea>
+          </div>
+          <button onclick="sendRectorMessage()" id="btn-rmsg-send"
+            style="background:var(--teal,#0d9488);color:#fff;border:none;border-radius:9px;padding:.5rem 1.1rem;font-family:'DM Sans',sans-serif;font-size:.83rem;font-weight:700;cursor:pointer;align-self:flex-start;">
+            📤 Enviar mensaje
+          </button>
+        </div>
+      </div>
+      <!-- Enviados -->
+      <div>
+        <div style="font-size:.78rem;font-weight:700;color:var(--gray2,#64748b);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.7rem;">Enviados</div>
+        <div id="rmsg-sent-list" style="max-height:420px;overflow-y:auto;">
+          <div style="text-align:center;padding:1.5rem;color:var(--gray2,#64748b);"><div class="spin"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- MI PERFIL MODAL -->
 <div class="modal-ov" id="modal-perfil">
@@ -2063,6 +2130,91 @@ if ('serviceWorker' in navigator) {
   });
 }
 var showUpdateBanner = window.RAICE.showUpdateBanner;
+</script>
+
+<script>
+// ── MENSAJES RECTOR ──
+const _RMSG_TYPE_LABEL = { info:'Informativo', urgent:'Urgente', reminder:'Recordatorio' };
+const _RMSG_TYPE_COLOR = { info:'#dbeafe|#1e40af', urgent:'#fee2e2|#991b1b', reminder:'#fef3c7|#92400e' };
+const _RMSG_TARGET_LBL = { all:'Todos los docentes', grade_6:'Grado 6°', grade_7:'Grado 7°', grade_8:'Grado 8°', grade_9:'Grado 9°', grade_10:'Grado 10°', grade_11:'Grado 11°' };
+
+function openMensajes() {
+  document.getElementById('modal-mensajes').classList.add('open');
+  populateRmsgSedes();
+  loadRectorSentMessages();
+}
+function closeMensajes() { document.getElementById('modal-mensajes').classList.remove('open'); }
+
+function populateRmsgSedes() {
+  const sel = document.getElementById('rmsg-sede');
+  if (!sel || sel.options.length > 1) return;
+  (window._allSedes || []).forEach(s => {
+    const o = document.createElement('option');
+    o.value = s.id; o.textContent = s.name;
+    sel.appendChild(o);
+  });
+}
+
+async function sendRectorMessage() {
+  const subject = document.getElementById('rmsg-subject').value.trim();
+  const body    = document.getElementById('rmsg-body').value.trim();
+  const type    = document.querySelector('input[name="rmsg-type"]:checked')?.value || 'info';
+  const target  = document.getElementById('rmsg-target').value;
+  const sede_id = document.getElementById('rmsg-sede').value || null;
+  if (!subject) { showToast('Escribe un asunto', 'error'); return; }
+  if (!body)    { showToast('Escribe el mensaje', 'error'); return; }
+  const btn = document.getElementById('btn-rmsg-send');
+  btn.disabled = true; btn.textContent = 'Enviando…';
+  const r = await api('/raice/messages', { method:'POST', body: JSON.stringify({ type, subject, body, target, sede_id }) });
+  btn.disabled = false; btn.textContent = '📤 Enviar mensaje';
+  if (!r.ok) { showToast(r.data?.error || 'Error al enviar', 'error'); return; }
+  showToast(`Mensaje enviado a ${r.data.recipients} docente(s)`, 'success');
+  document.getElementById('rmsg-subject').value = '';
+  document.getElementById('rmsg-body').value = '';
+  loadRectorSentMessages();
+}
+
+async function loadRectorSentMessages() {
+  const box = document.getElementById('rmsg-sent-list');
+  if (!box) return;
+  box.innerHTML = '<div style="text-align:center;padding:1rem;color:#64748b;"><div class="spin"></div></div>';
+  const r = await api('/raice/messages');
+  const msgs = r.ok ? (r.data?.messages || []) : [];
+  if (!msgs.length) {
+    box.innerHTML = '<div style="text-align:center;padding:2rem;color:#64748b;">📭 Aún no has enviado mensajes.</div>';
+    return;
+  }
+  box.innerHTML = msgs.map(m => {
+    const [bg, col] = (_RMSG_TYPE_COLOR[m.type] || '#f1f5f9|#475569').split('|');
+    const tLbl = m.target.startsWith('user_') ? 'Docente individual' : (_RMSG_TARGET_LBL[m.target] || m.target);
+    const fecha = new Date(m.created_at).toLocaleDateString('es-CO', { day:'2-digit', month:'short' });
+    const pct = m.total_count ? Math.round(m.read_count / m.total_count * 100) : 0;
+    return `<div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;padding:.75rem .9rem;margin-bottom:.5rem;">
+      <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-bottom:.3rem;">
+        <span style="background:${bg};color:${col};padding:.12rem .45rem;border-radius:20px;font-size:.7rem;font-weight:700;">${_RMSG_TYPE_LABEL[m.type]||m.type}</span>
+        <span style="font-size:.71rem;color:#64748b;">→ ${tLbl}</span>
+        <span style="margin-left:auto;font-size:.7rem;color:#64748b;">${fecha}</span>
+        <button onclick="deleteRectorMessage('${m.id}',this)" style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:.78rem;padding:0 .2rem;">✕</button>
+      </div>
+      <div style="font-size:.87rem;font-weight:700;color:#1e293b;margin-bottom:.15rem;">${m.subject}</div>
+      <div style="display:flex;align-items:center;gap:.4rem;margin-top:.4rem;">
+        <div style="flex:1;height:4px;background:#e2e8f0;border-radius:99px;overflow:hidden;">
+          <div style="height:100%;width:${pct}%;background:#0d9488;border-radius:99px;"></div>
+        </div>
+        <span style="font-size:.7rem;color:#64748b;white-space:nowrap;">${m.read_count}/${m.total_count} leído</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function deleteRectorMessage(id, btn) {
+  if (!confirm('¿Eliminar este mensaje?')) return;
+  btn.disabled = true;
+  const r = await api('/raice/messages/' + id, { method:'DELETE' });
+  if (!r.ok) { showToast('Error al eliminar', 'error'); btn.disabled = false; return; }
+  showToast('Mensaje eliminado', 'success');
+  loadRectorSentMessages();
+}
 </script>
 </body>
 </html>

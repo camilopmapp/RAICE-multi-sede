@@ -547,6 +547,11 @@
       <span class="nav-ico">⭐</span> Horarios especiales
     </button>
 
+    <div class="nav-group-title">Comunicaciones</div>
+    <button class="nav-item" onclick="showSection('mensajes',this)">
+      <span class="nav-ico">💬</span> Mensajes a docentes
+    </button>
+
     <div class="nav-group-title">Mi cuenta</div>
     <button class="nav-item" onclick="showSection('notificaciones',this)" id="nav-notif">
       <span class="nav-ico">🔔</span> Notificaciones
@@ -1743,6 +1748,78 @@
       </div>
     </section>
 
+    <!-- ── MENSAJES A DOCENTES ── -->
+    <section class="section" id="sec-mensajes">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;align-items:start;">
+
+        <!-- Redactar -->
+        <div class="card">
+          <div class="card-header"><h3>✍️ Nuevo mensaje</h3></div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:.75rem;">
+            <div>
+              <label class="form-label">Tipo</label>
+              <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+                <label style="display:flex;align-items:center;gap:.35rem;font-size:.83rem;cursor:pointer;"><input type="radio" name="msg-type" value="info" checked> Informativo</label>
+                <label style="display:flex;align-items:center;gap:.35rem;font-size:.83rem;cursor:pointer;"><input type="radio" name="msg-type" value="urgent"> Urgente</label>
+                <label style="display:flex;align-items:center;gap:.35rem;font-size:.83rem;cursor:pointer;"><input type="radio" name="msg-type" value="reminder"> Recordatorio</label>
+              </div>
+            </div>
+            <div>
+              <label class="form-label">Asunto *</label>
+              <input type="text" id="msg-subject" maxlength="100" placeholder="Asunto del mensaje…"
+                style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.83rem;box-sizing:border-box;">
+            </div>
+            <div>
+              <label class="form-label">Destinatarios</label>
+              <select id="msg-target" onchange="onMsgTargetChange(this)"
+                style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.83rem;">
+                <option value="all">Todos los docentes</option>
+                <optgroup label="Por grado">
+                  <option value="grade_6">Grado 6°</option>
+                  <option value="grade_7">Grado 7°</option>
+                  <option value="grade_8">Grado 8°</option>
+                  <option value="grade_9">Grado 9°</option>
+                  <option value="grade_10">Grado 10°</option>
+                  <option value="grade_11">Grado 11°</option>
+                </optgroup>
+                <option value="individual">Un docente específico</option>
+              </select>
+              <select id="msg-teacher-sel" style="display:none;width:100%;margin-top:.45rem;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.83rem;">
+                <option value="">— Seleccionar docente —</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Mensaje *</label>
+              <textarea id="msg-body" rows="5" maxlength="1000" placeholder="Texto del mensaje…"
+                style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.83rem;resize:vertical;box-sizing:border-box;"></textarea>
+              <div style="text-align:right;font-size:.72rem;color:var(--gray);margin-top:.2rem;" id="msg-char-count">0 / 1000</div>
+            </div>
+            <div>
+              <label class="form-label">Válido hasta (opcional)</label>
+              <input type="date" id="msg-expires"
+                style="padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.83rem;">
+            </div>
+            <button class="btn btn-primary" onclick="sendAdminMessage()" id="btn-send-msg" style="align-self:flex-start;">
+              📤 Enviar mensaje
+            </button>
+          </div>
+        </div>
+
+        <!-- Enviados -->
+        <div class="card">
+          <div class="card-header" style="justify-content:space-between;">
+            <h3>📤 Enviados</h3>
+            <button class="btn btn-ghost btn-sm" onclick="loadSentMessages()">↺ Actualizar</button>
+          </div>
+          <div class="card-body" id="msg-sent-list" style="min-height:120px;max-height:600px;overflow-y:auto;">
+            <div style="text-align:center;padding:2rem;color:var(--gray);">
+              <div class="spin"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
 
 </main>
 
@@ -2252,7 +2329,8 @@ function showSection(name, btn) {
     reemplazos:'Reemplazos docentes', 'convivencia-extra':'Retiros y suspensiones',
     excusas:'Excusas de estudiantes', subgrupos:'Subgrupos',
     'mapa-escolar':'Mapa escolar',
-    'horarios-especiales':'Horarios especiales'
+    'horarios-especiales':'Horarios especiales',
+    'mensajes':'Mensajes a docentes'
   };
   document.getElementById('page-title').textContent = titles[name] || name;
   if (name === 'dashboard')    loadDashboard();
@@ -2270,6 +2348,7 @@ function showSection(name, btn) {
   if (name === 'notificaciones') loadNotifications();
   if (name === 'tardanzas')    loadTardanzas();
   if (name === 'excusas')       initAdminExcusas();
+  if (name === 'mensajes')      loadSentMessages();
   if (name === 'calendario')   loadCalendar();
   if (name === 'mapa-escolar')      loadMapaEscolar();
   if (name === 'reemplazos')        { initReemplazosDate(); loadReemplazos(); }
@@ -11013,6 +11092,127 @@ async function deleteBlock(blockId, btn) {
   showToast('Bloque eliminado', 'success');
   const rb = await fetchAPI('/raice/special-days/' + _sdBlocksDayId + '/blocks');
   renderBlocksTable(rb.ok ? (rb.data || []) : []);
+}
+
+// ── MENSAJES A DOCENTES ──
+const _MSG_TYPE_LABEL = { info:'Informativo', urgent:'Urgente', reminder:'Recordatorio' };
+const _MSG_TYPE_CLASS = { info:'#dbeafe|#1e40af', urgent:'#fee2e2|#991b1b', reminder:'#fef3c7|#92400e' };
+const _MSG_TARGET_LABEL = {
+  all:'Todos los docentes', grade_6:'Grado 6°', grade_7:'Grado 7°',
+  grade_8:'Grado 8°', grade_9:'Grado 9°', grade_10:'Grado 10°', grade_11:'Grado 11°',
+};
+
+function onMsgTargetChange(sel) {
+  const tSel = document.getElementById('msg-teacher-sel');
+  if (sel.value === 'individual') {
+    tSel.style.display = '';
+    if (!tSel.options.length || tSel.options.length === 1) {
+      // Populate from _sdTeachers
+      if (!_sdTeachers.length) loadTeachersForMsg();
+      else populateMsgTeacherSel();
+    }
+  } else {
+    tSel.style.display = 'none';
+  }
+}
+
+async function loadTeachersForMsg() {
+  const r = await fetchAPI('/raice/teachers');
+  _sdTeachers = r.ok ? (r.data?.teachers || r.data || []) : [];
+  populateMsgTeacherSel();
+}
+
+function populateMsgTeacherSel() {
+  const sel = document.getElementById('msg-teacher-sel');
+  sel.innerHTML = '<option value="">— Seleccionar docente —</option>'
+    + _sdTeachers.map(t => `<option value="${t.id}">${t.first_name} ${t.last_name}</option>`).join('');
+}
+
+document.getElementById('msg-body')?.addEventListener('input', function() {
+  const cnt = document.getElementById('msg-char-count');
+  if (cnt) cnt.textContent = this.value.length + ' / 1000';
+});
+
+async function sendAdminMessage() {
+  const subject = document.getElementById('msg-subject').value.trim();
+  const body    = document.getElementById('msg-body').value.trim();
+  const type    = document.querySelector('input[name="msg-type"]:checked')?.value || 'info';
+  const target  = document.getElementById('msg-target').value;
+  const expires = document.getElementById('msg-expires').value;
+  const teacherSel = document.getElementById('msg-teacher-sel');
+
+  if (!subject) { showToast('Escribe un asunto', 'error'); return; }
+  if (!body)    { showToast('Escribe el mensaje', 'error'); return; }
+
+  let finalTarget = target;
+  if (target === 'individual') {
+    const tid = teacherSel?.value;
+    if (!tid) { showToast('Selecciona un docente', 'error'); return; }
+    finalTarget = 'user_' + tid;
+  }
+
+  const btn = document.getElementById('btn-send-msg');
+  btn.disabled = true; btn.textContent = 'Enviando…';
+
+  const r = await fetchAPI('/raice/messages', {
+    method: 'POST',
+    body: JSON.stringify({ type, subject, body, target: finalTarget, expires_at: expires || null }),
+  });
+  btn.disabled = false; btn.textContent = '📤 Enviar mensaje';
+
+  if (!r.ok) { showToast(r.data?.error || 'Error al enviar', 'error'); return; }
+  showToast(`Mensaje enviado a ${r.data.recipients} docente(s)`, 'success');
+  document.getElementById('msg-subject').value = '';
+  document.getElementById('msg-body').value = '';
+  document.getElementById('msg-expires').value = '';
+  document.getElementById('msg-target').value = 'all';
+  document.getElementById('msg-teacher-sel').style.display = 'none';
+  document.getElementById('msg-char-count').textContent = '0 / 1000';
+  loadSentMessages();
+}
+
+async function loadSentMessages() {
+  const box = document.getElementById('msg-sent-list');
+  if (!box) return;
+  box.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--gray);"><div class="spin"></div></div>';
+  const r = await fetchAPI('/raice/messages');
+  const msgs = r.ok ? (r.data?.messages || []) : [];
+  if (!msgs.length) {
+    box.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--gray);"><div style="font-size:2rem;margin-bottom:.5rem;">📭</div>Aún no has enviado mensajes.</div>';
+    return;
+  }
+  box.innerHTML = msgs.map(m => {
+    const [bg, col] = (_MSG_TYPE_CLASS[m.type] || '#f1f5f9|#475569').split('|');
+    const targetLabel = m.target.startsWith('user_') ? 'Docente individual'
+      : (_MSG_TARGET_LABEL[m.target] || m.target);
+    const fecha = new Date(m.created_at).toLocaleDateString('es-CO', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    const readPct = m.total_count ? Math.round((m.read_count / m.total_count) * 100) : 0;
+    return `<div style="background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:.85rem 1rem;margin-bottom:.6rem;">
+      <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.4rem;">
+        <span style="background:${bg};color:${col};padding:.14rem .5rem;border-radius:20px;font-size:.72rem;font-weight:700;">${_MSG_TYPE_LABEL[m.type] || m.type}</span>
+        <span style="font-size:.73rem;color:var(--gray);">→ ${escapeHtml(targetLabel)}</span>
+        <span style="margin-left:auto;font-size:.72rem;color:var(--gray);">${fecha}</span>
+        <button onclick="deleteAdminMessage('${m.id}',this)" title="Eliminar" style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:.82rem;padding:.1rem .3rem;">✕</button>
+      </div>
+      <div style="font-size:.9rem;font-weight:700;color:var(--navy);margin-bottom:.2rem;">${escapeHtml(m.subject)}</div>
+      <div style="font-size:.8rem;color:#334155;margin-bottom:.5rem;white-space:pre-wrap;">${escapeHtml(m.body.length > 120 ? m.body.slice(0,120)+'…' : m.body)}</div>
+      <div style="display:flex;align-items:center;gap:.5rem;">
+        <div style="flex:1;height:5px;background:var(--border);border-radius:99px;overflow:hidden;">
+          <div style="height:100%;width:${readPct}%;background:var(--teal);border-radius:99px;transition:width .4s;"></div>
+        </div>
+        <span style="font-size:.73rem;color:var(--gray);white-space:nowrap;">Leído ${m.read_count} / ${m.total_count}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function deleteAdminMessage(id, btn) {
+  if (!confirm('¿Eliminar este mensaje? Los docentes ya no podrán verlo.')) return;
+  btn.disabled = true;
+  const r = await fetchAPI('/raice/messages/' + id, { method: 'DELETE' });
+  if (!r.ok) { showToast('Error al eliminar', 'error'); btn.disabled = false; return; }
+  showToast('Mensaje eliminado', 'success');
+  loadSentMessages();
 }
 </script>
 

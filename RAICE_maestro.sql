@@ -1052,6 +1052,35 @@ CREATE INDEX IF NOT EXISTS idx_counselor_sedes_counselor ON raice_counselor_sede
 CREATE INDEX IF NOT EXISTS idx_counselor_sedes_sede      ON raice_counselor_sedes(sede_id);
 
 -- =====================================================================
+-- 3.8  Mensajes institucionales (unidireccionales)
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS raice_messages (
+  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  sender_id   UUID        NOT NULL REFERENCES raice_users(id) ON DELETE CASCADE,
+  sender_role TEXT        NOT NULL,
+  type        TEXT        NOT NULL DEFAULT 'info'
+                          CHECK (type IN ('info','urgent','reminder')),
+  subject     TEXT        NOT NULL,
+  body        TEXT        NOT NULL,
+  target      TEXT        NOT NULL DEFAULT 'all',
+  sede_id     UUID        REFERENCES raice_sedes(id) ON DELETE CASCADE,
+  expires_at  TIMESTAMPTZ,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS raice_message_reads (
+  message_id  UUID        NOT NULL REFERENCES raice_messages(id) ON DELETE CASCADE,
+  teacher_id  UUID        NOT NULL REFERENCES raice_users(id)    ON DELETE CASCADE,
+  read_at     TIMESTAMPTZ,
+  PRIMARY KEY (message_id, teacher_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_messages_sender   ON raice_messages(sender_id);
+CREATE INDEX IF NOT EXISTS idx_messages_sede     ON raice_messages(sede_id);
+CREATE INDEX IF NOT EXISTS idx_msg_reads_teacher ON raice_message_reads(teacher_id);
+CREATE INDEX IF NOT EXISTS idx_msg_reads_message ON raice_message_reads(message_id);
+
+-- =====================================================================
 -- SECCIÓN 4: FUNCIONES
 -- =====================================================================
 

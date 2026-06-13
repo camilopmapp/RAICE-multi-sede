@@ -472,6 +472,10 @@
     </button>
 
     <div class="nav-group-title">Cuenta</div>
+    <button class="nav-item" onclick="showSection('mensajes',this,'Mensajes a docentes')">
+      <span class="nav-ico">💬</span> Mensajes a docentes
+    </button>
+
     <button class="nav-item" onclick="showSection('perfil',this,'Mi perfil')">
       <span class="nav-ico">👤</span> Mi perfil
     </button>
@@ -1335,6 +1339,64 @@
       </div>
     </section>
 
+    <!-- ── MENSAJES A DOCENTES ── -->
+    <section class="section" id="section-mensajes">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;align-items:start;">
+
+        <!-- Redactar -->
+        <div class="card">
+          <div class="card-header"><h3>✍️ Nuevo mensaje</h3></div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:.75rem;">
+            <div>
+              <label style="font-size:.75rem;font-weight:700;color:var(--gray);display:block;margin-bottom:.35rem;">Tipo</label>
+              <div style="display:flex;gap:.6rem;flex-wrap:wrap;">
+                <label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;cursor:pointer;"><input type="radio" name="omsg-type" value="info" checked> Informativo</label>
+                <label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;cursor:pointer;"><input type="radio" name="omsg-type" value="urgent"> Urgente</label>
+                <label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;cursor:pointer;"><input type="radio" name="omsg-type" value="reminder"> Recordatorio</label>
+              </div>
+            </div>
+            <div>
+              <label style="font-size:.75rem;font-weight:700;color:var(--gray);display:block;margin-bottom:.35rem;">Destinatarios</label>
+              <select id="omsg-target" style="width:100%;padding:.5rem .7rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.82rem;">
+                <option value="all">Todos los docentes</option>
+                <optgroup label="Por grado">
+                  <option value="grade_6">Grado 6°</option><option value="grade_7">Grado 7°</option>
+                  <option value="grade_8">Grado 8°</option><option value="grade_9">Grado 9°</option>
+                  <option value="grade_10">Grado 10°</option><option value="grade_11">Grado 11°</option>
+                </optgroup>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:.75rem;font-weight:700;color:var(--gray);display:block;margin-bottom:.35rem;">Asunto *</label>
+              <input type="text" id="omsg-subject" maxlength="100" placeholder="Asunto del mensaje…"
+                style="width:100%;padding:.5rem .7rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.82rem;box-sizing:border-box;">
+            </div>
+            <div>
+              <label style="font-size:.75rem;font-weight:700;color:var(--gray);display:block;margin-bottom:.35rem;">Mensaje *</label>
+              <textarea id="omsg-body" rows="5" maxlength="1000" placeholder="Texto del mensaje…"
+                style="width:100%;padding:.5rem .7rem;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.82rem;resize:vertical;box-sizing:border-box;"></textarea>
+            </div>
+            <button onclick="sendOrientadorMessage()" id="btn-omsg-send"
+              style="background:var(--violet);color:#fff;border:none;border-radius:10px;padding:.5rem 1.1rem;font-family:'DM Sans',sans-serif;font-size:.83rem;font-weight:700;cursor:pointer;align-self:flex-start;">
+              📤 Enviar mensaje
+            </button>
+          </div>
+        </div>
+
+        <!-- Enviados -->
+        <div class="card">
+          <div class="card-header" style="justify-content:space-between;">
+            <h3>📤 Enviados</h3>
+            <button class="btn btn-ghost btn-sm" onclick="loadOrientadorSentMessages()">↺</button>
+          </div>
+          <div class="card-body" id="omsg-sent-list" style="min-height:120px;max-height:560px;overflow-y:auto;">
+            <div style="text-align:center;padding:2rem;color:var(--gray);"><div class="spin"></div></div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
   </div><!-- /content -->
 </div><!-- /main -->
 
@@ -1391,6 +1453,7 @@ function showSection(id, btn, title) {
   if (id === 'asistencia' && _insights) renderAttByGrade();
   if (id === 'casos' && !_allCases.length) loadCases();
   if (id === 'histclinica') loadHistories();
+  if (id === 'mensajes') loadOrientadorSentMessages();
 }
 function openSidebar()  { document.getElementById('sidebar').classList.add('open'); document.getElementById('sidebar-overlay').classList.add('open'); }
 function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebar-overlay').classList.remove('open'); }
@@ -3474,6 +3537,74 @@ if ('serviceWorker' in navigator) {
   });
 }
 var showUpdateBanner = window.RAICE.showUpdateBanner;
+</script>
+
+<script>
+// ── MENSAJES ORIENTADOR ──
+const _OMSG_TYPE_LABEL = { info:'Informativo', urgent:'Urgente', reminder:'Recordatorio' };
+const _OMSG_TYPE_COLOR = { info:'#dbeafe|#1e40af', urgent:'#fee2e2|#991b1b', reminder:'#fef3c7|#92400e' };
+const _OMSG_TARGET_LBL = { all:'Todos los docentes', grade_6:'Grado 6°', grade_7:'Grado 7°', grade_8:'Grado 8°', grade_9:'Grado 9°', grade_10:'Grado 10°', grade_11:'Grado 11°' };
+
+async function sendOrientadorMessage() {
+  const subject = document.getElementById('omsg-subject').value.trim();
+  const body    = document.getElementById('omsg-body').value.trim();
+  const type    = document.querySelector('input[name="omsg-type"]:checked')?.value || 'info';
+  const target  = document.getElementById('omsg-target').value;
+  if (!subject) { window.RAICE.showToast('Escribe un asunto', 'error'); return; }
+  if (!body)    { window.RAICE.showToast('Escribe el mensaje', 'error'); return; }
+  const btn = document.getElementById('btn-omsg-send');
+  btn.disabled = true; btn.textContent = 'Enviando…';
+  const r = await api('/raice/messages', { method:'POST', body: JSON.stringify({ type, subject, body, target }) });
+  btn.disabled = false; btn.textContent = '📤 Enviar mensaje';
+  if (!r.ok) { window.RAICE.showToast(r.data?.error || 'Error al enviar', 'error'); return; }
+  window.RAICE.showToast(`Mensaje enviado a ${r.data.recipients} docente(s)`, 'success');
+  document.getElementById('omsg-subject').value = '';
+  document.getElementById('omsg-body').value = '';
+  document.getElementById('omsg-target').value = 'all';
+  loadOrientadorSentMessages();
+}
+
+async function loadOrientadorSentMessages() {
+  const box = document.getElementById('omsg-sent-list');
+  if (!box) return;
+  box.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--gray);"><div class="spin"></div></div>';
+  const r = await api('/raice/messages');
+  const msgs = r.ok ? (r.data?.messages || []) : [];
+  if (!msgs.length) {
+    box.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--gray);">📭 Aún no has enviado mensajes.</div>';
+    return;
+  }
+  box.innerHTML = msgs.map(m => {
+    const [bg, col] = (_OMSG_TYPE_COLOR[m.type] || '#f1f5f9|#475569').split('|');
+    const tLbl = m.target.startsWith('user_') ? 'Docente individual' : (_OMSG_TARGET_LBL[m.target] || m.target);
+    const fecha = new Date(m.created_at).toLocaleDateString('es-CO', { day:'2-digit', month:'short' });
+    const pct = m.total_count ? Math.round(m.read_count / m.total_count * 100) : 0;
+    return `<div style="background:var(--white,#fff);border:1.5px solid var(--border);border-radius:12px;padding:.8rem .95rem;margin-bottom:.55rem;">
+      <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-bottom:.35rem;">
+        <span style="background:${bg};color:${col};padding:.12rem .45rem;border-radius:20px;font-size:.7rem;font-weight:700;">${_OMSG_TYPE_LABEL[m.type]||m.type}</span>
+        <span style="font-size:.71rem;color:var(--gray);">→ ${tLbl}</span>
+        <span style="margin-left:auto;font-size:.7rem;color:var(--gray);">${fecha}</span>
+        <button onclick="deleteOrientadorMessage('${m.id}',this)" style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:.78rem;padding:0 .2rem;">✕</button>
+      </div>
+      <div style="font-size:.88rem;font-weight:700;color:var(--navy);margin-bottom:.15rem;">${m.subject}</div>
+      <div style="display:flex;align-items:center;gap:.4rem;margin-top:.4rem;">
+        <div style="flex:1;height:4px;background:var(--border);border-radius:99px;overflow:hidden;">
+          <div style="height:100%;width:${pct}%;background:var(--violet);border-radius:99px;"></div>
+        </div>
+        <span style="font-size:.7rem;color:var(--gray);white-space:nowrap;">${m.read_count}/${m.total_count} leído</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function deleteOrientadorMessage(id, btn) {
+  if (!confirm('¿Eliminar este mensaje?')) return;
+  btn.disabled = true;
+  const r = await api('/raice/messages/' + id, { method:'DELETE' });
+  if (!r.ok) { window.RAICE.showToast('Error al eliminar', 'error'); btn.disabled = false; return; }
+  window.RAICE.showToast('Mensaje eliminado', 'success');
+  loadOrientadorSentMessages();
+}
 </script>
 </body>
 </html>
