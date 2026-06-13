@@ -195,6 +195,20 @@
                 color:#7c3aed; display:flex; align-items:center; justify-content:center;
                 font-size:.85rem; flex-shrink:0; margin-top:.1rem; }
 
+  /* ---- MENSAJES ---- */
+  .msg-card { background:var(--white); border:1.5px solid var(--border); border-radius:12px;
+               padding:.85rem 1rem; margin-bottom:.65rem; cursor:pointer; transition:box-shadow .15s; }
+  .msg-card:hover { box-shadow:0 2px 8px rgba(0,0,0,.1); }
+  .msg-card.msg-unread { border-color:#0b7a75; background:#f0fdf4; }
+  .msg-type-badge { display:inline-block; font-size:.7rem; font-weight:700; padding:.12rem .45rem;
+                     border-radius:20px; margin-bottom:.35rem; }
+  .msg-type-info     { background:#dbeafe; color:#1e40af; }
+  .msg-type-urgent   { background:#fee2e2; color:#991b1b; }
+  .msg-type-reminder { background:#fef3c7; color:#92400e; }
+  .msg-tab-badge { display:inline-block; background:#dc2626; color:#fff; border-radius:99px;
+                    font-size:.65rem; font-weight:700; padding:.05rem .38rem; margin-left:.3rem;
+                    vertical-align:middle; line-height:1.4; }
+
   @media (max-width:480px) {
     .stats-row { grid-template-columns:repeat(3,1fr); }
     .student-card { flex-wrap:wrap; }
@@ -254,6 +268,7 @@
     <button class="tab" onclick="showTab('observaciones',this)">👁️ Observador</button>
     <button class="tab" onclick="showTab('sanciones',this)">⚖️ Disciplina</button>
     <button class="tab" onclick="showTab('acudientes',this)">👨‍👩‍👦 Datos</button>
+    <button class="tab" id="tab-btn-mensajes" onclick="showTab('mensajes',this)">💬 Mensajes<span class="msg-tab-badge" id="msg-unread-badge" style="display:none;"></span></button>
   </div>
 
   <!-- Tab: Asistencia -->
@@ -331,6 +346,13 @@
     </div>
   </div>
 
+  <!-- Tab: Mensajes -->
+  <div class="tab-content" id="tab-mensajes">
+    <div id="msg-list-portal">
+      <div class="empty-state">Cargando mensajes…</div>
+    </div>
+  </div>
+
 </div><!-- /dashboard -->
 
 <script src="/shared/constants/index.js"></script>
@@ -348,6 +370,7 @@ function showTab(name, btn) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   btn.classList.add('active');
+  if (name === 'mensajes') markAllMsgsRead();
 }
 
 function fmtDate(d) {
@@ -463,6 +486,7 @@ function renderDashboard(data) {
   renderObservaciones(data.observations);
   renderSanciones(data.suspensions, data.removals);
   renderAcudientes(data.acudientes || []);
+  renderMessages(data.messages || []);
 }
 
 function renderAsistencia(att) {
@@ -715,6 +739,68 @@ function renderAcudientes(acudientes) {
         ${a.email ? `<div style="font-size:.82rem;color:var(--navy);margin-top:.1rem;">✉️ ${a.email}</div>` : ''}
       </div>
     </div>`).join('');
+}
+
+// ── MENSAJES INSTITUCIONALES (portal acudiente) ──
+const _MSG_TYPE_LABEL = { info:'Informativo', urgent:'Urgente', reminder:'Recordatorio' };
+let _unreadMsgIds = [];
+
+function renderMessages(messages) {
+  const box = document.getElementById('msg-list-portal');
+  const badge = document.getElementById('msg-unread-badge');
+  if (!box) return;
+
+  _unreadMsgIds = messages.filter(m => !m.read).map(m => m.id);
+
+  if (_unreadMsgIds.length) {
+    badge.textContent = _unreadMsgIds.length;
+    badge.style.display = '';
+  } else {
+    badge.style.display = 'none';
+  }
+
+  if (!messages.length) {
+    box.innerHTML = '<div class="empty-state">📭 No hay mensajes institucionales en este momento.</div>';
+    return;
+  }
+
+  box.innerHTML = messages.map(m => {
+    const typeClass = `msg-type-${m.type || 'info'}`;
+    const typeLabel = _MSG_TYPE_LABEL[m.type] || m.type;
+    const fecha = new Date(m.created_at).toLocaleDateString('es-CO', { day:'2-digit', month:'short', year:'numeric' });
+    const unreadCls = m.read ? '' : 'msg-unread';
+    return `<div class="msg-card ${unreadCls}" onclick="expandMsg(this)">
+      <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.3rem;">
+        <span class="msg-type-badge ${typeClass}">${typeLabel}</span>
+        ${!m.read ? '<span style="font-size:.7rem;font-weight:700;color:#0b7a75;">● Nuevo</span>' : ''}
+        <span style="margin-left:auto;font-size:.75rem;color:var(--gray);">${fecha}</span>
+      </div>
+      <div style="font-size:.92rem;font-weight:700;color:var(--navy);">${m.subject}</div>
+      <div class="msg-body" style="display:none;font-size:.85rem;color:var(--navy);line-height:1.55;margin-top:.55rem;padding-top:.55rem;border-top:1px solid var(--border);">${m.body.replace(/\n/g,'<br>')}</div>
+    </div>`;
+  }).join('');
+}
+
+function expandMsg(card) {
+  const body = card.querySelector('.msg-body');
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : '';
+  if (!isOpen) card.classList.remove('msg-unread');
+}
+
+async function markAllMsgsRead() {
+  if (!_doc || !_unreadMsgIds.length) return;
+  const ids = [..._unreadMsgIds];
+  _unreadMsgIds = [];
+  document.getElementById('msg-unread-badge').style.display = 'none';
+  // Mark each unread message as read (fire-and-forget)
+  for (const id of ids) {
+    fetch(`${API}/raice/portal-acudiente/messages-read?doc=${encodeURIComponent(_doc)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message_id: id })
+    }).catch(() => {});
+  }
 }
 
 // Supabase Realtime Auto-Refresh for Acudiente Dashboard

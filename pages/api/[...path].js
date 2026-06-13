@@ -8886,11 +8886,27 @@ async function buildAttendanceInsights(sb, studentId, courseId, attData) {
 
 // ---- PORTAL PÚBLICO DEL ACUDIENTE (acceso por número de documento) ----
 async function handlePortalAcudiente(req, res) {
-  if (req.method !== 'GET') return res.status(405).end();
   res.setHeader('Cache-Control', 'no-store');
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const urlParts = url.pathname.split('/').filter(Boolean);
+  // POST /raice/portal-acudiente/messages-read  — marca un mensaje como leído
+  if (req.method === 'POST' && urlParts[urlParts.length - 1] === 'messages-read') {
+    const doc = url.searchParams.get('doc')?.trim();
+    const { message_id } = req.body || {};
+    if (!doc || !message_id) return res.status(400).json({ error: 'Parámetros requeridos' });
+    const sb = getSupabase();
+    const { data: studentRows } = await sb.from('raice_students')
+      .select('id').eq('doc_number', doc).in('status', ['active','graduated','transferred']).limit(1);
+    const sid = studentRows?.[0]?.id;
+    if (!sid) return res.status(404).json({ error: 'Estudiante no encontrado' });
+    await sb.from('raice_acudiente_message_reads')
+      .upsert({ message_id, student_id: sid, read_at: new Date().toISOString() }, { onConflict: 'message_id,student_id' });
+    return res.status(200).json({ ok: true });
+  }
+
+  if (req.method !== 'GET') return res.status(405).end();
 
   const sb = getSupabase();
-  const url = new URL(req.url, `http://${req.headers.host}`);
   const doc = url.searchParams.get('doc')?.trim();
 
   if (!doc || doc.length < 3) {
@@ -8922,7 +8938,7 @@ async function handlePortalAcudiente(req, res) {
 
   // Fetch all relevant data in parallel
   const courseId = student.course_id;
-  const [casesRes, attRes, obsRes, suspRes, remRes, configRes, commitmentsRes, excusasRes, acudientesRes] = await Promise.all([
+  const [casesRes, attRes, obsRes, suspRes, remRes, configRes, commitmentsRes, excusasRes, acudientesRes, msgsRes] = await Promise.all([
     sb.from('raice_cases')
       .select('id, type, description, actions_taken, falta_numeral, falta_descripcion, status, created_at, teacher_id, raice_users!teacher_id(first_name, last_name)')
       .eq('student_id', sid)
@@ -8959,13 +8975,40 @@ async function handlePortalAcudiente(req, res) {
     // NEW: Acudientes registrados
     sb.from('raice_acudientes')
       .select('name, phone, email, relationship')
-      .eq('student_id', sid)
+      .eq('student_id', sid),
+    // Mensajes institucionales para familias
+    sb.from('raice_messages')
+      .select('id, type, subject, body, target, sede_id, created_at, expires_at')
+      .eq('audience', 'acudientes')
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+      .order('created_at', { ascending: false })
+      .limit(50),
   ]);
 
   // Asistencia: reconciliar con excusas, enriquecer con materia/docente y
   // calcular resumen + por asignatura (lógica COMPARTIDA con la ficha del admin).
   const { att_summary, att_by_subject: attBySubject, director } =
     await buildAttendanceInsights(sb, sid, courseId, attRes.data || []);
+
+  // Filtrar mensajes visibles según grado y curso del estudiante
+  const allMsgs = (msgsRes.data || []).filter(m => {
+    if (m.sede_id && student.sede_id && m.sede_id !== student.sede_id) return false;
+    if (m.target === 'all') return true;
+    if (m.target.startsWith('grade_'))  return parseInt(m.target.replace('grade_', '')) === student.grade;
+    if (m.target.startsWith('grades_')) return m.target.replace('grades_', '').split(',').map(Number).includes(student.grade);
+    if (m.target.startsWith('course_')) return m.target.replace('course_', '') === student.course_id;
+    return false;
+  });
+
+  // Lecturas de este estudiante
+  let readSet = new Set();
+  if (allMsgs.length) {
+    const msgIds = allMsgs.map(m => m.id);
+    const { data: reads } = await sb.from('raice_acudiente_message_reads')
+      .select('message_id').eq('student_id', sid).in('message_id', msgIds);
+    (reads || []).forEach(r => readSet.add(r.message_id));
+  }
+  const messages = allMsgs.map(m => ({ ...m, read: readSet.has(m.id) }));
 
   return res.status(200).json({
     student: {
@@ -8994,6 +9037,7 @@ async function handlePortalAcudiente(req, res) {
     commitments:   commitmentsRes.data || [],
     excusas:       excusasRes.data     || [],
     acudientes:    acudientesRes.data  || [],
+    messages,
     att_summary,
     att_by_subject: attBySubject,
     director,
@@ -10019,6 +10063,38 @@ async function _resolveMsgRecipients(sb, target, sedeId) {
   return (data || []).map(r => r.id);
 }
 
+// Estima cuántos estudiantes (familias) recibirán un mensaje por audiencia acudiente
+async function _estimateAcudienteRecipients(sb, target, sedeId) {
+  if (target === 'all') {
+    let q = sb.from('raice_students').select('*', { count: 'exact', head: true }).eq('status', 'active');
+    if (sedeId) q = q.eq('sede_id', sedeId);
+    const { count } = await q;
+    return count || 0;
+  }
+  if (target.startsWith('course_')) {
+    const courseId = target.replace('course_', '');
+    const { count } = await sb.from('raice_students')
+      .select('*', { count: 'exact', head: true })
+      .eq('course_id', courseId).eq('status', 'active');
+    return count || 0;
+  }
+  let grades = [];
+  if (target.startsWith('grade_'))  grades = [parseInt(target.replace('grade_', ''), 10)];
+  if (target.startsWith('grades_')) grades = target.replace('grades_', '').split(',').map(Number).filter(Boolean);
+  if (grades.length) {
+    let cq = sb.from('raice_courses').select('id').in('grade', grades);
+    if (sedeId) cq = cq.eq('sede_id', sedeId);
+    const { data: courses } = await cq;
+    const cids = (courses || []).map(c => c.id);
+    if (!cids.length) return 0;
+    const { count } = await sb.from('raice_students')
+      .select('*', { count: 'exact', head: true })
+      .in('course_id', cids).eq('status', 'active');
+    return count || 0;
+  }
+  return 0;
+}
+
 // GET + POST /raice/messages
 async function handleMessages(req, res, user) {
   const sb = getSupabase();
@@ -10060,18 +10136,31 @@ async function handleMessages(req, res, user) {
         .order('created_at', { ascending: false });
       if (error) return res.status(500).json({ error: error.message });
 
-      // Attach read counts
       const ids = (msgs || []).map(m => m.id);
       let readMap = {};
       if (ids.length) {
-        const { data: reads } = await sb
-          .from('raice_message_reads')
-          .select('message_id, read_at')
-          .in('message_id', ids);
-        for (const r of (reads || [])) {
+        // Teacher reads
+        const teacherIds  = (msgs || []).filter(m => (m.audience || 'teachers') === 'teachers').map(m => m.id);
+        const acudIds     = (msgs || []).filter(m => m.audience === 'acudientes').map(m => m.id);
+
+        const [teacherReads, acudReads] = await Promise.all([
+          teacherIds.length
+            ? sb.from('raice_message_reads').select('message_id, read_at').in('message_id', teacherIds)
+            : { data: [] },
+          acudIds.length
+            ? sb.from('raice_acudiente_message_reads').select('message_id').in('message_id', acudIds)
+            : { data: [] },
+        ]);
+
+        for (const r of (teacherReads.data || [])) {
           if (!readMap[r.message_id]) readMap[r.message_id] = { total: 0, read: 0 };
           readMap[r.message_id].total++;
           if (r.read_at) readMap[r.message_id].read++;
+        }
+        for (const r of (acudReads.data || [])) {
+          if (!readMap[r.message_id]) readMap[r.message_id] = { total: 0, read: 0 };
+          readMap[r.message_id].read++;
+          readMap[r.message_id].total = readMap[r.message_id].read; // for acudientes, shown as "X familias lo leyeron"
         }
       }
       const result = (msgs || []).map(m => ({
@@ -10089,13 +10178,14 @@ async function handleMessages(req, res, user) {
     if (!SENDER_ROLES.includes(user.role))
       return res.status(403).json({ error: 'Solo coordinadores, rectores u orientadores pueden enviar mensajes' });
 
-    const { type, subject, body, target, sede_id: bodySede, expires_at } = req.body || {};
+    const { type, subject, body, target, audience: bodyAudience, sede_id: bodySede, expires_at } = req.body || {};
     if (!subject?.trim() || !body?.trim())
       return res.status(400).json({ error: 'Asunto y mensaje son requeridos' });
 
-    const finalType   = ['info','urgent','reminder'].includes(type) ? type : 'info';
-    const finalTarget = target || 'all';
-    const sedeId      = user.role === 'rector' ? (bodySede || null) : (user.sede_id || null);
+    const finalType     = ['info','urgent','reminder'].includes(type) ? type : 'info';
+    const finalTarget   = target || 'all';
+    const finalAudience = bodyAudience === 'acudientes' ? 'acudientes' : 'teachers';
+    const sedeId        = user.role === 'rector' ? (bodySede || null) : (user.sede_id || null);
 
     const { data: msg, error: insErr } = await sb
       .from('raice_messages')
@@ -10106,6 +10196,7 @@ async function handleMessages(req, res, user) {
         subject: subject.trim(),
         body: body.trim(),
         target: finalTarget,
+        audience: finalAudience,
         sede_id: sedeId,
         expires_at: expires_at || null,
       })
@@ -10113,17 +10204,24 @@ async function handleMessages(req, res, user) {
       .single();
     if (insErr) return res.status(500).json({ error: insErr.message });
 
-    const recipientIds = await _resolveMsgRecipients(sb, finalTarget, sedeId);
-    if (recipientIds.length) {
-      const readRows = recipientIds.map(tid => ({
-        message_id: msg.id,
-        teacher_id: tid,
-        read_at: null,
-      }));
-      await sb.from('raice_message_reads').insert(readRows);
+    let recipientCount = 0;
+    if (finalAudience === 'teachers') {
+      const recipientIds = await _resolveMsgRecipients(sb, finalTarget, sedeId);
+      if (recipientIds.length) {
+        const readRows = recipientIds.map(tid => ({
+          message_id: msg.id,
+          teacher_id: tid,
+          read_at: null,
+        }));
+        await sb.from('raice_message_reads').insert(readRows);
+        recipientCount = recipientIds.length;
+      }
+    } else {
+      // Para acudientes no pre-resolvemos; estimamos contando estudiantes del target
+      recipientCount = await _estimateAcudienteRecipients(sb, finalTarget, sedeId);
     }
 
-    return res.status(201).json({ message: msg, recipients: recipientIds.length });
+    return res.status(201).json({ message: msg, recipients: recipientCount });
   }
 
   return res.status(405).end();

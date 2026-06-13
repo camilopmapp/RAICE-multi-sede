@@ -1771,6 +1771,16 @@
             </div>
             <div>
               <label class="form-label">Destinatarios</label>
+              <!-- Para: Docentes / Familias -->
+              <div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.5rem;">
+                <label style="display:flex;align-items:center;gap:.3rem;font-size:.8rem;cursor:pointer;padding:.28rem .65rem;border:1.5px solid var(--border);border-radius:8px;background:var(--bg);">
+                  <input type="radio" name="msg-audience" value="teachers" checked onchange="onAdminMsgAudienceChange()"> 👨‍🏫 Docentes
+                </label>
+                <label style="display:flex;align-items:center;gap:.3rem;font-size:.8rem;cursor:pointer;padding:.28rem .65rem;border:1.5px solid var(--border);border-radius:8px;background:var(--bg);">
+                  <input type="radio" name="msg-audience" value="acudientes" onchange="onAdminMsgAudienceChange()"> 👨‍👩‍👦 Familias
+                </label>
+              </div>
+              <!-- Modo: Todos / Por grado / Por curso / Individual -->
               <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.5rem;">
                 <label style="display:flex;align-items:center;gap:.3rem;font-size:.8rem;cursor:pointer;padding:.3rem .6rem;border:1.5px solid var(--border);border-radius:8px;background:var(--bg);">
                   <input type="radio" name="msg-mode" value="all" checked onchange="onAdminMsgModeChange()"> Todos
@@ -1781,7 +1791,7 @@
                 <label style="display:flex;align-items:center;gap:.3rem;font-size:.8rem;cursor:pointer;padding:.3rem .6rem;border:1.5px solid var(--border);border-radius:8px;background:var(--bg);">
                   <input type="radio" name="msg-mode" value="course" onchange="onAdminMsgModeChange()"> Por curso
                 </label>
-                <label style="display:flex;align-items:center;gap:.3rem;font-size:.8rem;cursor:pointer;padding:.3rem .6rem;border:1.5px solid var(--border);border-radius:8px;background:var(--bg);">
+                <label id="msg-individual-label" style="display:flex;align-items:center;gap:.3rem;font-size:.8rem;cursor:pointer;padding:.3rem .6rem;border:1.5px solid var(--border);border-radius:8px;background:var(--bg);">
                   <input type="radio" name="msg-mode" value="individual" onchange="onAdminMsgModeChange()"> Individual
                 </label>
               </div>
@@ -11122,16 +11132,26 @@ async function deleteBlock(blockId, btn) {
 const _MSG_TYPE_LABEL = { info:'Informativo', urgent:'Urgente', reminder:'Recordatorio' };
 const _MSG_TYPE_CLASS = { info:'#dbeafe|#1e40af', urgent:'#fee2e2|#991b1b', reminder:'#fef3c7|#92400e' };
 
-function msgTargetLabel(target) {
-  if (!target || target === 'all') return 'Todos los docentes';
-  if (target.startsWith('grades_')) {
-    const gs = target.replace('grades_', '').split(',');
-    return 'Grado(s) ' + gs.map(g => g + '°').join(', ');
-  }
-  if (target.startsWith('grade_')) return 'Grado ' + target.replace('grade_', '') + '°';
+function msgTargetLabel(target, audience) {
+  const who = audience === 'acudientes' ? 'familias' : 'docentes';
+  if (!target || target === 'all') return `Todas las ${who}`;
+  if (target.startsWith('grades_')) return 'Grado(s) ' + target.replace('grades_','').split(',').map(g=>g+'°').join(', ');
+  if (target.startsWith('grade_'))  return 'Grado ' + target.replace('grade_','') + '°';
   if (target.startsWith('course_')) return 'Curso específico';
   if (target.startsWith('user_'))   return 'Docente individual';
   return target;
+}
+
+function onAdminMsgAudienceChange() {
+  const aud = document.querySelector('input[name="msg-audience"]:checked')?.value || 'teachers';
+  const indLabel = document.getElementById('msg-individual-label');
+  if (indLabel) indLabel.style.display = aud === 'acudientes' ? 'none' : '';
+  // Si estaba en individual y cambia a familias, resetear al modo all
+  const curMode = document.querySelector('input[name="msg-mode"]:checked')?.value;
+  if (aud === 'acudientes' && curMode === 'individual') {
+    document.querySelector('input[name="msg-mode"][value="all"]').checked = true;
+  }
+  onAdminMsgModeChange();
 }
 
 function onAdminMsgModeChange() {
@@ -11206,21 +11226,24 @@ async function sendAdminMessage() {
   const target = buildAdminMsgTarget();
   if (target === null) return;
 
+  const audience = document.querySelector('input[name="msg-audience"]:checked')?.value || 'teachers';
   const btn = document.getElementById('btn-send-msg');
   btn.disabled = true; btn.textContent = 'Enviando…';
   const r = await fetchAPI('/raice/messages', {
     method: 'POST',
-    body: JSON.stringify({ type, subject, body, target, expires_at: expires || null }),
+    body: JSON.stringify({ type, subject, body, target, audience, expires_at: expires || null }),
   });
   btn.disabled = false; btn.textContent = '📤 Enviar mensaje';
   if (!r.ok) { showToast(r.data?.error || 'Error al enviar', 'error'); return; }
-  showToast(`Mensaje enviado a ${r.data.recipients} docente(s)`, 'success');
+  const unit = audience === 'acudientes' ? 'familia(s)' : 'docente(s)';
+  showToast(`Mensaje enviado a ${r.data.recipients} ${unit}`, 'success');
   document.getElementById('msg-subject').value = '';
   document.getElementById('msg-body').value = '';
   document.getElementById('msg-expires').value = '';
   document.getElementById('msg-char-count').textContent = '0 / 1000';
+  document.querySelector('input[name="msg-audience"][value="teachers"]').checked = true;
   document.querySelector('input[name="msg-mode"][value="all"]').checked = true;
-  onAdminMsgModeChange();
+  onAdminMsgAudienceChange();
   loadSentMessages();
 }
 
@@ -11237,22 +11260,30 @@ async function loadSentMessages() {
   box.innerHTML = msgs.map(m => {
     const [bg, col] = (_MSG_TYPE_CLASS[m.type] || '#f1f5f9|#475569').split('|');
     const fecha = new Date(m.created_at).toLocaleDateString('es-CO', { day:'2-digit', month:'short', year:'numeric' });
+    const isAcud = m.audience === 'acudientes';
+    const audBadge = isAcud
+      ? '<span style="background:#ede9fe;color:#5b21b6;padding:.1rem .4rem;border-radius:12px;font-size:.68rem;font-weight:700;">👨‍👩‍👦 Familias</span>'
+      : '<span style="background:#f0fdf4;color:#15803d;padding:.1rem .4rem;border-radius:12px;font-size:.68rem;font-weight:700;">👨‍🏫 Docentes</span>';
     const readPct = m.total_count ? Math.round((m.read_count / m.total_count) * 100) : 0;
+    const readStats = isAcud
+      ? `<span style="font-size:.73rem;color:var(--gray);white-space:nowrap;">👁️ ${m.read_count} familia(s) lo leyeron</span>`
+      : `<div style="display:flex;align-items:center;gap:.5rem;flex:1;">
+           <div style="flex:1;height:5px;background:var(--border);border-radius:99px;overflow:hidden;">
+             <div style="height:100%;width:${readPct}%;background:var(--teal);border-radius:99px;"></div>
+           </div>
+           <span style="font-size:.73rem;color:var(--gray);white-space:nowrap;">Leído ${m.read_count} / ${m.total_count}</span>
+         </div>`;
     return `<div style="background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:.85rem 1rem;margin-bottom:.6rem;">
       <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.4rem;">
         <span style="background:${bg};color:${col};padding:.14rem .5rem;border-radius:20px;font-size:.72rem;font-weight:700;">${_MSG_TYPE_LABEL[m.type] || m.type}</span>
-        <span style="font-size:.73rem;color:var(--gray);">→ ${escapeHtml(msgTargetLabel(m.target))}</span>
+        ${audBadge}
+        <span style="font-size:.73rem;color:var(--gray);">→ ${escapeHtml(msgTargetLabel(m.target, m.audience))}</span>
         <span style="margin-left:auto;font-size:.72rem;color:var(--gray);">${fecha}</span>
         <button onclick="deleteAdminMessage('${m.id}',this)" title="Eliminar" style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:.82rem;padding:.1rem .3rem;">✕</button>
       </div>
       <div style="font-size:.9rem;font-weight:700;color:var(--navy);margin-bottom:.2rem;">${escapeHtml(m.subject)}</div>
       <div style="font-size:.8rem;color:#334155;margin-bottom:.5rem;white-space:pre-wrap;">${escapeHtml(m.body.length > 120 ? m.body.slice(0,120)+'…' : m.body)}</div>
-      <div style="display:flex;align-items:center;gap:.5rem;">
-        <div style="flex:1;height:5px;background:var(--border);border-radius:99px;overflow:hidden;">
-          <div style="height:100%;width:${readPct}%;background:var(--teal);border-radius:99px;"></div>
-        </div>
-        <span style="font-size:.73rem;color:var(--gray);white-space:nowrap;">Leído ${m.read_count} / ${m.total_count}</span>
-      </div>
+      <div style="display:flex;align-items:center;gap:.5rem;">${readStats}</div>
     </div>`;
   }).join('');
 }
