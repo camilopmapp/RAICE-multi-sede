@@ -2587,7 +2587,7 @@
   }
 
   // ---- EXPORT EXCEL MIS ESTUDIANTES ----
-  function exportMisEstudiantesExcel() {
+  async function exportMisEstudiantesExcel() {
     const students = _misEstudiantesStudents || [];
     if (!students.length) { showToast('No hay estudiantes para exportar', 'warning'); return; }
 
@@ -2595,7 +2595,8 @@
     const course   = myCourses.find(c => c.id === courseId) || {};
     const grade    = course.grade ? course.grade + '°' + (course.number || '') : '';
     const subject  = course.subject || '';
-    const school   = window._schoolConfig?.name || '';
+    const cfg      = (await window.RAICE.fetchConfig(fetchAPI)) || {};
+    const school   = cfg.school_name || cfg.name || '';
 
     // Pre-fill modal fields
     document.getElementById('xls-school').value   = school;
