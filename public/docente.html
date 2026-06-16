@@ -451,6 +451,7 @@
 <script src="/shared/utils/index.js"></script>
 <script src="/shared/data/apiClient.js"></script>
 <script src="/shared/domain/index.js"></script>
+<script src="/js/xlsx.full.min.js"></script>
 <script src="/shared/utils/printObservador.js"></script>
 <script src="/shared/utils/printLista.js"></script>
 <script src="/shared/utils/pwa.js"></script>
@@ -1138,6 +1139,9 @@
             <button id="btn-print-lista-me" class="btn btn-ghost btn-sm" onclick="openPrintListaModal('mis-estudiantes')"
               title="Imprimir lista del curso" disabled
               style="white-space:nowrap;opacity:.4;cursor:not-allowed;">🖨️ Imprimir lista</button>
+            <button id="btn-export-lista-me" class="btn btn-ghost btn-sm" onclick="exportMisEstudiantesExcel()"
+              title="Exportar a Excel" disabled
+              style="white-space:nowrap;opacity:.4;cursor:not-allowed;">📊 Exportar Excel</button>
           </div>
         </div>
         <div class="card-body" style="padding:0;">
@@ -2549,13 +2553,16 @@
     const course   = myCourses.find(c => c.id === courseId);
     const subject  = course?.subject || '';
     const list = document.getElementById('me-list');
-    const printBtn = document.getElementById('btn-print-lista-me');
+    const printBtn  = document.getElementById('btn-print-lista-me');
+    const exportBtn = document.getElementById('btn-export-lista-me');
     if (!students.length) {
       list.innerHTML = '<div style="text-align:center;padding:2.5rem;color:var(--gray);">No se encontraron estudiantes.</div>';
-      if (printBtn) { printBtn.disabled = true; printBtn.style.opacity = '.4'; printBtn.style.cursor = 'not-allowed'; }
+      if (printBtn)  { printBtn.disabled  = true; printBtn.style.opacity  = '.4'; printBtn.style.cursor  = 'not-allowed'; }
+      if (exportBtn) { exportBtn.disabled = true; exportBtn.style.opacity = '.4'; exportBtn.style.cursor = 'not-allowed'; }
       return;
     }
-    if (printBtn) { printBtn.disabled = false; printBtn.style.opacity = '1'; printBtn.style.cursor = 'pointer'; }
+    if (printBtn)  { printBtn.disabled  = false; printBtn.style.opacity  = '1'; printBtn.style.cursor  = 'pointer'; }
+    if (exportBtn) { exportBtn.disabled = false; exportBtn.style.opacity = '1'; exportBtn.style.cursor = 'pointer'; }
     list.innerHTML = students.map((s, i) => {
       const fullName = escapeHtml(s.first_name) + ' ' + escapeHtml(s.last_name);
       const initials = (s.first_name[0] || '') + (s.last_name[0] || '');
@@ -2577,6 +2584,63 @@
         </div>
       </div>`;
     }).join('');
+  }
+
+  // ---- EXPORT EXCEL MIS ESTUDIANTES ----
+  function exportMisEstudiantesExcel() {
+    const students = _misEstudiantesStudents || [];
+    if (!students.length) { showToast('No hay estudiantes para exportar', 'warning'); return; }
+
+    const courseId = document.getElementById('me-course-sel')?.value;
+    const course   = myCourses.find(c => c.id === courseId) || {};
+    const grade    = course.grade ? course.grade + '°' + (course.number || '') : '';
+    const subject  = course.subject || '';
+    const today    = new Date().toLocaleDateString('es-CO', { year: 'numeric', month: '2-digit', day: '2-digit' });
+    const todayISO = new Date().toISOString().slice(0, 10);
+
+    const wb = XLSX.utils.book_new();
+
+    // Fila de encabezado descriptivo
+    const meta = [
+      ['Institución:', (window._schoolConfig?.name || 'RAICE')],
+      ['Grado / Curso:', grade],
+      ['Asignatura:', subject],
+      ['Fecha de exportación:', today],
+      [],
+      ['N°', 'Apellidos', 'Nombres', 'Tipo Doc.', 'N° Documento', 'Fecha Nac.', 'Teléfono', 'Estado'],
+    ];
+
+    // Filas de datos ordenadas por apellido (ya vienen así del API)
+    const rows = students.map((s, i) => [
+      i + 1,
+      (s.last_name  || '').toUpperCase(),
+      (s.first_name || '').toUpperCase(),
+      s.doc_type   || '',
+      s.doc_number || '',
+      s.birth_date ? s.birth_date.slice(0, 10) : '',
+      s.phone      || '',
+      s.status === 'inactive' ? 'Retirado' : 'Activo',
+    ]);
+
+    const ws = XLSX.utils.aoa_to_sheet([...meta, ...rows]);
+
+    // Ancho de columnas
+    ws['!cols'] = [
+      { wch: 5 },  // N°
+      { wch: 22 }, // Apellidos
+      { wch: 22 }, // Nombres
+      { wch: 12 }, // Tipo doc
+      { wch: 16 }, // N° doc
+      { wch: 14 }, // Fecha nac
+      { wch: 14 }, // Teléfono
+      { wch: 10 }, // Estado
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Estudiantes');
+
+    const safeCourse = grade.replace(/[^a-zA-Z0-9]/g, '');
+    const safeSubj   = subject.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 15);
+    XLSX.writeFile(wb, `lista_${safeCourse}_${safeSubj}_${todayISO}.xlsx`);
   }
 
   // ---- PRINT OBSERVADOR ----
