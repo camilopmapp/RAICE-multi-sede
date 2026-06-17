@@ -11527,13 +11527,19 @@ function openOverrideModal() {
 
 function _ovToggleScope(scope) {
   document.getElementById('ov-course-picker').style.display = scope === 'sel' ? 'block' : 'none';
+  if (scope === 'sel') _ovLoadCourses();
 }
 
 async function _ovLoadCourses() {
+  const grid = document.getElementById('ov-courses-grid');
   if (_ovAllCourses.length) { _ovRenderCourses(); return; }
+  if (grid) grid.innerHTML = '<span style="color:var(--gray);font-size:.82rem;">Cargando...</span>';
   const { ok, data } = await fetchAPI('/raice/courses');
-  if (!ok) return;
-  _ovAllCourses = (data.courses || data || []).sort((a, b) =>
+  if (!ok) {
+    if (grid) grid.innerHTML = '<span style="color:var(--danger);font-size:.82rem;">Error al cargar cursos. Intenta de nuevo.</span>';
+    return;
+  }
+  _ovAllCourses = (Array.isArray(data.courses) ? data.courses : Array.isArray(data) ? data : []).sort((a, b) =>
     (a.grade - b.grade) || (a.number || '').localeCompare(b.number || '')
   );
   _ovRenderCourses();
