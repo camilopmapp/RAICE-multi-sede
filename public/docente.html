@@ -2628,8 +2628,15 @@
     const totalCols = 2 + numCols;
     const colNums   = Array.from({ length: numCols }, (_, i) => i + 1);
 
-    const hdrCell  = `text-align:center;font-size:11pt;font-family:Arial;`;
-    const bordCell = `border:1px solid #aaaaaa;font-family:Arial;font-size:9pt;padding:3px 6px;`;
+    // Auto-fit name column to longest name (Arial 12pt ≈ 7.5px/char)
+    const maxNameLen = sorted.reduce((max, s) => {
+      const len = (s.last_name || '').length + (s.first_name || '').length + 2;
+      return len > max ? len : max;
+    }, 20);
+    const nameColPx = Math.min(Math.max(maxNameLen * 7.5 + 16, 180), 400);
+
+    const hdrCell  = `text-align:center;font-size:12pt;font-family:Arial;`;
+    const bordCell = `border:1px solid #aaaaaa;font-family:Arial;font-size:12pt;padding:3px 6px;`;
 
     const scoreHeaders = colNums.map(n =>
       `<td style="${bordCell}font-weight:bold;text-align:center;background:#f0f4ff;">${n}</td>`
@@ -2639,9 +2646,9 @@
       const lastName  = (s.last_name  || '').toUpperCase();
       const firstName = (s.first_name || '').toUpperCase();
       const name = sortBy === 'lastname' ? `${lastName}, ${firstName}` : `${firstName} ${lastName}`;
-      const scoreCells = Array(numCols).fill(`<td style="${bordCell}height:18px;"></td>`).join('');
+      const scoreCells = Array(numCols).fill(`<td style="${bordCell}height:20px;"></td>`).join('');
       const bg = i % 2 === 1 ? 'background:#f9f9f9;' : '';
-      return `<tr style="height:18px;">
+      return `<tr style="height:20px;">
         <td style="${bordCell}text-align:center;white-space:nowrap;${bg}">${i + 1}</td>
         <td style="${bordCell}white-space:nowrap;${bg}">${name}</td>
         ${scoreCells}
@@ -2649,17 +2656,38 @@
     }).join('');
 
     const html = `
-      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
       <head><meta charset="UTF-8">
+      <xml>
+        <x:ExcelWorkbook>
+          <x:ExcelWorksheets><x:ExcelWorksheet>
+            <x:Name>Calificaciones</x:Name>
+            <x:WorksheetOptions>
+              <x:PageSetup>
+                <x:Layout x:Orientation="Landscape"/>
+                <x:Header x:Margin="0.25"/>
+                <x:Footer x:Margin="0.25"/>
+              </x:PageSetup>
+              <x:FitToPage/>
+              <x:Print>
+                <x:FitWidth>1</x:FitWidth>
+                <x:FitHeight>100</x:FitHeight>
+                <x:ValidPrinterInfo/>
+                <x:PaperSizeIndex>1</x:PaperSizeIndex>
+              </x:Print>
+            </x:WorksheetOptions>
+          </x:ExcelWorksheet></x:ExcelWorksheets>
+        </x:ExcelWorkbook>
+      </xml>
       <style>td{mso-number-format:"@";}</style>
       </head><body>
       <table cellspacing="0" cellpadding="0">
         <col style="width:35px">
-        <col style="width:260px">
+        <col style="width:${nameColPx}px">
         ${Array(numCols).fill('<col style="width:65px">').join('')}
-        <tr><td colspan="${totalCols}" style="${hdrCell}font-size:13pt;font-weight:bold;padding:6px 0 2px;">${school}</td></tr>
-        <tr><td colspan="${totalCols}" style="${hdrCell}font-size:11pt;font-weight:bold;padding:2px 0;">${grade}${subject ? '&nbsp;&nbsp;·&nbsp;&nbsp;' + subject : ''}</td></tr>
-        <tr><td colspan="${totalCols}" style="${hdrCell}font-size:9pt;color:#555;padding:2px 0 6px;">Fecha: ${today}</td></tr>
+        <tr><td colspan="${totalCols}" style="${hdrCell}font-size:14pt;font-weight:bold;padding:6px 0 2px;">${school}</td></tr>
+        <tr><td colspan="${totalCols}" style="${hdrCell}font-size:12pt;font-weight:bold;padding:2px 0;">${grade}${subject ? '&nbsp;&nbsp;·&nbsp;&nbsp;' + subject : ''}</td></tr>
+        <tr><td colspan="${totalCols}" style="${hdrCell}font-size:10pt;color:#555;padding:2px 0 6px;">Fecha: ${today}</td></tr>
         <tr><td colspan="${totalCols}"></td></tr>
         <tr>
           <td style="${bordCell}font-weight:bold;text-align:center;background:#f0f4ff;">N°</td>
