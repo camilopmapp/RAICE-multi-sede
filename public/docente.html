@@ -452,6 +452,7 @@
 <script src="/shared/data/apiClient.js"></script>
 <script src="/shared/domain/index.js"></script>
 <script src="/js/xlsx.full.min.js"></script>
+<script src="/js/exceljs.min.js"></script>
 <script src="/shared/utils/printObservador.js"></script>
 <script src="/shared/utils/printLista.js"></script>
 <script src="/shared/utils/pwa.js"></script>
@@ -2608,7 +2609,7 @@
     openModal('modal-export-excel');
   }
 
-  function _doExportExcel() {
+  async function _doExportExcel() {
     const students = _misEstudiantesStudents || [];
     if (!students.length) return;
 
@@ -2625,86 +2626,102 @@
       return (a.first_name || '').localeCompare(b.first_name || '', 'es');
     });
 
+    const names = sorted.map(s => {
+      const ln = (s.last_name  || '').toUpperCase();
+      const fn = (s.first_name || '').toUpperCase();
+      return sortBy === 'lastname' ? `${ln}, ${fn}` : `${fn} ${ln}`;
+    });
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'RAICE';
+    const ws = wb.addWorksheet('Calificaciones', {
+      pageSetup: { paperSize: 1, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+      properties: { defaultRowHeight: 16 }
+    });
+
     const totalCols = 2 + numCols;
-    const colNums   = Array.from({ length: numCols }, (_, i) => i + 1);
 
-    // Auto-fit name column: ALL CAPS Arial 12pt ≈ 10px/char + 20px padding
-    const maxNameLen = sorted.reduce((max, s) => {
-      const len = (s.last_name || '').length + (s.first_name || '').length + 2;
-      return len > max ? len : max;
-    }, 20);
-    const nameColPx = Math.min(Math.max(maxNameLen * 10 + 20, 200), 480);
+    // --- Merged header rows ---
+    const hdrFont   = { name: 'Arial', bold: true };
+    const hdrAlign  = { horizontal: 'center', vertical: 'middle' };
 
-    const hdrCell  = `text-align:center;font-size:12pt;font-family:Arial;`;
-    const bordCell = `border:1px solid #aaaaaa;font-family:Arial;font-size:12pt;padding:3px 6px;`;
+    ws.mergeCells(1, 1, 1, totalCols);
+    const r1 = ws.getRow(1);
+    r1.height = 22;
+    const c1 = ws.getCell(1, 1);
+    c1.value = school;
+    c1.font  = { ...hdrFont, size: 14 };
+    c1.alignment = hdrAlign;
 
-    const scoreHeaders = colNums.map(n =>
-      `<td style="${bordCell}font-weight:bold;text-align:center;background:#f0f4ff;">${n}</td>`
-    ).join('');
+    ws.mergeCells(2, 1, 2, totalCols);
+    const r2 = ws.getRow(2);
+    r2.height = 18;
+    const c2 = ws.getCell(2, 1);
+    c2.value = grade + (subject ? '  ·  ' + subject : '');
+    c2.font  = { ...hdrFont, size: 12 };
+    c2.alignment = hdrAlign;
 
-    const dataRows = sorted.map((s, i) => {
-      const lastName  = (s.last_name  || '').toUpperCase();
-      const firstName = (s.first_name || '').toUpperCase();
-      const name = sortBy === 'lastname' ? `${lastName}, ${firstName}` : `${firstName} ${lastName}`;
-      const scoreCells = Array(numCols).fill(`<td style="${bordCell}height:20px;"></td>`).join('');
-      const bg = i % 2 === 1 ? 'background:#f9f9f9;' : '';
-      return `<tr style="height:20px;">
-        <td style="${bordCell}text-align:center;white-space:nowrap;${bg}">${i + 1}</td>
-        <td style="${bordCell}white-space:nowrap;${bg}">${name}</td>
-        ${scoreCells}
-      </tr>`;
-    }).join('');
+    ws.mergeCells(3, 1, 3, totalCols);
+    const r3 = ws.getRow(3);
+    r3.height = 16;
+    const c3 = ws.getCell(3, 1);
+    c3.value = 'Fecha: ' + today;
+    c3.font  = { name: 'Arial', size: 10, color: { argb: 'FF555555' } };
+    c3.alignment = hdrAlign;
 
-    const html = `
-      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-      <head><meta charset="UTF-8">
-      <xml>
-        <x:ExcelWorkbook>
-          <x:ExcelWorksheets><x:ExcelWorksheet>
-            <x:Name>Calificaciones</x:Name>
-            <x:WorksheetOptions>
-              <x:PageSetup>
-                <x:Layout x:Orientation="Landscape"/>
-                <x:Header x:Margin="0.25"/>
-                <x:Footer x:Margin="0.25"/>
-              </x:PageSetup>
-              <x:FitToPage/>
-              <x:Print>
-                <x:FitWidth>1</x:FitWidth>
-                <x:FitHeight>100</x:FitHeight>
-                <x:ValidPrinterInfo/>
-                <x:PaperSizeIndex>1</x:PaperSizeIndex>
-              </x:Print>
-            </x:WorksheetOptions>
-          </x:ExcelWorksheet></x:ExcelWorksheets>
-        </x:ExcelWorkbook>
-      </xml>
-      <style>td{mso-number-format:"@";}</style>
-      </head><body>
-      <table cellspacing="0" cellpadding="0">
-        <col width="35" style="width:35px;mso-width-source:userset;">
-        <col width="${nameColPx}" style="width:${nameColPx}px;mso-width-source:userset;">
-        ${Array(numCols).fill('<col width="65" style="width:65px;mso-width-source:userset;">').join('')}
-        <tr><td colspan="${totalCols}" style="${hdrCell}font-size:14pt;font-weight:bold;padding:6px 0 2px;">${school}</td></tr>
-        <tr><td colspan="${totalCols}" style="${hdrCell}font-size:12pt;font-weight:bold;padding:2px 0;">${grade}${subject ? '&nbsp;&nbsp;·&nbsp;&nbsp;' + subject : ''}</td></tr>
-        <tr><td colspan="${totalCols}" style="${hdrCell}font-size:10pt;color:#555;padding:2px 0 6px;">Fecha: ${today}</td></tr>
-        <tr><td colspan="${totalCols}"></td></tr>
-        <tr>
-          <td style="${bordCell}font-weight:bold;text-align:center;background:#f0f4ff;">N°</td>
-          <td style="${bordCell}font-weight:bold;background:#f0f4ff;">Apellidos y Nombres</td>
-          ${scoreHeaders}
-        </tr>
-        ${dataRows}
-      </table>
-      </body></html>`;
+    // blank separator row 4
+    ws.getRow(4).height = 6;
 
-    const blob = new Blob(['﻿' + html], { type: 'application/vnd.ms-excel;charset=utf-8' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
+    // --- Column header row (row 5) ---
+    const colHdrFill   = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8EEFF' } };
+    const colHdrFont   = { name: 'Arial', bold: true, size: 12 };
+    const thinBorder   = { style: 'thin', color: { argb: 'FFAAAAAA' } };
+    const allBorders   = { top: thinBorder, left: thinBorder, bottom: thinBorder, right: thinBorder };
+
+    const hdrRow = ws.getRow(5);
+    hdrRow.height = 18;
+    hdrRow.getCell(1).value = 'N°';
+    hdrRow.getCell(2).value = 'Apellidos y Nombres';
+    for (let c = 3; c <= totalCols; c++) hdrRow.getCell(c).value = c - 2;
+    hdrRow.eachCell({ includeEmpty: true }, cell => {
+      cell.font      = colHdrFont;
+      cell.fill      = colHdrFill;
+      cell.border    = allBorders;
+      cell.alignment = { horizontal: cell.col === 2 ? 'left' : 'center', vertical: 'middle' };
+    });
+
+    // --- Data rows ---
+    const dataFont = { name: 'Arial', size: 12 };
+    sorted.forEach((s, i) => {
+      const row  = ws.getRow(6 + i);
+      row.height = 18;
+      const fill = i % 2 === 1 ? { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9F9F9' } } : undefined;
+      row.getCell(1).value = i + 1;
+      row.getCell(2).value = names[i];
+      for (let c = 3; c <= totalCols; c++) row.getCell(c).value = '';
+      row.eachCell({ includeEmpty: true }, cell => {
+        cell.font      = dataFont;
+        cell.border    = allBorders;
+        cell.alignment = { horizontal: cell.col === 2 ? 'left' : 'center', vertical: 'middle' };
+        if (fill) cell.fill = fill;
+      });
+    });
+
+    // --- Auto-fit column widths based on content ---
+    const maxNameChars = Math.max(...names.map(n => n.length), 20);
+    ws.columns[0].width = 5;                          // N°
+    ws.columns[1].width = maxNameChars + 2;           // Nombres — exact auto-fit
+    for (let c = 2; c < totalCols; c++) ws.columns[c].width = 8; // score cols
+
+    // --- Download ---
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob   = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url    = URL.createObjectURL(blob);
+    const a      = document.createElement('a');
+    a.href       = url;
     const safeCourse = grade.replace(/[^a-zA-Z0-9]/g, '');
     const safeSubj   = subject.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 15);
-    a.download = `planilla_${safeCourse}_${safeSubj}_${todayISO}.xls`;
+    a.download   = `planilla_${safeCourse}_${safeSubj}_${todayISO}.xlsx`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
