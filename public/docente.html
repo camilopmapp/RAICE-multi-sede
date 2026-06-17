@@ -2639,11 +2639,11 @@
       const lastName  = (s.last_name  || '').toUpperCase();
       const firstName = (s.first_name || '').toUpperCase();
       const name = sortBy === 'lastname' ? `${lastName}, ${firstName}` : `${firstName} ${lastName}`;
-      const scoreCells = Array(numCols).fill(`<td style="${bordCell}"></td>`).join('');
+      const scoreCells = Array(numCols).fill(`<td style="${bordCell}height:18px;"></td>`).join('');
       const bg = i % 2 === 1 ? 'background:#f9f9f9;' : '';
-      return `<tr>
-        <td style="${bordCell}text-align:center;${bg}">${i + 1}</td>
-        <td style="${bordCell}${bg}">${name}</td>
+      return `<tr style="height:18px;">
+        <td style="${bordCell}text-align:center;white-space:nowrap;${bg}">${i + 1}</td>
+        <td style="${bordCell}white-space:nowrap;${bg}">${name}</td>
         ${scoreCells}
       </tr>`;
     }).join('');
