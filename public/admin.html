@@ -546,6 +546,9 @@
     <button class="nav-item" onclick="showSection('horarios-especiales',this)">
       <span class="nav-ico">⭐</span> Horarios especiales
     </button>
+    <button class="nav-item" onclick="showSection('cambio-horario',this)">
+      <span class="nav-ico">🔀</span> Cambio de horario
+    </button>
 
     <div class="nav-group-title">Comunicaciones</div>
     <button class="nav-item" onclick="showSection('mensajes',this)">
@@ -1300,6 +1303,21 @@
           <div id="sd-list" style="display:grid;gap:.9rem;">
             <div style="text-align:center;padding:2rem;color:var(--gray);">Cargando…</div>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CAMBIO DE HORARIO POR DÍA -->
+    <section class="section" id="sec-cambio-horario">
+      <div class="card" style="margin-bottom:1.25rem;">
+        <div class="card-header">
+          <h3>🔀 Cambio de horario por día</h3>
+          <div class="card-actions">
+            <button class="btn btn-primary btn-sm" onclick="openOverrideModal()">➕ Nuevo cambio</button>
+          </div>
+        </div>
+        <div class="card-body" id="override-list">
+          <div style="text-align:center;padding:2rem;color:var(--gray);">Cargando…</div>
         </div>
       </div>
     </section>
@@ -2364,6 +2382,7 @@ function showSection(name, btn) {
     excusas:'Excusas de estudiantes', subgrupos:'Subgrupos',
     'mapa-escolar':'Mapa escolar',
     'horarios-especiales':'Horarios especiales',
+    'cambio-horario':'Cambio de horario',
     'mensajes':'Mensajes'
   };
   document.getElementById('page-title').textContent = titles[name] || name;
@@ -2387,6 +2406,7 @@ function showSection(name, btn) {
   if (name === 'mapa-escolar')      loadMapaEscolar();
   if (name === 'reemplazos')        { initReemplazosDate(); loadReemplazos(); }
   if (name === 'horarios-especiales') loadSpecialDays();
+  if (name === 'cambio-horario')      loadScheduleOverrides();
   if (name === 'convivencia-extra') { initRemovalsDate(); loadRemovals(); loadSuspensions(); initEvasionsDate(); loadEvasions(); }
   if (name === 'reportes') { rptApplyPreset(); rptMenuSelect('executive'); }
   if (name === 'asistencia') {
@@ -11413,3 +11433,155 @@ async function deleteAdminMessage(id, btn) {
     </div>
   </div>
 </div>
+
+<!-- ===== MODAL: Cambio de horario por día ===== -->
+<div class="modal-overlay" id="modal-override" onclick="if(event.target===this)closeModal('modal-override')">
+  <div class="modal" style="max-width:520px;">
+    <div class="modal-header">
+      <h3>🔀 Nuevo cambio de horario</h3>
+      <button class="modal-close" onclick="closeModal('modal-override')">✕</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:1rem;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;">
+        <div class="form-group">
+          <label class="form-label">Fecha del cambio</label>
+          <input type="date" id="ov-date" style="width:100%;padding:.45rem .75rem;border:1.5px solid var(--border);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:.88rem;box-sizing:border-box;">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Usar horario del</label>
+          <select id="ov-source-day" style="width:100%;padding:.45rem .75rem;border:1.5px solid var(--border);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:.88rem;">
+            <option value="">— Selecciona —</option>
+            <option value="1">Lunes</option>
+            <option value="2">Martes</option>
+            <option value="3">Miércoles</option>
+            <option value="4">Jueves</option>
+            <option value="5">Viernes</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Aplica a</label>
+        <div style="display:flex;gap:.5rem;margin-top:.35rem;">
+          <label style="flex:1;display:flex;align-items:center;gap:.5rem;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:9px;cursor:pointer;font-size:.85rem;" id="ov-scope-all-label">
+            <input type="radio" name="ov-scope" value="all" checked onchange="_ovToggleScope('all')"> Toda la institución
+          </label>
+          <label style="flex:1;display:flex;align-items:center;gap:.5rem;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:9px;cursor:pointer;font-size:.85rem;" id="ov-scope-sel-label">
+            <input type="radio" name="ov-scope" value="sel" onchange="_ovToggleScope('sel')"> Cursos específicos
+          </label>
+        </div>
+      </div>
+
+      <div id="ov-course-picker" style="display:none;" class="form-group">
+        <label class="form-label">Selecciona los cursos</label>
+        <div id="ov-courses-grid" style="margin-top:.5rem;max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:.5rem;"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-override')">Cancelar</button>
+      <button class="btn btn-teal" onclick="saveScheduleOverride()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- CAMBIO DE HORARIO ----
+let _ovAllCourses = [];
+
+async function loadScheduleOverrides() {
+  const { ok, data } = await fetchAPI('/raice/schedule-overrides');
+  const list = document.getElementById('override-list');
+  if (!ok || !data?.overrides?.length) {
+    list.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--gray);">No hay cambios de horario registrados.</div>';
+    return;
+  }
+  const today = todayColombia();
+  const DAY_ES = ['','lunes','martes','miércoles','jueves','viernes'];
+  list.innerHTML = data.overrides.map(o => {
+    const isPast    = o.override_date < today;
+    const isToday   = o.override_date === today;
+    const badge     = isToday  ? '<span style="background:#dcfce7;color:#166534;font-size:.75rem;font-weight:700;padding:2px 8px;border-radius:6px;">Hoy</span>'
+                    : !isPast  ? '<span style="background:#e0f2fe;color:#0369a1;font-size:.75rem;font-weight:700;padding:2px 8px;border-radius:6px;">Próximo</span>'
+                    :            '<span style="background:#f3f4f6;color:#6b7280;font-size:.75rem;font-weight:600;padding:2px 8px;border-radius:6px;">Aplicado</span>';
+    const courses   = o.course_labels?.length ? o.course_labels.join(' · ') : 'Toda la institución';
+    const dateLabel = new Date(o.override_date + 'T12:00:00').toLocaleDateString('es-CO', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+    return `<div style="display:flex;align-items:center;gap:.75rem;padding:.75rem 0;border-bottom:1px solid var(--border);">
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;font-size:.88rem;color:var(--navy);">${dateLabel} ${badge}</div>
+        <div style="font-size:.8rem;color:var(--gray);margin-top:.15rem;">Usa horario del <strong>${o.source_day_name}</strong> · ${courses}</div>
+      </div>
+      ${!isPast ? `<button onclick="deleteScheduleOverride('${o.id}')" style="padding:.3rem .65rem;font-size:.78rem;background:#fff5f5;color:#dc2626;border:1.5px solid #fecaca;border-radius:7px;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:600;">Eliminar</button>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function openOverrideModal() {
+  const today = todayColombia();
+  document.getElementById('ov-date').value = today;
+  document.getElementById('ov-source-day').value = '';
+  document.querySelector('input[name="ov-scope"][value="all"]').checked = true;
+  _ovToggleScope('all');
+  _ovLoadCourses();
+  openModal('modal-override');
+}
+
+function _ovToggleScope(scope) {
+  document.getElementById('ov-course-picker').style.display = scope === 'sel' ? 'block' : 'none';
+}
+
+async function _ovLoadCourses() {
+  if (_ovAllCourses.length) { _ovRenderCourses(); return; }
+  const { ok, data } = await fetchAPI('/raice/courses');
+  if (!ok) return;
+  _ovAllCourses = (data.courses || data || []).sort((a, b) =>
+    (a.grade - b.grade) || (a.number || '').localeCompare(b.number || '')
+  );
+  _ovRenderCourses();
+}
+
+function _ovRenderCourses() {
+  const grid = document.getElementById('ov-courses-grid');
+  const byGrade = {};
+  _ovAllCourses.forEach(c => {
+    if (!byGrade[c.grade]) byGrade[c.grade] = [];
+    byGrade[c.grade].push(c);
+  });
+  grid.innerHTML = Object.entries(byGrade).map(([grade, courses]) => `
+    <div>
+      <div style="font-size:.75rem;font-weight:700;color:var(--gray);margin-bottom:.35rem;">${grade}°</div>
+      <div style="display:flex;flex-wrap:wrap;gap:.35rem;">
+        ${courses.map(c => `
+          <label style="display:flex;align-items:center;gap:.3rem;padding:.3rem .65rem;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;font-size:.82rem;">
+            <input type="checkbox" value="${c.id}" name="ov-course"> ${c.grade}°${c.number || ''}
+          </label>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+async function saveScheduleOverride() {
+  const date      = document.getElementById('ov-date').value;
+  const sourceDay = document.getElementById('ov-source-day').value;
+  const scope     = document.querySelector('input[name="ov-scope"]:checked')?.value;
+  if (!date || !sourceDay) { showToast('Completa la fecha y el día de horario a usar', 'warning'); return; }
+  const courseIds = scope === 'sel'
+    ? [...document.querySelectorAll('input[name="ov-course"]:checked')].map(el => el.value)
+    : [];
+  if (scope === 'sel' && !courseIds.length) { showToast('Selecciona al menos un curso', 'warning'); return; }
+  const { ok, data } = await fetchAPI('/raice/schedule-overrides', {
+    method: 'POST',
+    body: JSON.stringify({ override_date: date, source_day: parseInt(sourceDay), course_ids: courseIds })
+  });
+  if (!ok) { showToast(data?.error || 'Error al guardar', 'error'); return; }
+  showToast('Cambio de horario guardado', 'success');
+  closeModal('modal-override');
+  loadScheduleOverrides();
+}
+
+async function deleteScheduleOverride(id) {
+  if (!confirm('¿Eliminar este cambio de horario?')) return;
+  const { ok, data } = await fetchAPI(`/raice/schedule-overrides?id=${id}`, { method: 'DELETE' });
+  if (!ok) { showToast(data?.error || 'Error al eliminar', 'error'); return; }
+  showToast('Eliminado', 'success');
+  loadScheduleOverrides();
+}
+</script>

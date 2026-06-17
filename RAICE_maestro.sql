@@ -195,6 +195,17 @@ CREATE TABLE IF NOT EXISTS raice_schedules (
 );
 
 
+CREATE TABLE IF NOT EXISTS raice_schedule_overrides (
+  id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  override_date DATE        NOT NULL,
+  source_day    SMALLINT    NOT NULL CHECK (source_day BETWEEN 1 AND 5),
+  course_ids    UUID[]      ,
+  created_by    UUID        REFERENCES raice_users(id) ON DELETE SET NULL,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_sched_overrides_date ON raice_schedule_overrides(override_date);
+
+
 -- ─────────────────────────────────────────────────────────────────────
 -- 07. ESTUDIANTES
 -- ─────────────────────────────────────────────────────────────────────
@@ -1063,15 +1074,18 @@ CREATE TABLE IF NOT EXISTS raice_messages (
   subject     TEXT        NOT NULL,
   body        TEXT        NOT NULL,
   target      TEXT        NOT NULL DEFAULT 'all',
+  audience    TEXT        NOT NULL DEFAULT 'teachers'
+                          CHECK (audience IN ('teachers','acudientes')),
   sede_id     UUID        REFERENCES raice_sedes(id) ON DELETE CASCADE,
   expires_at  TIMESTAMPTZ,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS raice_message_reads (
-  message_id  UUID        NOT NULL REFERENCES raice_messages(id) ON DELETE CASCADE,
-  teacher_id  UUID        NOT NULL REFERENCES raice_users(id)    ON DELETE CASCADE,
-  read_at     TIMESTAMPTZ,
+  message_id   UUID        NOT NULL REFERENCES raice_messages(id) ON DELETE CASCADE,
+  teacher_id   UUID        NOT NULL REFERENCES raice_users(id)    ON DELETE CASCADE,
+  read_at      TIMESTAMPTZ,
+  dismissed_at TIMESTAMPTZ,
   PRIMARY KEY (message_id, teacher_id)
 );
 
@@ -1079,6 +1093,24 @@ CREATE INDEX IF NOT EXISTS idx_messages_sender   ON raice_messages(sender_id);
 CREATE INDEX IF NOT EXISTS idx_messages_sede     ON raice_messages(sede_id);
 CREATE INDEX IF NOT EXISTS idx_msg_reads_teacher ON raice_message_reads(teacher_id);
 CREATE INDEX IF NOT EXISTS idx_msg_reads_message ON raice_message_reads(message_id);
+
+-- ─────────────────────────────────────────────────────────────────────
+-- 3.9  Mensajes a familias (acudientes)
+-- ─────────────────────────────────────────────────────────────────────
+-- Registro de lecturas por parte de las familias (1 fila por estudiante que abre el mensaje)
+CREATE TABLE IF NOT EXISTS raice_acudiente_message_reads (
+  message_id UUID NOT NULL REFERENCES raice_messages(id) ON DELETE CASCADE,
+  student_id UUID NOT NULL REFERENCES raice_students(id) ON DELETE CASCADE,
+  read_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (message_id, student_id)
+);
+CREATE INDEX IF NOT EXISTS idx_acud_msg_reads_student ON raice_acudiente_message_reads(student_id);
+CREATE INDEX IF NOT EXISTS idx_acud_msg_reads_message ON raice_acudiente_message_reads(message_id);
+
+-- 3.10  audience y dismissed_at ya están incorporados en los CREATE TABLE de la sección 3.8.
+--       Para bases existentes que no los tengan, ejecutar manualmente:
+--       ALTER TABLE raice_messages      ADD COLUMN IF NOT EXISTS audience      TEXT NOT NULL DEFAULT 'teachers' CHECK (audience IN ('teachers','acudientes'));
+--       ALTER TABLE raice_message_reads ADD COLUMN IF NOT EXISTS dismissed_at  TIMESTAMPTZ;
 
 -- =====================================================================
 -- SECCIÓN 4: FUNCIONES

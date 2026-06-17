@@ -149,6 +149,7 @@ export default async function handler(req, res) {
     if (route === 'raice/schedules/overview')   return await getSchedulesOverview(req, res, user);
     if (route === 'raice/schedules')            return await handleSchedules(req, res, user);
     if (route === 'raice/bell-schedule')        return await handleBellSchedule(req, res, user);
+    if (route === 'raice/schedule-overrides')   return await handleScheduleOverrides(req, res, user);
     if (route === 'raice/teacher-schedule')     return await getTeacherSchedule(req, res, user);
     if (route === 'raice/my-schedule')          return await getTeacherSchedule(req, res, user);
     if (pathParts[0]==='raice' && pathParts[1]==='student-history' && pathParts[2]) return await getStudentHistory(req, res, user);
@@ -476,6 +477,19 @@ function dayOfWeekCO(dateStr) {
   const d = new Date(new Date(`${dateStr}T12:00:00`).toLocaleString('en-US', { timeZone: 'America/Bogota' }));
   const jsDay = d.getDay(); // 0=Sun, 1=Mon ... 6=Sat
   return jsDay === 0 ? 7 : jsDay; // convert to 1=Mon, 7=Sun
+}
+
+// Returns the effective day-of-week for a date, accounting for schedule overrides.
+// course_id: if provided, checks course-specific overrides; null = institution-wide.
+async function getEffectiveDayOfWeek(sb, date, courseId) {
+  const { data: rows } = await sb.from('raice_schedule_overrides')
+    .select('source_day, course_ids').eq('override_date', date);
+  if (!rows?.length) return dayOfWeekCO(date);
+  const match = rows.find(o =>
+    o.course_ids === null ||
+    (courseId && Array.isArray(o.course_ids) && o.course_ids.includes(courseId))
+  );
+  return match ? match.source_day : dayOfWeekCO(date);
 }
 
 // ── Fórmula CANÓNICA de % de asistencia (única fuente de verdad) ──────────────
@@ -2297,10 +2311,10 @@ async function getCourseDaySchedule(req, res, user) {
 
   if (!course_id) return res.status(400).json({ error: 'course_id requerido' });
 
-  // Compute day-of-week (1=Mon … 7=Sun) for the requested date
-  const d = new Date(date + 'T12:00:00');
-  const jsDay = d.getDay(); // 0=Sun
-  const dayNum = jsDay === 0 ? 7 : jsDay;
+  // Compute effective day-of-week — respects schedule overrides
+  const dayNum        = await getEffectiveDayOfWeek(sb, date, course_id);
+  const naturalDayNum = dayOfWeekCO(date);
+  const overrideActive = dayNum !== naturalDayNum;
 
   // Get all teacher_course IDs for this course
   const { data: tcRows } = await sb.from('raice_teacher_courses')
@@ -2359,7 +2373,11 @@ async function getCourseDaySchedule(req, res, user) {
     });
   }
 
-  return res.status(200).json({ hours, date });
+  const DAY_NAMES = { 1:'lunes', 2:'martes', 3:'miércoles', 4:'jueves', 5:'viernes' };
+  return res.status(200).json({
+    hours, date,
+    override: overrideActive ? { source_day: dayNum, day_name: DAY_NAMES[dayNum] || `día ${dayNum}` } : null
+  });
 }
 
 // =====================================================
@@ -2369,7 +2387,16 @@ async function getCourseDaySchedule(req, res, user) {
 async function getMyCourses(req, res, user) {
   const sb    = getSupabase();
   const today  = todayCO();
-  const dayNum = dayOfWeekCO(today); // 1=Mon ... 7=Sun, matches raice_schedules.day_of_week
+  const dayNum = dayOfWeekCO(today); // natural day — may be overridden per course below
+
+  // Load today's schedule overrides once (single query, applied per course)
+  const { data: _todayOverrides } = await sb.from('raice_schedule_overrides')
+    .select('source_day, course_ids').eq('override_date', today);
+  const _effectiveDayForCourse = (courseId) => {
+    if (!_todayOverrides?.length) return dayNum;
+    const match = _todayOverrides.find(o => !o.course_ids || (courseId && o.course_ids.includes(courseId)));
+    return match ? match.source_day : dayNum;
+  };
 
   const { data: tc } = await sb.from('raice_teacher_courses')
     .select('id, course_id, subject, raice_courses(id, grade, number, section, type, name)')
@@ -2466,10 +2493,10 @@ async function getMyCourses(req, res, user) {
       pctByHour[Number(hour)] = v.hasRealList && v.total > 0 ? Math.round((v.present / v.total) * 100) : null;
     });
 
-    // Today's schedule for this assignment
+    // Today's schedule for this assignment (respects schedule overrides)
     const allSlots = scheduleMap[row.id] || [];
     const todaySlots = allSlots
-      .filter(s => s.day_of_week === dayNum)
+      .filter(s => s.day_of_week === _effectiveDayForCourse(c.id))
       .sort((a, b) => a.class_hour - b.class_hour)
       .map(s => {
         // Fill start/end from bell schedule when not set in raice_schedules
@@ -2500,7 +2527,8 @@ async function getMyCourses(req, res, user) {
       pending_hours: pendingHours,
       today_slots: todaySlots,
       week_slots: weekSlots,
-      suspended_map: suspendedMap  // student_id → suspension for this course's students
+      suspended_map: suspendedMap,
+      override_day: _effectiveDayForCourse(c.id) !== dayNum ? _effectiveDayForCourse(c.id) : null,
     };
   });
 
@@ -2516,7 +2544,7 @@ async function getMissingAttendance(req, res, user) {
   const sb  = getSupabase();
   const url = new URL(req.url, `http://${req.headers.host}`);
   const date = url.searchParams.get('date') || todayCO();
-  const dayNum = dayOfWeekCO(date); // 1=Lun … 7=Dom
+  const dayNum = await getEffectiveDayOfWeek(sb, date, null); // respeta cambios de horario
 
   // 1. Todos los horarios programados para ese día de la semana
   const { data: schedRows } = await sb
@@ -2637,7 +2665,7 @@ async function handleAttendance(req, res, user) {
       // skip validation so attendance can still be saved.
       try {
         const tcIds     = tcRows.map(r => r.id);
-        const dayOfWeek = dayOfWeekCO(date);
+        const dayOfWeek = await getEffectiveDayOfWeek(sb, date, course_id);
 
         // Fetch schedules for ALL teacher_course rows of this teacher+course
         const { data: schedRows, error: schedErr } = await sb.from('raice_schedules')
@@ -5656,6 +5684,61 @@ async function cronWeeklyReport(req, res) {
 }
 
 // =====================================================
+// SCHEDULE OVERRIDES — cambio de horario por día
+// =====================================================
+async function handleScheduleOverrides(req, res, user) {
+  requireRole(user, 'superadmin', 'admin');
+  const sb  = getSupabase();
+  const url = new URL(req.url, `http://${req.headers.host}`);
+
+  if (req.method === 'GET') {
+    const { data } = await sb.from('raice_schedule_overrides')
+      .select('id, override_date, source_day, course_ids, created_at')
+      .order('override_date', { ascending: false });
+    // Enrich with course labels
+    const allIds = [...new Set((data || []).flatMap(o => o.course_ids || []))];
+    let courseMap = {};
+    if (allIds.length) {
+      const { data: courses } = await sb.from('raice_courses')
+        .select('id, grade, number').in('id', allIds);
+      (courses || []).forEach(c => { courseMap[c.id] = `${c.grade}°${c.number || ''}`; });
+    }
+    const DAY_NAMES = { 1:'lunes', 2:'martes', 3:'miércoles', 4:'jueves', 5:'viernes' };
+    return res.status(200).json({
+      overrides: (data || []).map(o => ({
+        ...o,
+        source_day_name:  DAY_NAMES[o.source_day] || `día ${o.source_day}`,
+        course_labels:    o.course_ids ? o.course_ids.map(id => courseMap[id]).filter(Boolean) : null,
+      }))
+    });
+  }
+
+  if (req.method === 'POST') {
+    const { override_date, source_day, course_ids } = req.body || {};
+    if (!override_date || !source_day)
+      return res.status(400).json({ error: 'override_date y source_day son requeridos' });
+    const { error } = await sb.from('raice_schedule_overrides').insert({
+      override_date,
+      source_day: parseInt(source_day),
+      course_ids: course_ids?.length ? course_ids : null,
+      created_by: user.id,
+    });
+    if (error) return res.status(500).json({ error: error.message });
+    return res.status(200).json({ ok: true });
+  }
+
+  if (req.method === 'DELETE') {
+    const id = url.searchParams.get('id');
+    if (!id) return res.status(400).json({ error: 'id requerido' });
+    const { error } = await sb.from('raice_schedule_overrides').delete().eq('id', id);
+    if (error) return res.status(500).json({ error: error.message });
+    return res.status(200).json({ ok: true });
+  }
+
+  return res.status(405).end();
+}
+
+// =====================================================
 // SCHEDULES — CRUD
 // =====================================================
 async function handleSchedules(req, res, user) {
@@ -6820,7 +6903,7 @@ async function getReplacementSuggestions(req, res, user) {
   const auto_all     = url.searchParams.get('auto_all')     === '1';
   if (!absence_id) return res.status(400).json({ error: 'absence_id requerido' });
 
-  const dayOfWeek = dayOfWeekCO(date);
+  const dayOfWeek = await getEffectiveDayOfWeek(sb, date, null);
 
   // ── Absence info ───────────────────────────────────
   const { data: absence } = await sb.from('raice_teacher_absences')

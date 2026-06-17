@@ -627,6 +627,11 @@
           <span style="font-size:.78rem;color:var(--gray);margin-left:auto;" id="att-saved-badge"></span>
         </div>
 
+        <!-- Banner: cambio de horario activo para este curso -->
+        <div id="schedule-override-banner" style="display:none;background:#fef3c7;border:1.5px solid #f59e0b;border-radius:12px;padding:.75rem 1rem;margin-bottom:1rem;font-size:.84rem;font-weight:600;color:#92400e;">
+          🔀 Hoy se usa el horario del <span id="override-day-name" style="text-transform:lowercase;"></span>
+        </div>
+
         <!-- Warning: shown when no schedule is configured for this course -->
         <div id="no-schedule-warn" style="display:none;background:#fef9c3;border:1.5px solid #fbbf24;border-radius:12px;padding:.75rem 1rem;margin-bottom:1rem;font-size:.84rem;font-weight:600;color:#92400e;">
           ⚠️ Este curso no tiene horario configurado para hoy — puedes registrar asistencia, pero el coordinador debería configurar el horario semanal.
@@ -2127,6 +2132,16 @@
 
     const warnEl = document.getElementById('no-schedule-warn');
     if (warnEl) warnEl.style.display = (!historyMode && noScheduleAtAll) ? 'block' : 'none';
+
+    // Override banner
+    const DAY_NAMES = { 1:'lunes', 2:'martes', 3:'miércoles', 4:'jueves', 5:'viernes' };
+    const overrideBanner = document.getElementById('schedule-override-banner');
+    const overrideDayEl  = document.getElementById('override-day-name');
+    if (overrideBanner) {
+      const od = !historyMode && course?.override_day;
+      overrideBanner.style.display = od ? 'block' : 'none';
+      if (od && overrideDayEl) overrideDayEl.textContent = DAY_NAMES[od] || `día ${od}`;
+    }
 
     document.getElementById('btn-hour-label').textContent = (ordinals[activeHour-1]||activeHour+'ª') + ' hora';
   }
