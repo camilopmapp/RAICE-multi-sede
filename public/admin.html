@@ -11540,7 +11540,7 @@ async function _ovLoadCourses() {
     return;
   }
   _ovAllCourses = (Array.isArray(data.courses) ? data.courses : Array.isArray(data) ? data : []).sort((a, b) =>
-    (a.grade - b.grade) || (a.number || '').localeCompare(b.number || '')
+    (a.grade - b.grade) || String(a.number || '').localeCompare(String(b.number || ''))
   );
   _ovRenderCourses();
 }
