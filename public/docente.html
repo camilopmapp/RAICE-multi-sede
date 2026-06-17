@@ -2654,6 +2654,9 @@
       <style>td{mso-number-format:"@";}</style>
       </head><body>
       <table cellspacing="0" cellpadding="0">
+        <col style="width:35px">
+        <col style="width:260px">
+        ${Array(numCols).fill('<col style="width:65px">').join('')}
         <tr><td colspan="${totalCols}" style="${hdrCell}font-size:13pt;font-weight:bold;padding:6px 0 2px;">${school}</td></tr>
         <tr><td colspan="${totalCols}" style="${hdrCell}font-size:11pt;font-weight:bold;padding:2px 0;">${grade}${subject ? '&nbsp;&nbsp;·&nbsp;&nbsp;' + subject : ''}</td></tr>
         <tr><td colspan="${totalCols}" style="${hdrCell}font-size:9pt;color:#555;padding:2px 0 6px;">Fecha: ${today}</td></tr>
