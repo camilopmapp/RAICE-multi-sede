@@ -2708,10 +2708,14 @@
     });
 
     // --- Auto-fit column widths based on content ---
-    const maxNameChars = Math.max(...names.map(n => n.length), 20);
+    // Medir ancho real con Canvas (fuente exacta usada en las celdas)
+    const _canvas = document.createElement('canvas');
+    const _ctx    = _canvas.getContext('2d');
+    _ctx.font     = '12pt Arial';
+    const maxPx   = Math.max(...names.map(n => _ctx.measureText(n).width), 80);
+    // Convertir px a unidades ExcelJS (MDW de Calibri 11pt ≈ 7px a 96dpi)
     ws.columns[0].width = 5;
-    // ExcelJS width is in Calibri-11pt units; Arial 12pt ALL CAPS ≈ 1.35× wider
-    ws.columns[1].width = Math.ceil(maxNameChars * 1.35) + 4;
+    ws.columns[1].width = Math.ceil(maxPx / 7) + 2;
     for (let c = 2; c < totalCols; c++) ws.columns[c].width = 8; // score cols
 
     // --- Download ---
