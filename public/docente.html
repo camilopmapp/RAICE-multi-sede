@@ -2709,8 +2709,9 @@
 
     // --- Auto-fit column widths based on content ---
     const maxNameChars = Math.max(...names.map(n => n.length), 20);
-    ws.columns[0].width = 5;                          // N°
-    ws.columns[1].width = maxNameChars + 2;           // Nombres — exact auto-fit
+    ws.columns[0].width = 5;
+    // ExcelJS width is in Calibri-11pt units; Arial 12pt ALL CAPS ≈ 1.35× wider
+    ws.columns[1].width = Math.ceil(maxNameChars * 1.35) + 4;
     for (let c = 2; c < totalCols; c++) ws.columns[c].width = 8; // score cols
 
     // --- Download ---
