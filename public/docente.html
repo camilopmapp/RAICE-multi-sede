@@ -2660,6 +2660,33 @@
       { s: { r: 2, c: 0 }, e: { r: 2, c: totalCols - 1 } },
     ];
 
+    // Styles
+    const thin = { style: 'thin', color: { rgb: 'AAAAAA' } };
+    const bord = { top: thin, bottom: thin, left: thin, right: thin };
+    const centerBold = { alignment: { horizontal: 'center', vertical: 'center', wrapText: false }, font: { bold: true } };
+
+    // Center merged header rows (only the anchor cell A1/A2/A3 needs the style)
+    ws['A1'].s = { alignment: { horizontal: 'center', vertical: 'center' }, font: { bold: true, sz: 13 } };
+    ws['A2'].s = { alignment: { horizontal: 'center', vertical: 'center' }, font: { bold: true, sz: 11 } };
+    ws['A3'].s = { alignment: { horizontal: 'center' }, font: { sz: 10 } };
+
+    // Borders + styles on column-header row (row 4) and data rows
+    const tableStartRow = 4; // 0-indexed: rows 0-3 are header/blank
+    const tableEndRow   = tableStartRow + sorted.length; // inclusive of col-header row
+    for (let r = tableStartRow; r <= tableEndRow; r++) {
+      for (let c = 0; c < totalCols; c++) {
+        const ref = XLSX.utils.encode_cell({ r, c });
+        if (!ws[ref]) ws[ref] = { v: '', t: 's' };
+        if (r === tableStartRow) {
+          // Column header row: bold, centered, border
+          ws[ref].s = { ...centerBold, border: bord };
+        } else {
+          // Data rows: border; center N° and score columns
+          ws[ref].s = { border: bord, alignment: { horizontal: c === 1 ? 'left' : 'center', vertical: 'center' } };
+        }
+      }
+    }
+
     // Column widths
     ws['!cols'] = [
       { wch: 5 },  // N°
@@ -2667,14 +2694,13 @@
       ...Array(numCols).fill({ wch: 9 }),
     ];
 
-    // Row heights: taller for the 3 header rows
+    // Row heights
     ws['!rows'] = [
       { hpt: 22 }, // institución
       { hpt: 20 }, // grado / asignatura
       { hpt: 16 }, // fecha
     ];
 
-    XLSX.utils.book_append_sheet(XLSX.utils.book_new(), ws, 'Calificaciones');
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Calificaciones');
 
