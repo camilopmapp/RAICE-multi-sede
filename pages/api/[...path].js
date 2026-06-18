@@ -6000,11 +6000,12 @@ async function getSchedulesOverview(req, res, user) {
   if (attRes.error)    return res.status(500).json({ error: 'Error al cargar asistencias' });
 
   // Set of "course_hour_dow" keys where attendance was taken this week.
-  // Intentionally NOT keyed by teacher_id: a coordinator or substitute may take
-  // attendance for an absent teacher, and the slot must still show as taken.
-  const attSet = new Set((attRes.data || []).map(a =>
-    `${a.course_id}_${a.class_hour}_${dayOfWeekCO(a.date)}`
-  ));
+  // Filter to teacher_id IS NOT NULL: suspension/system records have null teacher_id
+  // and must not count as "lista pasada" for the school map.
+  const attSet = new Set((attRes.data || [])
+    .filter(a => a.teacher_id !== null)
+    .map(a => `${a.course_id}_${a.class_hour}_${dayOfWeekCO(a.date)}`)
+  );
 
   // Apply sede filter on course_id if required
   const courseSet = sedeCourseIds ? new Set(sedeCourseIds) : null;
