@@ -2401,7 +2401,7 @@
       const rowClass = (s.status==='P'?'present-row':s.status==='A'?'absent-row':s.status==='T'?'late-row':s.status==='S'?'':' permit-row') + (isSuspended ? ' suspended' : '');
       const statusLabel = { P:'✅ Presente', A:'❌ Ausente', T:'⏰ Tarde', PE:'🤒 Con permiso', S:'— Sin registro' }[s.status] || s.status;
       const suspBadge = isSuspended
-        ? `<span class="suspension-badge">🏠 Suspendido · en casa hasta el ${s.suspension.end_date}</span>` : '';
+        ? `<span class="suspension-badge">🏠 En suspensión · hasta el ${s.suspension.end_date}</span>` : '';
       const nameHtml = `<div style="display:flex;flex-direction:column;flex:1;min-width:0;">
         <span class="student-name-text">${studentName(s)}</span>${suspBadge}</div>`;
 
