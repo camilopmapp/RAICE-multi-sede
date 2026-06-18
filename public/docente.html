@@ -1322,8 +1322,9 @@
 
   // todayColombia → importado desde shared/domain
 
-  let myCourses    = [];
-  let activeCourse    = null;
+  let myCourses      = [];
+  let myReplacements = [];
+  let activeCourse   = null;
   let _allPeriods     = [];
   let _allCalendarEvents = [];
   let _todayHolidayInfo  = null; // resultado de /raice/calendar/today
@@ -1793,7 +1794,8 @@
 
     const data = await window.RAICE.fetchMyCourses(fetchAPI);
     const ok = !!data;
-    myCourses = data.courses || [];
+    myCourses      = data.courses || [];
+    myReplacements = data.my_replacements || [];
 
     // Adjust classesPerDay to the max hour in the teacher's actual schedule
     let maxSlotHour = 0;
@@ -1850,21 +1852,25 @@
     }
 
     if (!todayEntries.length) {
-      // No classes today — show a friendly message + link to full course list
-      const dayHasSchedule = myCourses.some(c => c.week_slots && c.week_slots.length > 0);
-      grid.innerHTML = `
-        <div class="no-classes-today">
-          <div style="font-size:2.8rem;margin-bottom:.75rem;">🗓️</div>
-          <div style="font-family:'Fraunces',serif;font-size:1.15rem;font-weight:700;color:var(--navy);margin-bottom:.4rem;">
-            Sin clases este ${dayLabel}
-          </div>
-          <div style="color:var(--gray);font-size:.88rem;max-width:280px;margin:0 auto .75rem;">
-            ${dayHasSchedule ? 'No tienes clases programadas para hoy según tu horario.' : 'Aún no tienes horario configurado. Contacta al coordinador.'}
-          </div>
-          <button class="btn btn-ghost btn-sm" onclick="openMySchedule()">📅 Ver mi horario semanal</button>
-        </div>`;
-      populateCaseCourses();
-      return;
+      // No classes today — show replacements if any, otherwise friendly message
+      if (myReplacements.length) {
+        // Fall through to render replacement cards below
+      } else {
+        const dayHasSchedule = myCourses.some(c => c.week_slots && c.week_slots.length > 0);
+        grid.innerHTML = `
+          <div class="no-classes-today">
+            <div style="font-size:2.8rem;margin-bottom:.75rem;">🗓️</div>
+            <div style="font-family:'Fraunces',serif;font-size:1.15rem;font-weight:700;color:var(--navy);margin-bottom:.4rem;">
+              Sin clases este ${dayLabel}
+            </div>
+            <div style="color:var(--gray);font-size:.88rem;max-width:280px;margin:0 auto .75rem;">
+              ${dayHasSchedule ? 'No tienes clases programadas para hoy según tu horario.' : 'Aún no tienes horario configurado. Contacta al coordinador.'}
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="openMySchedule()">📅 Ver mi horario semanal</button>
+          </div>`;
+        populateCaseCourses();
+        return;
+      }
     }
 
     // Separate pending vs done entries
@@ -1919,10 +1925,44 @@
       </div>`;
     }
 
+    // Replacement cards
+    function buildReplacementCard(rep) {
+      const hourLabel = (ordinals[rep.class_hour - 1] || rep.class_hour + 'ª');
+      const timeStr   = rep.start_time
+        ? rep.start_time.substring(0,5) + (rep.end_time ? ' – ' + rep.end_time.substring(0,5) : '')
+        : hourLabel + ' hora';
+      const courseLabel = rep.course_type === 'subgroup'
+        ? (rep.course_name || rep.course_label)
+        : rep.course_label;
+      const repJson = JSON.stringify(rep).replace(/"/g,'&quot;');
+      return `<div class="course-card" style="border-left:4px solid #f59e0b;background:linear-gradient(135deg,#fffbeb 0%,#fff 100%);" onclick="openReplacementAttendance(JSON.parse(this.dataset.rep))" data-rep="${repJson}">
+        <div class="cc-time">
+          <div class="cc-hour">${rep.class_hour}</div>
+          <div class="cc-htime">${rep.start_time ? rep.start_time.substring(0,5) : 'hora'}</div>
+        </div>
+        <div class="cc-divider"></div>
+        <div class="cc-info">
+          <div class="cc-grade">
+            <span style="background:#fef3c7;color:#92400e;font-size:.65rem;font-weight:700;padding:.1rem .4rem;border-radius:999px;border:1px solid #f59e0b;margin-right:.35rem;vertical-align:middle;">REEMPLAZO</span>${courseLabel}
+          </div>
+          <div class="cc-subject">Por: ${rep.absent_teacher}</div>
+          <div class="cc-stats"><span class="cc-stat">🕐 ${timeStr}</span></div>
+        </div>
+        <div class="cc-status"><span class="cc-pill" style="background:#fef3c7;color:#92400e;border:1px solid #f59e0b;">🔄 Cubrir</span></div>
+      </div>`;
+    }
+
     let html = '';
+
+    // Section: replacements (always at top)
+    if (myReplacements.length) {
+      html += `<div class="grid-section-title">🔄 Hoy cubres</div>`;
+      html += myReplacements.map(buildReplacementCard).join('');
+    }
 
     // Section: pending / upcoming
     if (pending.length) {
+      if (myReplacements.length) html += `<div class="grid-section-title">📋 Tus clases</div>`;
       html += pending.map(buildCard).join('');
     }
 
@@ -1963,6 +2003,23 @@
       today_slots: [{ class_hour: classHour, start_time: block.hora_inicio, end_time: endTime }],
       saved_hours: [],
       week_slots:  [],
+    };
+    openCourseAttendance(course);
+  }
+
+  function openReplacementAttendance(rep) {
+    const course = {
+      id:             rep.course_id,
+      grade:          rep.course_grade,
+      number:         rep.course_number,
+      name:           rep.course_name,
+      subject:        `Reemplazo — ${rep.absent_teacher}`,
+      type:           rep.course_type || 'normal',
+      _slotHour:      rep.class_hour,
+      _isReplacement: true,
+      today_slots:    [{ class_hour: rep.class_hour, start_time: rep.start_time, end_time: rep.end_time }],
+      saved_hours:    [],
+      week_slots:     [],
     };
     openCourseAttendance(course);
   }

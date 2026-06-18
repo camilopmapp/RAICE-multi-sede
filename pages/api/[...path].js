@@ -2532,7 +2532,49 @@ async function getMyCourses(req, res, user) {
     };
   });
 
-  return res.status(200).json({ courses: courses.filter(Boolean) });
+  // Load today's replacement assignments for this teacher
+  let myReplacements = [];
+  const { data: todayAbsences } = await sb.from('raice_teacher_absences')
+    .select('id, teacher_id, reason').eq('date', today);
+  if (todayAbsences?.length) {
+    const absenceIds = todayAbsences.map(a => a.id);
+    const { data: repRows } = await sb.from('raice_absence_replacements')
+      .select('id, absence_id, class_hour, course_id')
+      .eq('replacement_teacher_id', user.id)
+      .in('absence_id', absenceIds);
+    if (repRows?.length) {
+      const repCourseIds  = [...new Set(repRows.map(r => r.course_id).filter(Boolean))];
+      const absTeacherIds = [...new Set(todayAbsences.map(a => a.teacher_id))];
+      const [coursesRes, teachersRes] = await Promise.all([
+        repCourseIds.length  ? sb.from('raice_courses').select('id, grade, number, name, type').in('id', repCourseIds)   : { data: [] },
+        absTeacherIds.length ? sb.from('raice_users').select('id, first_name, last_name').in('id', absTeacherIds) : { data: [] }
+      ]);
+      const repCourseMap  = Object.fromEntries((coursesRes.data  || []).map(c => [c.id, c]));
+      const absTeacherMap = Object.fromEntries((teachersRes.data || []).map(t => [t.id, `${t.first_name} ${t.last_name}`]));
+      const absenceMap    = Object.fromEntries(todayAbsences.map(a => [a.id, a]));
+      myReplacements = repRows.map(r => {
+        const c    = repCourseMap[r.course_id];
+        const abs  = absenceMap[r.absence_id];
+        const bell = bellMap[r.class_hour] || {};
+        return {
+          id:             r.id,
+          class_hour:     r.class_hour,
+          course_id:      r.course_id,
+          course_label:   c ? `${c.grade}°${c.number || ''}` : '—',
+          course_grade:   c?.grade  ?? null,
+          course_number:  c?.number ?? null,
+          course_type:    c?.type   || 'normal',
+          course_name:    c?.name   || null,
+          absent_teacher: abs ? (absTeacherMap[abs.teacher_id] || '—') : '—',
+          reason:         abs?.reason || null,
+          start_time:     bell.start_time || null,
+          end_time:       bell.end_time   || null,
+        };
+      });
+    }
+  }
+
+  return res.status(200).json({ courses: courses.filter(Boolean), my_replacements: myReplacements });
 }
 
 // =====================================================
@@ -2658,7 +2700,15 @@ async function handleAttendance(req, res, user) {
       const { data: tcRows } = await sb.from('raice_teacher_courses')
         .select('id').eq('teacher_id', user.id).eq('course_id', course_id);
       if (!tcRows || !tcRows.length) {
-        return res.status(403).json({ error: 'No tienes acceso a este curso' });
+        // Allow if teacher has a replacement assignment for this course+hour+date
+        const { data: absRows } = await sb.from('raice_teacher_absences').select('id').eq('date', date);
+        const absIds = (absRows || []).map(a => a.id);
+        const isReplacement = absIds.length
+          ? !!(await sb.from('raice_absence_replacements').select('id')
+              .eq('replacement_teacher_id', user.id).eq('course_id', course_id)
+              .eq('class_hour', hour).in('absence_id', absIds).maybeSingle()).data
+          : false;
+        if (!isReplacement) return res.status(403).json({ error: 'No tienes acceso a este curso' });
       }
       // Validate hour against schedule.
       // If raice_schedules table does not exist yet (migration pending),
